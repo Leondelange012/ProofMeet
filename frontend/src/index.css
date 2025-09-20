@@ -1,0 +1,133 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* QR Code scanner styles */
+.qr-scanner {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.qr-scanner video {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+/* Meeting status indicators */
+.meeting-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.meeting-status.active {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+}
+
+.meeting-status.completed {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.meeting-status.flagged {
+  background-color: #ffebee;
+  color: #d32f2f;
+}
+
+/* Compliance percentage indicator */
+.compliance-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.compliance-bar {
+  flex: 1;
+  height: 8px;
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.compliance-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.compliance-fill.good {
+  background-color: #4caf50;
+}
+
+.compliance-fill.warning {
+  background-color: #ff9800;
+}
+
+.compliance-fill.danger {
+  background-color: #f44336;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .meeting-status {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+  }
+  
+  .qr-scanner {
+    max-width: 300px;
+  }
+}
+
+/* Print styles for reports */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-break {
+    page-break-before: always;
+  }
+}
