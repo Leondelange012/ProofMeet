@@ -5,6 +5,7 @@
   "main": "simple-server.js",
   "scripts": {
     "start": "node simple-server.js",
+    "build": "echo 'No build needed for simple server'",
     "dev": "node simple-server.js"
   },
   "dependencies": {
