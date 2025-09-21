@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Container,
   Typography,
@@ -20,14 +20,10 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  FormControlLabel,
-  Checkbox,
 } from '@mui/material';
 import {
   MeetingRoom,
   People,
-  Assessment,
-  CheckCircle,
   Warning,
   QrCode,
 } from '@mui/icons-material';

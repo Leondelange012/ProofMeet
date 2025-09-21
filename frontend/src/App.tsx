@@ -1,4 +1,4 @@
-import React from 'react';
+// React import removed - not needed with new JSX transform
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -45,7 +45,7 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
 
   return (
     <QueryClientProvider client={queryClient}>

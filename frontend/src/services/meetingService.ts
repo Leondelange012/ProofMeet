@@ -1,7 +1,44 @@
 import axios from 'axios';
-import { ApiResponse, Meeting, CreateMeetingRequest, PaginatedResponse } from '@/types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Types defined inline for deployment
+interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+interface Meeting {
+  id: string;
+  title: string;
+  description?: string;
+  scheduledFor: string;
+  duration: number;
+  hostId: string;
+  isActive: boolean;
+  zoomMeetingId?: string;
+  zoomJoinUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CreateMeetingRequest {
+  title: string;
+  description?: string;
+  scheduledFor: string;
+  duration: number;
+}
+
+interface PaginatedResponse<T> extends ApiResponse<T[]> {
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

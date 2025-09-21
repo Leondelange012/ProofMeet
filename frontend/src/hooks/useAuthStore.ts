@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, AuthToken } from '@/types';
+
+// Types defined inline for deployment
+interface User {
+  id: string;
+  email: string;
+  courtId: string;
+  state: string;
+  isHost: boolean;
+  isVerified: boolean;
+}
 
 interface AuthState {
   user: User | null;

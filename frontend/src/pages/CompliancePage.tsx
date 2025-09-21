@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Container,
   Typography,
@@ -22,7 +22,6 @@ import {
   MenuItem,
 } from '@mui/material';
 import {
-  Assessment,
   Download,
   Warning,
   CheckCircle,
