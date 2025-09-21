@@ -11,164 +11,79 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  courtId   String   @unique
-  firstName String?
-  lastName  String?
-  state     State
-  isVerified Boolean @default(false)
-  isHost    Boolean  @default(false)
-  hostId    String?  @unique
-  courtApproved Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String    @id @default(cuid())
+  email             String    @unique
+  courtId           String
+  state             String
+  courtCaseNumber   String
+  isVerified        Boolean   @default(false)
+  isHost            Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
-  courtOrders     CourtOrder[]
-  attendances     Attendance[]
-  hostedMeetings  Meeting[]    @relation("MeetingHost")
-  approvedRecords Attendance[] @relation("AttendanceApprover")
+  hostedMeetings    Meeting[] @relation("HostedMeetings")
+  attendanceRecords AttendanceRecord[]
+  tokens            AuthToken[]
 
   @@map("users")
 }
 
-model CourtOrder {
-  id              String        @id @default(cuid())
-  userId          String
-  courtCaseNumber String
-  frequency       Int           // meetings per week
-  duration        Int           // months
-  meetingTypes    MeetingType[]
-  reportInterval  ReportInterval
-  startDate       DateTime
-  endDate         DateTime
-  isActive        Boolean       @default(true)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  // Relations
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  complianceReports ComplianceReport[]
-
-  @@map("court_orders")
-}
-
 model Meeting {
-  id            String        @id @default(cuid())
-  hostId        String
-  meetingType   MeetingType
-  meetingFormat MeetingFormat
-  scheduledStart DateTime
-  scheduledEnd   DateTime
-  actualStart   DateTime?
-  actualEnd     DateTime?
-  meetingId     String?       // Zoom meeting ID
-  qrCode        String?       // For in-person meetings
-  location      String?       // For in-person meetings
-  isActive      Boolean       @default(true)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  scheduledFor    DateTime
+  duration        Int       // minutes
+  isActive        Boolean   @default(true)
+  zoomMeetingId   String?
+  zoomJoinUrl     String?
+  qrCode          String?   // For in-person meetings
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relations
-  host        User         @relation("MeetingHost", fields: [hostId], references: [id])
-  attendances Attendance[]
+  hostId          String
+  host            User      @relation("HostedMeetings", fields: [hostId], references: [id])
+  attendanceRecords AttendanceRecord[]
 
   @@map("meetings")
 }
 
-model Attendance {
-  id                   String            @id @default(cuid())
-  userId               String
-  meetingId            String
-  joinTime             DateTime?
-  leaveTime            DateTime?
-  duration             Int               // in minutes
-  attendancePercentage Float             // 0-100
-  isApproved           Boolean           @default(false)
-  approvedBy           String?
-  approvedAt           DateTime?
-  checkInQr            String?           // For in-person
-  checkOutQr           String?           // For in-person
-  isComplete           Boolean           @default(false)
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
+model AttendanceRecord {
+  id              String    @id @default(cuid())
+  joinedAt        DateTime?
+  leftAt          DateTime?
+  attendanceType  AttendanceType
+  isApproved      Boolean   @default(false)
+  approvedAt      DateTime?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relations
-  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  meeting  Meeting         @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  approver User?           @relation("AttendanceApprover", fields: [approvedBy], references: [id])
-  flags    AttendanceFlag[]
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  meetingId       String
+  meeting         Meeting   @relation(fields: [meetingId], references: [id])
 
-  @@map("attendances")
+  @@map("attendance_records")
 }
 
-model AttendanceFlag {
-  id           String         @id @default(cuid())
-  attendanceId String
-  type         FlagType
-  message      String
-  severity     FlagSeverity
-  createdAt    DateTime       @default(now())
+model AuthToken {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
 
   // Relations
-  attendance Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
 
-  @@map("attendance_flags")
+  @@map("auth_tokens")
 }
 
-model ComplianceReport {
-  id                    String   @id @default(cuid())
-  userId                String
-  courtOrderId          String
-  reportPeriodStart     DateTime
-  reportPeriodEnd       DateTime
-  totalMeetingsRequired Int
-  totalMeetingsAttended Int
-  compliancePercentage  Float
-  generatedAt           DateTime @default(now())
-  generatedBy           String   // PO or system
-
-  // Relations
-  courtOrder CourtOrder @relation(fields: [courtOrderId], references: [id])
-
-  @@map("compliance_reports")
-}
-
-// Enums
-enum State {
-  CA
-  TX
-  NY
-}
-
-enum MeetingType {
-  AA
-  NA
-  SMART
-  LifeRing
-  Other
-}
-
-enum MeetingFormat {
+enum AttendanceType {
   ONLINE
   IN_PERSON
-}
-
-enum ReportInterval {
-  WEEKLY
-  MONTHLY
-}
-
-enum FlagType {
-  LATE_ENTRY
-  EARLY_LEAVE
-  INCOMPLETE_CHECKOUT
-  NO_APPROVAL
-}
-
-enum FlagSeverity {
-  LOW
-  MEDIUM
-  HIGH
 }
