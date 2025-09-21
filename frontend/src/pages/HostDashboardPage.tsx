@@ -180,7 +180,7 @@ const HostDashboardPage: React.FC = () => {
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Assessment color="info" sx={{ mr: 1 }} />
+                <MeetingRoom color="info" sx={{ mr: 1 }} />
                 <Typography variant="h6">Active Meetings</Typography>
               </Box>
               <Typography variant="h3">{hostStats.activeMeetings}</Typography>
