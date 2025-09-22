@@ -25,41 +25,77 @@ ProofMeet helps courts, probation officers, and meeting hosts track attendance f
 - **Immutable Logs**: Tamper-proof attendance records with digital signatures
 - **Multi-State Support**: Compliant with California, Texas, and New York requirements
 
-## 🚀 Quick Start
+## 🚀 Live System
+
+### 🌐 **Production URLs**
+- **Frontend**: https://proof-meet-frontend.vercel.app
+- **Backend API**: https://proofmeet-backend-production.up.railway.app
+- **Health Check**: https://proofmeet-backend-production.up.railway.app/health
+
+### 🧪 **Test Accounts**
+- **Host**: `host1@example.com` (Court-appointed monitor)
+- **Participant**: `participant1@example.com` (Meeting attendee)
+
+### 🎯 **Quick Demo**
+1. Visit https://proof-meet-frontend.vercel.app
+2. Login with either test account (no password needed)
+3. Explore the dashboard and features
+4. Test both host and participant workflows
+
+### 📊 **Current Status**
+- ✅ **Production Ready**: Full deployment with persistent database
+- ✅ **User Authentication**: Email-based login with session management  
+- ✅ **Database Integration**: PostgreSQL with Prisma ORM
+- ✅ **Multi-User Support**: Host and participant roles
+- 🔄 **In Development**: Zoom SDK integration for real meetings
+- ⏳ **Planned**: QR code system for in-person attendance
+
+## 🛠️ Local Development
 
 ### Prerequisites
 - Node.js 18+ 
 - PostgreSQL 14+
-- Zoom API credentials
-- Court verification system access
+- Git
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-org/proofmeet.git
-   cd proofmeet
+   git clone https://github.com/Leondelange012/ProofMeet.git
+   cd ProofMeet
    ```
 
-2. **Install dependencies**
+2. **Install frontend dependencies**
    ```bash
+   cd frontend
    npm install
    ```
 
-3. **Set up environment variables**
+3. **Install backend dependencies**
    ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
+   cd ../backend
+   npm install
    ```
 
-4. **Set up the database**
+4. **Set up environment variables**
    ```bash
-   npm run db:migrate
-   npm run db:seed
+   # Backend: Create .env file with DATABASE_URL
+   # Frontend: Configure API endpoint
    ```
 
-5. **Start the development server**
+5. **Run database migrations**
    ```bash
+   npx prisma migrate dev
+   npx prisma generate
+   ```
+
+6. **Start development servers**
+   ```bash
+   # Backend (port 5000)
+   npm run dev
+   
+   # Frontend (port 3000) - in separate terminal
+   cd ../frontend
    npm run dev
    ```
 
@@ -87,12 +123,12 @@ The application will be available at:
 ## 🏗️ Architecture
 
 ### Tech Stack
-- **Frontend**: React 18 + TypeScript + Material-UI
-- **Backend**: Node.js + Express + TypeScript
-- **Database**: PostgreSQL + Prisma ORM
-- **Authentication**: Auth0
-- **Integration**: Zoom SDK/API
-- **Deployment**: Docker + AWS
+- **Frontend**: React 18 + TypeScript + Material-UI (Deployed on Vercel)
+- **Backend**: Node.js + Express + Prisma ORM (Deployed on Railway)
+- **Database**: PostgreSQL (Hosted on Railway)
+- **Authentication**: Email-based with persistent sessions
+- **Integration**: Zoom SDK/API (In Development)
+- **Deployment**: Vercel (Frontend) + Railway (Backend + Database)
 
 ### Project Structure
 ```
