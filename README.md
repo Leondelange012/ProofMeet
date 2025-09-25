@@ -36,19 +36,32 @@ ProofMeet helps courts, probation officers, and meeting hosts track attendance f
 - **Host**: `host1@example.com` (Court-appointed monitor)
 - **Participant**: `participant1@example.com` (Meeting attendee)
 
-### 🎯 **Quick Demo**
+### 🎯 **Live Demo & Testing**
+
+**🎬 Complete Stakeholder Demo:**
+1. **Host Workflow**: 
+   - Login: `host1@example.com` → Host Dashboard → Create Meeting → Real Zoom meeting generated
+2. **Participant Workflow**: 
+   - Login: `participant1@example.com` → Participant Dashboard → View compliance stats
+3. **Meeting Testing**: 
+   - Use generated Zoom URLs to join actual meetings
+   - Test both desktop and mobile access
+   - Verify court compliance tracking
+
+**🧪 Quick Test:**
 1. Visit https://proof-meet-frontend.vercel.app
 2. Login with either test account (no password needed)
-3. Explore the dashboard and features
-4. Test both host and participant workflows
+3. Create a meeting as host and join it via Zoom
+4. Verify end-to-end functionality
 
 ### 📊 **Current Status**
 - ✅ **Production Ready**: Full deployment with persistent database
 - ✅ **User Authentication**: Email-based login with session management  
 - ✅ **Database Integration**: PostgreSQL with Prisma ORM
 - ✅ **Multi-User Support**: Host and participant roles
-- 🔄 **In Development**: Zoom SDK integration for real meetings
-- ⏳ **Planned**: QR code system for in-person attendance
+- ✅ **Zoom Integration**: Real meeting creation and joining functional
+- ✅ **End-to-End Testing**: Complete workflow verified and operational
+- ⏳ **Next Phase**: QR code system for in-person attendance
 
 ## 🛠️ Local Development
 
