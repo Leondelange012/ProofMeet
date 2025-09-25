@@ -174,7 +174,7 @@ const HostDashboardPage: React.FC = () => {
       });
 
       if (response.success) {
-        setCreateMeetingSuccess(`Meeting "${meetingForm.title}" created successfully! Meeting ID: ${response.data?.meetingId}`);
+        setCreateMeetingSuccess(`Meeting "${meetingForm.title}" created successfully!`);
         // Reset form
         setMeetingForm({
           title: '',

@@ -10,6 +10,7 @@ interface ApiResponse<T = any> {
 
 interface Meeting {
   id: string;
+  meetingId?: string; // For API responses
   title: string;
   description?: string;
   scheduledFor: string;
@@ -19,6 +20,7 @@ interface Meeting {
   zoomMeetingId?: string;
   zoomJoinUrl?: string;
   zoomStartUrl?: string;
+  joinUrl?: string; // Alternative name for join URL
   createdAt: string;
   updatedAt: string;
 }
