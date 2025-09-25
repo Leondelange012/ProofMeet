@@ -63,9 +63,9 @@ const HostDashboardPage: React.FC = () => {
   };
 
   // Load real meetings
-  React.useEffect(() => {
-    loadMeetings();
-  }, []);
+  // React.useEffect(() => {
+  //   loadMeetings();
+  // }, []);
 
   const loadMeetings = async () => {
     try {
@@ -82,7 +82,7 @@ const HostDashboardPage: React.FC = () => {
     }
   };
 
-  const mockMeetings = [
+  const staticMeetings = [
     {
       id: '1',
       type: 'AA',
@@ -308,7 +308,7 @@ const HostDashboardPage: React.FC = () => {
           </Typography>
           
           <Grid container spacing={2}>
-            {meetings.map((meeting) => (
+            {staticMeetings.map((meeting) => (
               <Grid item xs={12} md={6} key={meeting.id}>
                 <Card variant="outlined">
                   <CardContent>
