@@ -21,6 +21,7 @@
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
     "@mui/x-date-pickers": "^6.18.0",
+    "date-fns": "^2.30.0",
     "dayjs": "^1.11.10",
     "axios": "^1.6.2",
     "react-query": "^3.39.3",

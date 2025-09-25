@@ -20,10 +20,16 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  Alert,
+  CircularProgress,
 } from '@mui/material';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import {
   MeetingRoom,
   People,
+  Add,
   Warning,
   QrCode,
 } from '@mui/icons-material';
@@ -31,6 +37,18 @@ import {
 const HostDashboardPage: React.FC = () => {
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState<any>(null);
+  const [openCreateDialog, setOpenCreateDialog] = useState(false);
+  const [isCreatingMeeting, setIsCreatingMeeting] = useState(false);
+  const [createMeetingError, setCreateMeetingError] = useState<string | null>(null);
+  const [createMeetingSuccess, setCreateMeetingSuccess] = useState<string | null>(null);
+  
+  // Meeting creation form state
+  const [meetingForm, setMeetingForm] = useState({
+    title: '',
+    description: '',
+    scheduledFor: new Date(Date.now() + 60 * 60 * 1000), // Default to 1 hour from now
+    duration: 60
+  });
 
   // Mock data - in real app, this would come from API
   const hostStats = {
@@ -139,12 +157,60 @@ const HostDashboardPage: React.FC = () => {
     }
   };
 
+  const handleCreateMeeting = async () => {
+    setIsCreatingMeeting(true);
+    setCreateMeetingError(null);
+    setCreateMeetingSuccess(null);
+
+    try {
+      // Import meetingService at the top of the file
+      const { meetingService } = await import('../services/meetingService');
+      
+      const response = await meetingService.createMeeting({
+        title: meetingForm.title,
+        description: meetingForm.description,
+        scheduledFor: meetingForm.scheduledFor.toISOString(),
+        duration: meetingForm.duration
+      });
+
+      if (response.success) {
+        setCreateMeetingSuccess(`Meeting "${meetingForm.title}" created successfully! Meeting ID: ${response.data?.meetingId}`);
+        // Reset form
+        setMeetingForm({
+          title: '',
+          description: '',
+          scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
+          duration: 60
+        });
+        // Close dialog after 2 seconds
+        setTimeout(() => {
+          setOpenCreateDialog(false);
+          setCreateMeetingSuccess(null);
+        }, 2000);
+      } else {
+        setCreateMeetingError(response.error || 'Failed to create meeting');
+      }
+    } catch (error: any) {
+      setCreateMeetingError('Failed to create meeting: ' + error.message);
+    } finally {
+      setIsCreatingMeeting(false);
+    }
+  };
+
   return (
     <Container maxWidth="lg">
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h4" gutterBottom>
           Host Dashboard
         </Typography>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={() => setOpenCreateDialog(true)}
+          sx={{ mb: 2 }}
+        >
+          Create Meeting
+        </Button>
         <Typography variant="body1" color="text.secondary">
           Manage meetings and approve attendance
         </Typography>
@@ -378,6 +444,77 @@ const HostDashboardPage: React.FC = () => {
             onClick={() => handleApprovalSubmit(true)}
           >
             Approve
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Meeting Dialog */}
+      <Dialog open={openCreateDialog} onClose={() => setOpenCreateDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Create New Meeting</DialogTitle>
+        <DialogContent>
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
+              {createMeetingError && (
+                <Alert severity="error">{createMeetingError}</Alert>
+              )}
+              {createMeetingSuccess && (
+                <Alert severity="success">{createMeetingSuccess}</Alert>
+              )}
+              
+              <TextField
+                fullWidth
+                label="Meeting Title"
+                value={meetingForm.title}
+                onChange={(e) => setMeetingForm({ ...meetingForm, title: e.target.value })}
+                required
+                placeholder="e.g., AA Meeting - Downtown Group"
+              />
+              
+              <TextField
+                fullWidth
+                label="Description"
+                value={meetingForm.description}
+                onChange={(e) => setMeetingForm({ ...meetingForm, description: e.target.value })}
+                multiline
+                rows={3}
+                placeholder="Meeting description or notes"
+              />
+              
+              <DateTimePicker
+                label="Scheduled Date & Time"
+                value={meetingForm.scheduledFor}
+                onChange={(newValue) => setMeetingForm({ ...meetingForm, scheduledFor: newValue || new Date() })}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    required: true
+                  }
+                }}
+              />
+              
+              <TextField
+                fullWidth
+                label="Duration (minutes)"
+                type="number"
+                value={meetingForm.duration}
+                onChange={(e) => setMeetingForm({ ...meetingForm, duration: parseInt(e.target.value) || 60 })}
+                required
+                inputProps={{ min: 15, max: 480 }}
+              />
+            </Box>
+          </LocalizationProvider>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenCreateDialog(false)} disabled={isCreatingMeeting}>
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleCreateMeeting}
+            disabled={isCreatingMeeting || !meetingForm.title}
+            startIcon={isCreatingMeeting ? <CircularProgress size={20} /> : <Add />}
+          >
+            {isCreatingMeeting ? 'Creating...' : 'Create Meeting'}
           </Button>
         </DialogActions>
       </Dialog>

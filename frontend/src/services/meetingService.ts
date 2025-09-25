@@ -18,6 +18,7 @@ interface Meeting {
   isActive: boolean;
   zoomMeetingId?: string;
   zoomJoinUrl?: string;
+  zoomStartUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +69,18 @@ export const meetingService = {
       return {
         success: false,
         error: error.response?.data?.error || 'Failed to create meeting',
+      };
+    }
+  },
+
+  async testZoomConnection(): Promise<ApiResponse<any>> {
+    try {
+      const response = await api.get('/zoom/test');
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Zoom connection test failed',
       };
     }
   },
