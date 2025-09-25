@@ -50,15 +50,39 @@ const HostDashboardPage: React.FC = () => {
     duration: 60
   });
 
+  // State for real meetings
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [isLoadingMeetings, setIsLoadingMeetings] = useState(true);
+  
   // Mock data - in real app, this would come from API
   const hostStats = {
-    totalMeetings: 15,
-    activeMeetings: 2,
+    totalMeetings: meetings.length || 15,
+    activeMeetings: meetings.filter(m => m.isActive).length || 2,
     totalAttendees: 45,
     pendingApprovals: 3,
   };
 
-  const meetings = [
+  // Load real meetings
+  React.useEffect(() => {
+    loadMeetings();
+  }, []);
+
+  const loadMeetings = async () => {
+    try {
+      const { meetingService } = await import('../services/meetingService');
+      // For now, we'll use a mock host ID - in real app, this would come from auth
+      const response = await meetingService.getMeetings('mock-host-id', 1, 10, 'active');
+      if (response.success && response.data) {
+        setMeetings(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load meetings:', error);
+    } finally {
+      setIsLoadingMeetings(false);
+    }
+  };
+
+  const mockMeetings = [
     {
       id: '1',
       type: 'AA',
@@ -174,7 +198,8 @@ const HostDashboardPage: React.FC = () => {
       });
 
       if (response.success) {
-        setCreateMeetingSuccess(`Meeting "${meetingForm.title}" created successfully!`);
+        const joinUrl = response.data?.joinUrl || response.data?.zoomJoinUrl || 'No join URL available';
+        setCreateMeetingSuccess(`Meeting "${meetingForm.title}" created successfully! Join URL: ${joinUrl}`);
         // Reset form
         setMeetingForm({
           title: '',
@@ -182,11 +207,11 @@ const HostDashboardPage: React.FC = () => {
           scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
           duration: 60
         });
-        // Close dialog after 2 seconds
+        // Close dialog after 10 seconds to allow copying the URL
         setTimeout(() => {
           setOpenCreateDialog(false);
           setCreateMeetingSuccess(null);
-        }, 2000);
+        }, 10000);
       } else {
         setCreateMeetingError(response.error || 'Failed to create meeting');
       }
@@ -203,14 +228,22 @@ const HostDashboardPage: React.FC = () => {
         <Typography variant="h4" gutterBottom>
           Host Dashboard
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setOpenCreateDialog(true)}
-          sx={{ mb: 2 }}
-        >
-          Create Meeting
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setOpenCreateDialog(true)}
+          >
+            Create Meeting
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={loadMeetings}
+            disabled={isLoadingMeetings}
+          >
+            {isLoadingMeetings ? 'Loading...' : 'Refresh Meetings'}
+          </Button>
+        </Box>
         <Typography variant="body1" color="text.secondary">
           Manage meetings and approve attendance
         </Typography>
