@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -33,8 +33,10 @@ import {
   Warning,
   QrCode,
 } from '@mui/icons-material';
+import { useAuthStore } from '../hooks/useAuthStore';
 
 const HostDashboardPage: React.FC = () => {
+  const { user } = useAuthStore();
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState<any>(null);
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -63,15 +65,21 @@ const HostDashboardPage: React.FC = () => {
   };
 
   // Load real meetings
-  // React.useEffect(() => {
-  //   loadMeetings();
-  // }, []);
+  useEffect(() => {
+    if (user?.id) {
+      loadMeetings();
+    }
+  }, [user?.id]);
 
   const loadMeetings = async () => {
     try {
       const { meetingService } = await import('../services/meetingService');
-      // For now, we'll use a mock host ID - in real app, this would come from auth
-      const response = await meetingService.getMeetings('mock-host-id', 1, 10, 'active');
+      // Use real host ID from authenticated user
+      if (!user?.id) {
+        console.error('No user ID available');
+        return;
+      }
+      const response = await meetingService.getMeetings(user.id, 1, 10, 'active');
       if (response.success && response.data) {
         setMeetings(response.data);
       }
@@ -197,22 +205,24 @@ const HostDashboardPage: React.FC = () => {
         duration: meetingForm.duration
       });
 
-      if (response.success) {
-        const joinUrl = response.data?.joinUrl || response.data?.zoomJoinUrl || 'No join URL available';
-        setCreateMeetingSuccess(`Meeting "${meetingForm.title}" created successfully! Join URL: ${joinUrl}`);
-        // Reset form
-        setMeetingForm({
-          title: '',
-          description: '',
-          scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
-          duration: 60
-        });
-        // Close dialog after 10 seconds to allow copying the URL
-        setTimeout(() => {
-          setOpenCreateDialog(false);
-          setCreateMeetingSuccess(null);
-        }, 10000);
-      } else {
+          if (response.success) {
+            const joinUrl = response.data?.joinUrl || response.data?.zoomJoinUrl || 'No join URL available';
+            setCreateMeetingSuccess(`Meeting "${meetingForm.title}" created successfully! Join URL: ${joinUrl}`);
+            // Reset form
+            setMeetingForm({
+              title: '',
+              description: '',
+              scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
+              duration: 60
+            });
+            // Reload meetings to show the new one
+            loadMeetings();
+            // Close dialog after 10 seconds to allow copying the URL
+            setTimeout(() => {
+              setOpenCreateDialog(false);
+              setCreateMeetingSuccess(null);
+            }, 10000);
+          } else {
         setCreateMeetingError(response.error || 'Failed to create meeting');
       }
     } catch (error: any) {
@@ -308,20 +318,20 @@ const HostDashboardPage: React.FC = () => {
           </Typography>
           
           <Grid container spacing={2}>
-            {staticMeetings.map((meeting) => (
+            {(meetings.length > 0 ? meetings : staticMeetings).map((meeting) => (
               <Grid item xs={12} md={6} key={meeting.id}>
                 <Card variant="outlined">
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="h6">{meeting.type}</Typography>
+                      <Typography variant="h6">{meeting.title || meeting.type}</Typography>
                       <Chip
-                        label={meeting.status}
-                        color={getStatusColor(meeting.status) as any}
+                        label={meeting.isActive ? 'active' : (meeting.status || 'upcoming')}
+                        color={getStatusColor(meeting.isActive ? 'active' : (meeting.status || 'upcoming')) as any}
                         size="small"
                       />
                     </Box>
                     <Typography variant="body2" color="text.secondary" gutterBottom>
-                      {new Date(meeting.scheduledStart).toLocaleString()}
+                      {new Date(meeting.scheduledFor || meeting.scheduledStart).toLocaleString()}
                     </Typography>
                     <Typography variant="body2" gutterBottom>
                       Attendees: {meeting.attendees}
