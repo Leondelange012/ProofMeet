@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -20,38 +20,68 @@ import {
   LocationOn,
   Schedule,
 } from '@mui/icons-material';
+import { useAuthStore } from '../hooks/useAuthStore';
 
 const MeetingPage: React.FC = () => {
+  const { user } = useAuthStore();
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [meetingId, setMeetingId] = useState('');
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [isLoadingMeetings, setIsLoadingMeetings] = useState(true);
 
-  // Mock data - in real app, this would come from API
-  const meetings = [
+  // Load available meetings for participants
+  useEffect(() => {
+    loadAvailableMeetings();
+  }, []);
+
+  const loadAvailableMeetings = async () => {
+    try {
+      const { meetingService } = await import('../services/meetingService');
+      // For participants, we'll load all active meetings (simplified for demo)
+      // In a real system, this would be based on court assignments
+      const response = await meetingService.getAllMeetings();
+      if (response.success && response.data) {
+        setMeetings(response.data);
+      } else {
+        // Fallback to static meetings if API fails
+        setMeetings(staticMeetings);
+      }
+    } catch (error) {
+      console.error('Failed to load meetings:', error);
+      // Fallback to static meetings
+      setMeetings(staticMeetings);
+    } finally {
+      setIsLoadingMeetings(false);
+    }
+  };
+
+  // Static fallback meetings
+  const staticMeetings = [
     {
       id: '1',
-      type: 'AA',
+      title: 'AA Meeting',
       format: 'online',
-      scheduledStart: '2024-01-20T19:00:00Z',
-      scheduledEnd: '2024-01-20T20:00:00Z',
+      scheduledFor: '2024-01-20T19:00:00Z',
+      duration: 60,
       location: null,
-      zoomMeetingId: '123456789',
+      zoomJoinUrl: null,
       status: 'upcoming',
     },
     {
-      id: '2',
-      type: 'NA',
+      id: '2', 
+      title: 'NA Meeting',
       format: 'in-person',
-      scheduledStart: '2024-01-22T18:00:00Z',
-      scheduledEnd: '2024-01-22T19:00:00Z',
+      scheduledFor: '2024-01-22T18:00:00Z',
+      duration: 45,
       location: 'Community Center, Room 101',
-      zoomMeetingId: null,
+      zoomJoinUrl: null,
       status: 'upcoming',
     },
   ];
 
-  const handleJoinOnlineMeeting = (zoomMeetingId: string) => {
-    // In real app, this would integrate with Zoom SDK
-    window.open(`https://zoom.us/j/${zoomMeetingId}`, '_blank');
+  const handleJoinOnlineMeeting = (zoomJoinUrl: string) => {
+    // Use the full Zoom join URL
+    window.open(zoomJoinUrl, '_blank');
   };
 
   const handleQrScan = () => {
@@ -122,10 +152,10 @@ const MeetingPage: React.FC = () => {
             <Card>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                  <Typography variant="h6">{meeting.type}</Typography>
+                  <Typography variant="h6">{meeting.title || meeting.type}</Typography>
                   <Chip
-                    label={meeting.status}
-                    color={getStatusColor(meeting.status) as any}
+                    label={meeting.isActive ? 'active' : (meeting.status || 'upcoming')}
+                    color={getStatusColor(meeting.isActive ? 'active' : (meeting.status || 'upcoming')) as any}
                     size="small"
                   />
                 </Box>
@@ -133,7 +163,7 @@ const MeetingPage: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                   <Schedule sx={{ mr: 1, fontSize: 20 }} />
                   <Typography variant="body2">
-                    {formatDateTime(meeting.scheduledStart)}
+                    {formatDateTime(meeting.scheduledFor || meeting.scheduledStart)}
                   </Typography>
                 </Box>
 
@@ -150,11 +180,11 @@ const MeetingPage: React.FC = () => {
                 )}
 
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {meeting.format === 'online' ? (
+                  {meeting.zoomJoinUrl ? (
                     <Button
                       variant="contained"
                       startIcon={<VideoCall />}
-                      onClick={() => handleJoinOnlineMeeting(meeting.zoomMeetingId!)}
+                      onClick={() => handleJoinOnlineMeeting(meeting.zoomJoinUrl)}
                     >
                       Join Zoom Meeting
                     </Button>

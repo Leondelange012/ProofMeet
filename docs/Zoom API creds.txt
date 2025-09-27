@@ -5,3 +5,5 @@ Account ID: csxjpAf5Ruml6T-ol_hJBQ
 Client ID: Xyt7NChhTe679v_P865ktw
 
 Client Secret ID: w4Jerea8ifg8tafDYlq2jBKAh8v0j5eY
+
+Secret token: -Bh8F6oxRsazIGVWZgI0sg

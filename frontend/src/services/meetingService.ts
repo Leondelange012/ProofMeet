@@ -108,6 +108,27 @@ export const meetingService = {
     }
   },
 
+  async getAllMeetings(page = 1, limit = 20, status = 'active'): Promise<PaginatedResponse<Meeting>> {
+    try {
+      const response = await api.get('/meetings/all', {
+        params: { page, limit, status },
+      });
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to get all meetings',
+        data: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          totalPages: 0,
+        },
+      };
+    }
+  },
+
   async getMeeting(meetingId: string): Promise<ApiResponse<Meeting>> {
     try {
       const response = await api.get(`/meetings/${meetingId}`);
