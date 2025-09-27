@@ -46,9 +46,9 @@ api.interceptors.request.use((config) => {
 });
 
 export const authService = {
-  async login(email: string): Promise<ApiResponse<{ token: string; user: User }>> {
+  async login(email: string, password: string): Promise<ApiResponse<{ token: string; user: User }>> {
     try {
-      const response = await api.post('/auth/login', { email });
+      const response = await api.post('/auth/login', { email, password });
       return response.data;
     } catch (error: any) {
       return {

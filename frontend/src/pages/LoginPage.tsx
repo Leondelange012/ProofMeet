@@ -14,15 +14,17 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { useAuthStore } from '@/hooks/useAuthStore';
-import { authService } from '@/services/authService';
+import { useAuthStore } from '../hooks/useAuthStore';
+import { authService } from '../services/authService';
 
 const schema = yup.object({
   email: yup.string().email('Invalid email').required('Email is required'),
+  password: yup.string().required('Password is required'),
 });
 
 type LoginFormData = {
   email: string;
+  password: string;
 };
 
 const LoginPage: React.FC = () => {
@@ -44,7 +46,7 @@ const LoginPage: React.FC = () => {
     setError(null);
 
     try {
-      const response = await authService.login(data.email);
+      const response = await authService.login(data.email, data.password);
       
       if (response.success && response.data) {
         login(response.data.token, response.data.user);
@@ -100,6 +102,20 @@ const LoginPage: React.FC = () => {
               autoFocus
               error={!!errors.email}
               helperText={errors.email?.message}
+            />
+
+            <TextField
+              {...register('password')}
+              margin="normal"
+              required
+              fullWidth
+              id="password"
+              label="Password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              error={!!errors.password}
+              helperText={errors.password?.message}
             />
 
             <Button
