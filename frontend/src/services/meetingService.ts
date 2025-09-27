@@ -141,6 +141,30 @@ export const meetingService = {
     }
   },
 
+  async deleteMeeting(meetingId: string): Promise<ApiResponse<void>> {
+    try {
+      const response = await api.delete(`/meetings/${meetingId}`);
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to delete meeting',
+      };
+    }
+  },
+
+  async updateMeeting(meetingId: string, meetingData: Partial<CreateMeetingRequest>): Promise<ApiResponse<Meeting>> {
+    try {
+      const response = await api.put(`/meetings/${meetingId}`, meetingData);
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to update meeting',
+      };
+    }
+  },
+
   async updateMeetingStatus(meetingId: string, isActive: boolean): Promise<ApiResponse<Meeting>> {
     try {
       const response = await api.patch(`/meetings/${meetingId}/status`, { isActive });

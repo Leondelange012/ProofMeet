@@ -26,29 +26,6 @@ const MeetingPage: React.FC = () => {
   const [meetingId, setMeetingId] = useState('');
   const [meetings, setMeetings] = useState<any[]>([]);
 
-  // Static fallback meetings
-  const staticMeetings = [
-    {
-      id: '1',
-      title: 'AA Meeting',
-      format: 'online',
-      scheduledFor: '2024-01-20T19:00:00Z',
-      duration: 60,
-      location: null,
-      zoomJoinUrl: null,
-      status: 'upcoming',
-    },
-    {
-      id: '2', 
-      title: 'NA Meeting',
-      format: 'in-person',
-      scheduledFor: '2024-01-22T18:00:00Z',
-      duration: 45,
-      location: 'Community Center, Room 101',
-      zoomJoinUrl: null,
-      status: 'upcoming',
-    },
-  ];
 
   // Load available meetings for participants
   useEffect(() => {
@@ -64,13 +41,13 @@ const MeetingPage: React.FC = () => {
       if (response.success && response.data) {
         setMeetings(response.data);
       } else {
-        // Fallback to static meetings if API fails
-        setMeetings(staticMeetings);
+        // No fallback - show empty if API fails
+        setMeetings([]);
       }
     } catch (error) {
       console.error('Failed to load meetings:', error);
-      // Fallback to static meetings
-      setMeetings(staticMeetings);
+      // No fallback - show empty if API fails
+      setMeetings([]);
     }
   };
 

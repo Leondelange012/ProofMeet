@@ -32,6 +32,8 @@ import {
   Add,
   Warning,
   QrCode,
+  Delete,
+  Edit,
 } from '@mui/icons-material';
 import { useAuthStore } from '../hooks/useAuthStore';
 
@@ -55,6 +57,10 @@ const HostDashboardPage: React.FC = () => {
   // State for real meetings
   const [meetings, setMeetings] = useState<any[]>([]);
   const [isLoadingMeetings, setIsLoadingMeetings] = useState(true);
+  
+  // State for meeting management
+  const [editingMeeting, setEditingMeeting] = useState<any>(null);
+  const [isDeletingMeeting, setIsDeletingMeeting] = useState(false);
   
   // Mock data - in real app, this would come from API
   const hostStats = {
@@ -90,27 +96,41 @@ const HostDashboardPage: React.FC = () => {
     }
   };
 
-  const staticMeetings = [
-    {
-      id: '1',
-      type: 'AA',
-      format: 'online',
-      scheduledStart: '2024-01-20T19:00:00Z',
-      scheduledEnd: '2024-01-20T20:00:00Z',
-      attendees: 8,
-      status: 'active',
-    },
-    {
-      id: '2',
-      type: 'NA',
-      format: 'in-person',
-      scheduledStart: '2024-01-22T18:00:00Z',
-      scheduledEnd: '2024-01-22T19:00:00Z',
-      location: 'Community Center, Room 101',
-      attendees: 12,
-      status: 'upcoming',
-    },
-  ];
+  const handleDeleteMeeting = async (meetingId: string) => {
+    if (!confirm('Are you sure you want to delete this meeting?')) {
+      return;
+    }
+    
+    setIsDeletingMeeting(true);
+    try {
+      const { meetingService } = await import('../services/meetingService');
+      const response = await meetingService.deleteMeeting(meetingId);
+      if (response.success) {
+        setMeetings(meetings.filter(m => m.id !== meetingId));
+        setCreateMeetingSuccess('Meeting deleted successfully!');
+        setTimeout(() => setCreateMeetingSuccess(null), 3000);
+      } else {
+        setCreateMeetingError(response.error || 'Failed to delete meeting');
+      }
+    } catch (error) {
+      console.error('Failed to delete meeting:', error);
+      setCreateMeetingError('Failed to delete meeting');
+    } finally {
+      setIsDeletingMeeting(false);
+    }
+  };
+
+  const handleEditMeeting = (meeting: any) => {
+    setEditingMeeting(meeting);
+    setMeetingForm({
+      title: meeting.title,
+      description: meeting.description || '',
+      scheduledFor: new Date(meeting.scheduledFor),
+      duration: meeting.duration
+    });
+    setOpenCreateDialog(true);
+  };
+
 
   const pendingApprovals = [
     {
@@ -198,35 +218,52 @@ const HostDashboardPage: React.FC = () => {
       // Import meetingService at the top of the file
       const { meetingService } = await import('../services/meetingService');
       
-      const response = await meetingService.createMeeting({
+      const meetingData = {
         title: meetingForm.title,
         description: meetingForm.description,
         scheduledFor: meetingForm.scheduledFor.toISOString(),
         duration: meetingForm.duration
-      });
+      };
 
-          if (response.success) {
-            const joinUrl = response.data?.joinUrl || response.data?.zoomJoinUrl || 'No join URL available';
-            setCreateMeetingSuccess(`Meeting "${meetingForm.title}" created successfully! Join URL: ${joinUrl}`);
-            // Reset form
-            setMeetingForm({
-              title: '',
-              description: '',
-              scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
-              duration: 60
-            });
-            // Reload meetings to show the new one
-            loadMeetings();
-            // Close dialog after 10 seconds to allow copying the URL
-            setTimeout(() => {
-              setOpenCreateDialog(false);
-              setCreateMeetingSuccess(null);
-            }, 10000);
-          } else {
-        setCreateMeetingError(response.error || 'Failed to create meeting');
+      let response;
+      if (editingMeeting) {
+        // Update existing meeting
+        response = await meetingService.updateMeeting(editingMeeting.id, meetingData);
+      } else {
+        // Create new meeting
+        response = await meetingService.createMeeting(meetingData);
+      }
+
+      if (response.success) {
+        if (editingMeeting) {
+          setCreateMeetingSuccess(`Meeting "${meetingForm.title}" updated successfully!`);
+          setMeetings(meetings.map(m => m.id === editingMeeting.id ? { ...m, ...meetingData } : m));
+        } else {
+          const joinUrl = response.data?.joinUrl || response.data?.zoomJoinUrl || 'No join URL available';
+          setCreateMeetingSuccess(`Meeting "${meetingForm.title}" created successfully! Join URL: ${joinUrl}`);
+          // Reload meetings to show the new one
+          loadMeetings();
+        }
+        
+        // Reset form and editing state
+        setMeetingForm({
+          title: '',
+          description: '',
+          scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
+          duration: 60
+        });
+        setEditingMeeting(null);
+        
+        // Close dialog after 10 seconds to allow copying the URL
+        setTimeout(() => {
+          setOpenCreateDialog(false);
+          setCreateMeetingSuccess(null);
+        }, 10000);
+      } else {
+        setCreateMeetingError(response.error || `Failed to ${editingMeeting ? 'update' : 'create'} meeting`);
       }
     } catch (error: any) {
-      setCreateMeetingError('Failed to create meeting: ' + error.message);
+      setCreateMeetingError(`Failed to ${editingMeeting ? 'update' : 'create'} meeting: ` + error.message);
     } finally {
       setIsCreatingMeeting(false);
     }
@@ -318,7 +355,7 @@ const HostDashboardPage: React.FC = () => {
           </Typography>
           
           <Grid container spacing={2}>
-            {(meetings.length > 0 ? meetings : staticMeetings).map((meeting) => (
+            {meetings.map((meeting) => (
               <Grid item xs={12} md={6} key={meeting.id}>
                 <Card variant="outlined">
                   <CardContent>
@@ -341,7 +378,7 @@ const HostDashboardPage: React.FC = () => {
                         {meeting.location}
                       </Typography>
                     )}
-                    <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                    <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                       {meeting.format === 'in-person' && (
                         <Button
                           size="small"
@@ -353,6 +390,24 @@ const HostDashboardPage: React.FC = () => {
                       )}
                       <Button size="small" variant="outlined">
                         View Details
+                      </Button>
+                      <Button 
+                        size="small" 
+                        variant="outlined"
+                        startIcon={<Edit />}
+                        onClick={() => handleEditMeeting(meeting)}
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        size="small" 
+                        variant="outlined"
+                        color="error"
+                        startIcon={<Delete />}
+                        onClick={() => handleDeleteMeeting(meeting.id)}
+                        disabled={isDeletingMeeting}
+                      >
+                        Delete
                       </Button>
                     </Box>
                   </CardContent>
@@ -492,8 +547,17 @@ const HostDashboardPage: React.FC = () => {
       </Dialog>
 
       {/* Create Meeting Dialog */}
-      <Dialog open={openCreateDialog} onClose={() => setOpenCreateDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Create New Meeting</DialogTitle>
+      <Dialog open={openCreateDialog} onClose={() => {
+        setOpenCreateDialog(false);
+        setEditingMeeting(null);
+        setMeetingForm({
+          title: '',
+          description: '',
+          scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
+          duration: 60
+        });
+      }} maxWidth="md" fullWidth>
+        <DialogTitle>{editingMeeting ? 'Edit Meeting' : 'Create New Meeting'}</DialogTitle>
         <DialogContent>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
