@@ -20,40 +20,11 @@ import {
   LocationOn,
   Schedule,
 } from '@mui/icons-material';
-import { useAuthStore } from '../hooks/useAuthStore';
 
 const MeetingPage: React.FC = () => {
-  const { user } = useAuthStore();
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [meetingId, setMeetingId] = useState('');
   const [meetings, setMeetings] = useState<any[]>([]);
-  const [isLoadingMeetings, setIsLoadingMeetings] = useState(true);
-
-  // Load available meetings for participants
-  useEffect(() => {
-    loadAvailableMeetings();
-  }, []);
-
-  const loadAvailableMeetings = async () => {
-    try {
-      const { meetingService } = await import('../services/meetingService');
-      // For participants, we'll load all active meetings (simplified for demo)
-      // In a real system, this would be based on court assignments
-      const response = await meetingService.getAllMeetings();
-      if (response.success && response.data) {
-        setMeetings(response.data);
-      } else {
-        // Fallback to static meetings if API fails
-        setMeetings(staticMeetings);
-      }
-    } catch (error) {
-      console.error('Failed to load meetings:', error);
-      // Fallback to static meetings
-      setMeetings(staticMeetings);
-    } finally {
-      setIsLoadingMeetings(false);
-    }
-  };
 
   // Static fallback meetings
   const staticMeetings = [
@@ -78,6 +49,30 @@ const MeetingPage: React.FC = () => {
       status: 'upcoming',
     },
   ];
+
+  // Load available meetings for participants
+  useEffect(() => {
+    loadAvailableMeetings();
+  }, []);
+
+  const loadAvailableMeetings = async () => {
+    try {
+      const { meetingService } = await import('../services/meetingService');
+      // For participants, we'll load all active meetings (simplified for demo)
+      // In a real system, this would be based on court assignments
+      const response = await meetingService.getAllMeetings();
+      if (response.success && response.data) {
+        setMeetings(response.data);
+      } else {
+        // Fallback to static meetings if API fails
+        setMeetings(staticMeetings);
+      }
+    } catch (error) {
+      console.error('Failed to load meetings:', error);
+      // Fallback to static meetings
+      setMeetings(staticMeetings);
+    }
+  };
 
   const handleJoinOnlineMeeting = (zoomJoinUrl: string) => {
     // Use the full Zoom join URL
