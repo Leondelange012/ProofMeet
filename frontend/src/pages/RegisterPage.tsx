@@ -62,6 +62,7 @@ const RegisterPage: React.FC = () => {
     register,
     handleSubmit,
     watch,
+    trigger,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: yupResolver(schema),
@@ -77,6 +78,8 @@ const RegisterPage: React.FC = () => {
     setSuccess(null);
 
     try {
+      console.log('Submitting registration data:', data);
+      
       const response = await authService.register({
         email: data.email,
         courtId: data.courtId,
@@ -89,6 +92,8 @@ const RegisterPage: React.FC = () => {
         dateOfBirth: data.dateOfBirth,
       });
       
+      console.log('Registration response:', response);
+      
       if (response.success) {
         setSuccess('Registration submitted successfully! Please check your email for verification instructions. Court administrators will review your application.');
         toast.success('Registration submitted!');
@@ -97,10 +102,13 @@ const RegisterPage: React.FC = () => {
           navigate('/login');
         }, 5000);
       } else {
+        console.error('Registration failed:', response.error);
         setError(response.error || 'Registration failed');
+        toast.error('Registration failed: ' + (response.error || 'Unknown error'));
       }
-    } catch (err) {
-      setError('An error occurred during registration');
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      setError('An error occurred during registration: ' + (err.message || 'Unknown error'));
       toast.error('Registration failed');
     } finally {
       setIsLoading(false);
@@ -108,7 +116,30 @@ const RegisterPage: React.FC = () => {
   };
 
   const handleNext = () => {
-    setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+    // Validate current step before proceeding
+    const currentStepFields = getCurrentStepFields(currentStep);
+    
+    // Trigger validation for current step fields
+    trigger(currentStepFields).then((isValid) => {
+      if (isValid) {
+        setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+      }
+    });
+  };
+
+  const getCurrentStepFields = (step: number): (keyof RegisterFormData)[] => {
+    switch (step) {
+      case 0:
+        return ['userType'];
+      case 1:
+        return ['firstName', 'lastName', 'email', 'phoneNumber', 'dateOfBirth'];
+      case 2:
+        return ['state', 'courtId', 'courtCaseNumber'];
+      case 3:
+        return [];
+      default:
+        return [];
+    }
   };
 
   const handleBack = () => {
