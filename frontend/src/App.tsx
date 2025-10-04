@@ -6,18 +6,19 @@ import { QueryClient, QueryClientProvider } from 'react-query';
 import { Toaster } from 'react-hot-toast';
 
 // Pages
-import LoginPage from '@/pages/LoginPage';
-import DashboardPage from '@/pages/DashboardPage';
-import MeetingPage from '@/pages/MeetingPage';
-import CompliancePage from '@/pages/CompliancePage';
-import HostDashboardPage from '@/pages/HostDashboardPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import DashboardPage from './pages/DashboardPage';
+import MeetingPage from './pages/MeetingPage';
+import CompliancePage from './pages/CompliancePage';
+import HostDashboardPage from './pages/HostDashboardPage';
 
 // Components
-import ProtectedRoute from '@/components/ProtectedRoute';
-import Layout from '@/components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
+import Layout from './components/Layout';
 
 // Hooks
-import { useAuthStore } from '@/hooks/useAuthStore';
+import { useAuthStore } from './hooks/useAuthStore';
 
 // Create theme
 const theme = createTheme({
@@ -60,6 +61,13 @@ function App() {
                 path="/login" 
                 element={
                   isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
+                } 
+              />
+              
+              <Route 
+                path="/register" 
+                element={
+                  isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />
                 } 
               />
               

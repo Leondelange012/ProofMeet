@@ -279,25 +279,27 @@ const HostDashboardPage: React.FC = () => {
 
   return (
     <Container maxWidth="lg">
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4" gutterBottom>
-          Host Dashboard
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => setOpenCreateDialog(true)}
-          >
-            Create Meeting
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={loadMeetings}
-            disabled={isLoadingMeetings}
-          >
-            {isLoadingMeetings ? 'Loading...' : 'Refresh Meetings'}
-          </Button>
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Typography variant="h4" gutterBottom>
+            Host Dashboard
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => setOpenCreateDialog(true)}
+            >
+              Create Meeting
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={loadMeetings}
+              disabled={isLoadingMeetings}
+            >
+              {isLoadingMeetings ? 'Loading...' : 'Refresh Meetings'}
+            </Button>
+          </Box>
         </Box>
         <Typography variant="body1" color="text.secondary">
           Manage meetings and approve attendance
@@ -760,7 +762,10 @@ const HostDashboardPage: React.FC = () => {
             disabled={isCreatingMeeting || !meetingForm.title}
             startIcon={isCreatingMeeting ? <CircularProgress size={20} /> : <Add />}
           >
-            {isCreatingMeeting ? 'Creating...' : 'Create Meeting'}
+            {isCreatingMeeting 
+              ? (editingMeeting ? 'Updating...' : 'Creating...') 
+              : (editingMeeting ? 'Update Meeting' : 'Create Meeting')
+            }
           </Button>
         </DialogActions>
       </Dialog>

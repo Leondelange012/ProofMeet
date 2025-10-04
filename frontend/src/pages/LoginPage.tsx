@@ -12,7 +12,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { authService } from '../services/authService';
@@ -130,7 +130,13 @@ const LoginPage: React.FC = () => {
 
             <Box sx={{ textAlign: 'center', mt: 2 }}>
               <Typography variant="body2" color="text.secondary">
-                Don't have an account? Contact your court administrator.
+                Don't have an account?{' '}
+                <Link to="/register" style={{ textDecoration: 'none' }}>
+                  Register here
+                </Link>
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Court administrators can contact support for access.
               </Typography>
             </Box>
           </Box>
