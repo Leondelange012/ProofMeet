@@ -19,6 +19,7 @@ interface User {
 
 interface RegisterRequest {
   email: string;
+  password: string;
   courtId: string;
   state: string;
   courtCaseNumber: string;

@@ -29,6 +29,10 @@ import { authService } from '../services/authService';
 
 const schema = yup.object({
   email: yup.string().email('Invalid email').required('Email is required'),
+  password: yup.string().min(8, 'Password must be at least 8 characters').required('Password is required'),
+  confirmPassword: yup.string()
+    .oneOf([yup.ref('password')], 'Passwords must match')
+    .required('Please confirm your password'),
   courtId: yup.string().required('Court ID is required'),
   state: yup.string().required('State is required'),
   courtCaseNumber: yup.string().required('Court case number is required'),
@@ -41,6 +45,8 @@ const schema = yup.object({
 
 type RegisterFormData = {
   email: string;
+  password: string;
+  confirmPassword: string;
   courtId: string;
   state: string;
   courtCaseNumber: string;
@@ -89,6 +95,7 @@ const RegisterPage: React.FC = () => {
       
       const response = await authService.register({
         email: data.email,
+        password: data.password,
         courtId: data.courtId,
         state: data.state,
         courtCaseNumber: data.courtCaseNumber,
@@ -143,7 +150,7 @@ const RegisterPage: React.FC = () => {
       case 0:
         return ['userType'];
       case 1:
-        return ['firstName', 'lastName', 'email', 'phoneNumber', 'dateOfBirth'];
+        return ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phoneNumber', 'dateOfBirth'];
       case 2:
         return ['state', 'courtId', 'courtCaseNumber'];
       case 3:
@@ -223,6 +230,24 @@ const RegisterPage: React.FC = () => {
               error={!!errors.email}
               helperText={errors.email?.message}
             />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                {...register('password')}
+                label="Password"
+                type="password"
+                fullWidth
+                error={!!errors.password}
+                helperText={errors.password?.message}
+              />
+              <TextField
+                {...register('confirmPassword')}
+                label="Confirm Password"
+                type="password"
+                fullWidth
+                error={!!errors.confirmPassword}
+                helperText={errors.confirmPassword?.message}
+              />
+            </Box>
             <TextField
               {...register('phoneNumber')}
               label="Phone Number"
@@ -300,6 +325,7 @@ const RegisterPage: React.FC = () => {
               <Typography><strong>Account Type:</strong> {userType === 'host' ? 'Meeting Host' : 'Participant'}</Typography>
               <Typography><strong>Name:</strong> {watch('firstName')} {watch('lastName')}</Typography>
               <Typography><strong>Email:</strong> {watch('email')}</Typography>
+              <Typography><strong>Password:</strong> ••••••••</Typography>
               <Typography><strong>Phone:</strong> {watch('phoneNumber')}</Typography>
               <Typography><strong>Date of Birth:</strong> {watch('dateOfBirth')}</Typography>
               <Typography><strong>State:</strong> {watch('state')}</Typography>
