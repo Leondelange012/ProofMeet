@@ -86,7 +86,7 @@ const DashboardPage: React.FC = () => {
     navigate('/compliance');
   };
 
-  const handleViewMeetingDetails = (meetingId: string) => {
+  const handleViewMeetingDetails = () => {
     // For now, just navigate to meetings page
     // In a real app, this could open a details dialog or navigate to a specific meeting page
     navigate('/meetings');
@@ -199,7 +199,7 @@ const DashboardPage: React.FC = () => {
                 <CardActions>
                   <Button 
                     size="small"
-                    onClick={() => handleViewMeetingDetails(meeting.id)}
+                    onClick={handleViewMeetingDetails}
                   >
                     View Details
                   </Button>
