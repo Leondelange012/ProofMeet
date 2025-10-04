@@ -22,6 +22,8 @@ import {
   TextField,
   Alert,
   CircularProgress,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -34,6 +36,7 @@ import {
   QrCode,
   Delete,
   Edit,
+  Visibility,
 } from '@mui/icons-material';
 import { useAuthStore } from '../hooks/useAuthStore';
 
@@ -383,7 +386,7 @@ const HostDashboardPage: React.FC = () => {
                         {meeting.location}
                       </Typography>
                     )}
-                    <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
                       {meeting.format === 'in-person' && (
                         <Button
                           size="small"
@@ -393,31 +396,39 @@ const HostDashboardPage: React.FC = () => {
                           Generate QR
                         </Button>
                       )}
-                      <Button 
-                        size="small" 
-                        variant="outlined"
-                        onClick={() => handleViewMeetingDetails(meeting)}
-                      >
-                        View Details
-                      </Button>
-                      <Button 
-                        size="small" 
-                        variant="outlined"
-                        startIcon={<Edit />}
-                        onClick={() => handleEditMeeting(meeting)}
-                      >
-                        Edit
-                      </Button>
-                      <Button 
-                        size="small" 
-                        variant="outlined"
-                        color="error"
-                        startIcon={<Delete />}
-                        onClick={() => handleDeleteMeeting(meeting.id)}
-                        disabled={isDeletingMeeting}
-                      >
-                        Delete
-                      </Button>
+                      
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        <Tooltip title="View Details">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleViewMeetingDetails(meeting)}
+                            color="primary"
+                          >
+                            <Visibility fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        
+                        <Tooltip title="Edit Meeting">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditMeeting(meeting)}
+                            color="primary"
+                          >
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        
+                        <Tooltip title="Delete Meeting">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteMeeting(meeting.id)}
+                            disabled={isDeletingMeeting}
+                            color="error"
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     </Box>
                   </CardContent>
                 </Card>
