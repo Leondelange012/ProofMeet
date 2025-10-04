@@ -73,6 +73,12 @@ const RegisterPage: React.FC = () => {
 
   const steps = ['Account Type', 'Personal Information', 'Court Information', 'Review & Submit'];
 
+  // Clear errors when step changes
+  React.useEffect(() => {
+    setError(null);
+    setSuccess(null);
+  }, [currentStep]);
+
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     setError(null);
@@ -117,6 +123,10 @@ const RegisterPage: React.FC = () => {
   };
 
   const handleNext = () => {
+    // Clear any previous errors when moving to next step
+    setError(null);
+    setSuccess(null);
+    
     // Validate current step before proceeding
     const currentStepFields = getCurrentStepFields(currentStep);
     
@@ -144,6 +154,9 @@ const RegisterPage: React.FC = () => {
   };
 
   const handleBack = () => {
+    // Clear any previous errors when going back
+    setError(null);
+    setSuccess(null);
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
@@ -344,7 +357,7 @@ const RegisterPage: React.FC = () => {
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <Box component="form" noValidate>
             {renderStepContent(currentStep)}
 
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
@@ -357,14 +370,16 @@ const RegisterPage: React.FC = () => {
               
               {currentStep === steps.length - 1 ? (
                 <Button
-                  type="submit"
+                  type="button"
                   variant="contained"
                   disabled={isLoading}
+                  onClick={handleSubmit(onSubmit)}
                 >
                   {isLoading ? <CircularProgress size={24} /> : 'Submit Registration'}
                 </Button>
               ) : (
                 <Button
+                  type="button"
                   variant="contained"
                   onClick={handleNext}
                 >
