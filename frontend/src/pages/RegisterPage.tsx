@@ -20,7 +20,7 @@ import {
   Step,
   StepLabel,
 } from '@mui/material';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useNavigate, Link } from 'react-router-dom';
@@ -63,6 +63,7 @@ const RegisterPage: React.FC = () => {
     handleSubmit,
     watch,
     trigger,
+    control,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: yupResolver(schema),
@@ -155,18 +156,24 @@ const RegisterPage: React.FC = () => {
               <FormLabel component="legend" sx={{ mb: 2 }}>
                 Are you registering as a meeting host or participant?
               </FormLabel>
-              <RadioGroup {...register('userType')} row>
-                <FormControlLabel 
-                  value="participant" 
-                  control={<Radio />} 
-                  label="Participant - I need to attend court-ordered meetings" 
-                />
-                <FormControlLabel 
-                  value="host" 
-                  control={<Radio />} 
-                  label="Host - I facilitate meetings (AA, NA, SMART Recovery, etc.)" 
-                />
-              </RadioGroup>
+              <Controller
+                name="userType"
+                control={control}
+                render={({ field }) => (
+                  <RadioGroup {...field} row>
+                    <FormControlLabel 
+                      value="participant" 
+                      control={<Radio />} 
+                      label="Participant - I need to attend court-ordered meetings" 
+                    />
+                    <FormControlLabel 
+                      value="host" 
+                      control={<Radio />} 
+                      label="Host - I facilitate meetings (AA, NA, SMART Recovery, etc.)" 
+                    />
+                  </RadioGroup>
+                )}
+              />
               {errors.userType && (
                 <Typography color="error" variant="caption">
                   {errors.userType.message}
@@ -225,26 +232,32 @@ const RegisterPage: React.FC = () => {
       case 2:
         return (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <FormControl fullWidth error={!!errors.state}>
-              <InputLabel>State</InputLabel>
-              <Select {...register('state')} label="State">
-                <MenuItem value="CA">California</MenuItem>
-                <MenuItem value="TX">Texas</MenuItem>
-                <MenuItem value="NY">New York</MenuItem>
-                <MenuItem value="FL">Florida</MenuItem>
-                <MenuItem value="IL">Illinois</MenuItem>
-                <MenuItem value="PA">Pennsylvania</MenuItem>
-                <MenuItem value="OH">Ohio</MenuItem>
-                <MenuItem value="GA">Georgia</MenuItem>
-                <MenuItem value="NC">North Carolina</MenuItem>
-                <MenuItem value="MI">Michigan</MenuItem>
-              </Select>
-              {errors.state && (
-                <Typography color="error" variant="caption">
-                  {errors.state.message}
-                </Typography>
+            <Controller
+              name="state"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth error={!!errors.state}>
+                  <InputLabel>State</InputLabel>
+                  <Select {...field} label="State">
+                    <MenuItem value="CA">California</MenuItem>
+                    <MenuItem value="TX">Texas</MenuItem>
+                    <MenuItem value="NY">New York</MenuItem>
+                    <MenuItem value="FL">Florida</MenuItem>
+                    <MenuItem value="IL">Illinois</MenuItem>
+                    <MenuItem value="PA">Pennsylvania</MenuItem>
+                    <MenuItem value="OH">Ohio</MenuItem>
+                    <MenuItem value="GA">Georgia</MenuItem>
+                    <MenuItem value="NC">North Carolina</MenuItem>
+                    <MenuItem value="MI">Michigan</MenuItem>
+                  </Select>
+                  {errors.state && (
+                    <Typography color="error" variant="caption">
+                      {errors.state.message}
+                    </Typography>
+                  )}
+                </FormControl>
               )}
-            </FormControl>
+            />
 
             <TextField
               {...register('courtId')}
