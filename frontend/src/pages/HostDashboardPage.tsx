@@ -61,6 +61,7 @@ const HostDashboardPage: React.FC = () => {
   // State for meeting management
   const [editingMeeting, setEditingMeeting] = useState<any>(null);
   const [isDeletingMeeting, setIsDeletingMeeting] = useState(false);
+  const [viewingMeeting, setViewingMeeting] = useState<any>(null);
   
   // Mock data - in real app, this would come from API
   const hostStats = {
@@ -129,6 +130,10 @@ const HostDashboardPage: React.FC = () => {
       duration: meeting.duration
     });
     setOpenCreateDialog(true);
+  };
+
+  const handleViewMeetingDetails = (meeting: any) => {
+    setViewingMeeting(meeting);
   };
 
 
@@ -388,7 +393,11 @@ const HostDashboardPage: React.FC = () => {
                           Generate QR
                         </Button>
                       )}
-                      <Button size="small" variant="outlined">
+                      <Button 
+                        size="small" 
+                        variant="outlined"
+                        onClick={() => handleViewMeetingDetails(meeting)}
+                      >
                         View Details
                       </Button>
                       <Button 
@@ -543,6 +552,125 @@ const HostDashboardPage: React.FC = () => {
           >
             Approve
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Meeting Details Dialog */}
+      <Dialog open={!!viewingMeeting} onClose={() => setViewingMeeting(null)} maxWidth="md" fullWidth>
+        <DialogTitle>Meeting Details</DialogTitle>
+        <DialogContent>
+          {viewingMeeting && (
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    <strong>Title:</strong>
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    {viewingMeeting.title}
+                  </Typography>
+                </Grid>
+                
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    <strong>Status:</strong>
+                  </Typography>
+                  <Chip 
+                    label={viewingMeeting.isActive ? 'Active' : 'Inactive'} 
+                    color={viewingMeeting.isActive ? 'success' : 'default'}
+                    size="small"
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    <strong>Scheduled Date:</strong>
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    {new Date(viewingMeeting.scheduledFor).toLocaleString()}
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    <strong>Duration:</strong>
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    {viewingMeeting.duration} minutes
+                  </Typography>
+                </Grid>
+
+                {viewingMeeting.description && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      <strong>Description:</strong>
+                    </Typography>
+                    <Typography variant="body1" gutterBottom>
+                      {viewingMeeting.description}
+                    </Typography>
+                  </Grid>
+                )}
+
+                {viewingMeeting.zoomJoinUrl && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      <strong>Zoom Join URL:</strong>
+                    </Typography>
+                    <Typography variant="body1" gutterBottom sx={{ wordBreak: 'break-all' }}>
+                      <a href={viewingMeeting.zoomJoinUrl} target="_blank" rel="noopener noreferrer">
+                        {viewingMeeting.zoomJoinUrl}
+                      </a>
+                    </Typography>
+                  </Grid>
+                )}
+
+                {viewingMeeting.meetingId && (
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      <strong>Meeting ID:</strong>
+                    </Typography>
+                    <Typography variant="body1" gutterBottom>
+                      {viewingMeeting.meetingId}
+                    </Typography>
+                  </Grid>
+                )}
+
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    <strong>Created:</strong>
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    {new Date(viewingMeeting.createdAt).toLocaleString()}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setViewingMeeting(null)}>Close</Button>
+          {viewingMeeting && (
+            <>
+              <Button 
+                onClick={() => {
+                  setViewingMeeting(null);
+                  handleEditMeeting(viewingMeeting);
+                }}
+                startIcon={<Edit />}
+              >
+                Edit Meeting
+              </Button>
+              {viewingMeeting.zoomJoinUrl && (
+                <Button 
+                  variant="contained"
+                  onClick={() => window.open(viewingMeeting.zoomJoinUrl, '_blank')}
+                  startIcon={<MeetingRoom />}
+                >
+                  Join Meeting
+                </Button>
+              )}
+            </>
+          )}
         </DialogActions>
       </Dialog>
 
