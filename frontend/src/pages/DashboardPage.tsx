@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Grid,
@@ -18,10 +19,11 @@ import {
   CheckCircle,
   Warning,
 } from '@mui/icons-material';
-import { useAuthStore } from '@/hooks/useAuthStore';
+import { useAuthStore } from '../hooks/useAuthStore';
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
 
   // Mock data - in real app, this would come from API
   const stats = {
@@ -74,6 +76,20 @@ const DashboardPage: React.FC = () => {
     if (rate >= 90) return 'success';
     if (rate >= 70) return 'warning';
     return 'error';
+  };
+
+  const handleJoinMeeting = () => {
+    navigate('/meetings');
+  };
+
+  const handleViewCompliance = () => {
+    navigate('/compliance');
+  };
+
+  const handleViewMeetingDetails = (meetingId: string) => {
+    // For now, just navigate to meetings page
+    // In a real app, this could open a details dialog or navigate to a specific meeting page
+    navigate('/meetings');
   };
 
   return (
@@ -181,7 +197,12 @@ const DashboardPage: React.FC = () => {
                   </Box>
                 </CardContent>
                 <CardActions>
-                  <Button size="small">View Details</Button>
+                  <Button 
+                    size="small"
+                    onClick={() => handleViewMeetingDetails(meeting.id)}
+                  >
+                    View Details
+                  </Button>
                 </CardActions>
               </Card>
             </Grid>
@@ -195,10 +216,18 @@ const DashboardPage: React.FC = () => {
           Quick Actions
         </Typography>
         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Button variant="contained" startIcon={<MeetingRoom />}>
+          <Button 
+            variant="contained" 
+            startIcon={<MeetingRoom />}
+            onClick={handleJoinMeeting}
+          >
             Join Meeting
           </Button>
-          <Button variant="outlined" startIcon={<Assessment />}>
+          <Button 
+            variant="outlined" 
+            startIcon={<Assessment />}
+            onClick={handleViewCompliance}
+          >
             View Compliance
           </Button>
         </Box>
