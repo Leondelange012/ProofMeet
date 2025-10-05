@@ -39,6 +39,7 @@ import {
   Visibility,
 } from '@mui/icons-material';
 import { useAuthStore } from '../hooks/useAuthStore';
+import { aaIntergroupService } from '../services/aaIntergroupService';
 
 const HostDashboardPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -70,7 +71,7 @@ const HostDashboardPage: React.FC = () => {
   const hostStats = {
     totalMeetings: meetings.length || 15,
     activeMeetings: meetings.filter(m => m.isActive).length || 2,
-    totalAttendees: 45,
+    totalParticipants: 45,
     pendingApprovals: 3,
   };
 
@@ -83,18 +84,20 @@ const HostDashboardPage: React.FC = () => {
 
   const loadMeetings = async () => {
     try {
-      const { meetingService } = await import('../services/meetingService');
-      // Use real host ID from authenticated user
-      if (!user?.id) {
-        console.error('No user ID available');
-        return;
-      }
-      const response = await meetingService.getMeetings(user.id, 1, 10, 'active');
+      setIsLoadingMeetings(true);
+      console.log('🔍 Loading AA meetings from Intergroup...');
+      
+      const response = await aaIntergroupService.getProofOfAttendanceMeetings();
       if (response.success && response.data) {
         setMeetings(response.data);
+        console.log(`✅ Loaded ${response.data.length} AA meetings with proof of attendance`);
+      } else {
+        console.error('❌ Failed to load AA meetings:', response.error);
+        setMeetings([]);
       }
     } catch (error) {
-      console.error('Failed to load meetings:', error);
+      console.error('❌ Failed to load AA meetings:', error);
+      setMeetings([]);
     } finally {
       setIsLoadingMeetings(false);
     }
@@ -282,27 +285,20 @@ const HostDashboardPage: React.FC = () => {
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="h4" gutterBottom>
-            Host Dashboard
+            Meeting Monitor Dashboard
           </Typography>
           <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => setOpenCreateDialog(true)}
-            >
-              Create Meeting
-            </Button>
             <Button
               variant="outlined"
               onClick={loadMeetings}
               disabled={isLoadingMeetings}
             >
-              {isLoadingMeetings ? 'Loading...' : 'Refresh Meetings'}
+              {isLoadingMeetings ? 'Loading...' : 'Refresh AA Meetings'}
             </Button>
           </Box>
         </Box>
         <Typography variant="body1" color="text.secondary">
-          Manage meetings and approve attendance
+          Monitor participant attendance in AA meetings and verify compliance for court reporting.
         </Typography>
       </Box>
 
@@ -313,7 +309,7 @@ const HostDashboardPage: React.FC = () => {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <MeetingRoom color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h6">Total Meetings</Typography>
+                <Typography variant="h6">AA Meetings</Typography>
               </Box>
               <Typography variant="h3">{hostStats.totalMeetings}</Typography>
             </CardContent>
@@ -325,7 +321,7 @@ const HostDashboardPage: React.FC = () => {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <People color="success" sx={{ mr: 1 }} />
-                <Typography variant="h6">Total Attendees</Typography>
+                <Typography variant="h6">Participants</Typography>
               </Box>
               <Typography variant="h3">{hostStats.totalAttendees}</Typography>
             </CardContent>
@@ -337,7 +333,7 @@ const HostDashboardPage: React.FC = () => {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <MeetingRoom color="info" sx={{ mr: 1 }} />
-                <Typography variant="h6">Active Meetings</Typography>
+                <Typography variant="h6">Active Now</Typography>
               </Box>
               <Typography variant="h3">{hostStats.activeMeetings}</Typography>
             </CardContent>
@@ -361,7 +357,7 @@ const HostDashboardPage: React.FC = () => {
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            My Meetings
+            Available AA Meetings
           </Typography>
           
           <Grid container spacing={2}>
