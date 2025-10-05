@@ -25,7 +25,8 @@ import { aaIntergroupService } from '../services/aaIntergroupService';
 const MeetingPage: React.FC = () => {
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [meetingId, setMeetingId] = useState('');
-  const [meetings, setMeetings] = useState<any[]>([]);
+  const [meetingsByProgram, setMeetingsByProgram] = useState<{ [program: string]: any[] }>({});
+  const [loading, setLoading] = useState(true);
 
 
   // Load available meetings for participants
@@ -35,19 +36,23 @@ const MeetingPage: React.FC = () => {
 
   const loadAvailableMeetings = async () => {
     try {
-      console.log('🔍 Loading available AA meetings...');
+      setLoading(true);
+      console.log('🔍 Loading recovery meetings organized by program...');
       
-      const response = await aaIntergroupService.getProofOfAttendanceMeetings();
+      const response = await aaIntergroupService.getMeetingsByProgram();
       if (response.success && response.data) {
-        setMeetings(response.data);
-        console.log(`✅ Loaded ${response.data.length} AA meetings available for attendance tracking`);
+        setMeetingsByProgram(response.data);
+        const totalMeetings = Object.values(response.data).reduce((sum, meetings) => sum + meetings.length, 0);
+        console.log(`✅ Loaded ${totalMeetings} meetings across ${Object.keys(response.data).length} programs`);
       } else {
-        console.error('❌ Failed to load AA meetings:', response.error);
-        setMeetings([]);
+        console.error('❌ Failed to load recovery meetings:', response.error);
+        setMeetingsByProgram({});
       }
     } catch (error) {
-      console.error('❌ Failed to load AA meetings:', error);
-      setMeetings([]);
+      console.error('❌ Failed to load recovery meetings:', error);
+      setMeetingsByProgram({});
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -68,10 +73,10 @@ const MeetingPage: React.FC = () => {
     <Container maxWidth="lg">
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" gutterBottom>
-          Available AA Meetings
+          Recovery Meeting Directory
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Join court-approved AA meetings with proof of attendance capability.
+          Join court-approved recovery meetings with proof of attendance capability.
         </Typography>
       </Box>
 
@@ -100,70 +105,124 @@ const MeetingPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Upcoming Meetings */}
-      <Grid container spacing={3}>
-        {meetings.map((meeting) => (
-          <Grid item xs={12} md={6} key={meeting.id}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                  <Typography variant="h6">{meeting.name}</Typography>
-                  <Chip
-                    label={meeting.type}
-                    color="primary"
-                    size="small"
-                  />
-                </Box>
+      {/* Recovery Meetings by Program */}
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+          <Typography>Loading recovery meetings...</Typography>
+        </Box>
+      ) : (
+        Object.keys(meetingsByProgram).map((program) => (
+          <Box key={program} sx={{ mb: 4 }}>
+            {/* Program Header */}
+            <Typography variant="h5" sx={{ mb: 2, color: 'primary.main', fontWeight: 'bold' }}>
+              {program === 'AA' && '🔵 Alcoholics Anonymous (AA)'}
+              {program === 'NA' && '🟢 Narcotics Anonymous (NA)'}
+              {program === 'SMART' && '🟡 SMART Recovery'}
+              {program === 'CMA' && '🟣 Crystal Meth Anonymous (CMA)'}
+              {program === 'OA' && '🟠 Overeaters Anonymous (OA)'}
+              {program === 'GA' && '🔴 Gamblers Anonymous (GA)'}
+              {!['AA', 'NA', 'SMART', 'CMA', 'OA', 'GA'].includes(program) && `📋 ${program}`}
+            </Typography>
+            
+            {/* Meetings Grid for this Program */}
+            <Grid container spacing={3}>
+              {meetingsByProgram[program].map((meeting) => (
+                <Grid item xs={12} md={6} lg={4} key={meeting.id}>
+                  <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <CardContent sx={{ flexGrow: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                        <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
+                          {meeting.name}
+                        </Typography>
+                        <Chip
+                          label={meeting.type}
+                          color="primary"
+                          size="small"
+                          sx={{ fontSize: '0.75rem' }}
+                        />
+                      </Box>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <Schedule sx={{ mr: 1, fontSize: 20 }} />
-                  <Typography variant="body2">
-                    {meeting.day} at {meeting.time} ({meeting.timezone})
-                  </Typography>
-                </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <Schedule sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
+                        <Typography variant="body2" color="text.secondary">
+                          {meeting.day} at {meeting.time} ({meeting.timezone})
+                        </Typography>
+                      </Box>
 
-                {meeting.format === 'online' ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <VideoCall sx={{ mr: 1, fontSize: 20 }} />
-                    <Typography variant="body2">Online Meeting</Typography>
-                  </Box>
-                ) : (
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <LocationOn sx={{ mr: 1, fontSize: 20 }} />
-                    <Typography variant="body2">{meeting.location || meeting.address}</Typography>
-                  </Box>
-                )}
+                      {meeting.format === 'online' ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          <VideoCall sx={{ mr: 1, fontSize: 18, color: 'success.main' }} />
+                          <Typography variant="body2" color="success.main">
+                            Online Meeting
+                          </Typography>
+                        </Box>
+                      ) : meeting.format === 'hybrid' ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          <VideoCall sx={{ mr: 1, fontSize: 18, color: 'info.main' }} />
+                          <Typography variant="body2" color="info.main">
+                            Hybrid (Online + In-Person)
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          <LocationOn sx={{ mr: 1, fontSize: 18, color: 'warning.main' }} />
+                          <Typography variant="body2" color="warning.main">
+                            {meeting.location || meeting.address}
+                          </Typography>
+                        </Box>
+                      )}
 
-                {meeting.description && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    {meeting.description}
-                  </Typography>
-                )}
+                      {meeting.description && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.875rem' }}>
+                          {meeting.description}
+                        </Typography>
+                      )}
 
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {meeting.zoomUrl ? (
-                    <Button
-                      variant="contained"
-                      startIcon={<VideoCall />}
-                      onClick={() => handleJoinOnlineMeeting(meeting.zoomUrl)}
-                    >
-                      Join Meeting
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="contained"
-                      startIcon={<QrCodeScanner />}
-                      onClick={handleQrScan}
-                    >
-                      Check In with QR
-                    </Button>
-                  )}
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+                      {meeting.tags && meeting.tags.length > 0 && (
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 2 }}>
+                          {meeting.tags.map((tag: string, index: number) => (
+                            <Chip
+                              key={index}
+                              label={tag}
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontSize: '0.7rem', height: '20px' }}
+                            />
+                          ))}
+                        </Box>
+                      )}
+
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 'auto' }}>
+                        {meeting.zoomUrl ? (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<VideoCall />}
+                            onClick={() => handleJoinOnlineMeeting(meeting.zoomUrl)}
+                            sx={{ fontSize: '0.8rem' }}
+                          >
+                            Join Meeting
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<QrCodeScanner />}
+                            onClick={handleQrScan}
+                            sx={{ fontSize: '0.8rem' }}
+                          >
+                            Check In with QR
+                          </Button>
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        ))
+      )}
 
       {/* QR Scanner Dialog */}
       <Dialog open={qrScannerOpen} onClose={handleQrScannerClose} maxWidth="sm" fullWidth>
