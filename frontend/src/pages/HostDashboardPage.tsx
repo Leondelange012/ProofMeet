@@ -323,7 +323,7 @@ const HostDashboardPage: React.FC = () => {
                 <People color="success" sx={{ mr: 1 }} />
                 <Typography variant="h6">Participants</Typography>
               </Box>
-              <Typography variant="h3">{hostStats.totalAttendees}</Typography>
+              <Typography variant="h3">{hostStats.totalParticipants}</Typography>
             </CardContent>
           </Card>
         </Grid>
