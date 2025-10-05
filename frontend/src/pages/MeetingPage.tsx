@@ -20,6 +20,7 @@ import {
   LocationOn,
   Schedule,
 } from '@mui/icons-material';
+import { aaIntergroupService } from '../services/aaIntergroupService';
 
 const MeetingPage: React.FC = () => {
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
@@ -34,19 +35,18 @@ const MeetingPage: React.FC = () => {
 
   const loadAvailableMeetings = async () => {
     try {
-      const { meetingService } = await import('../services/meetingService');
-      // For participants, we'll load all active meetings (simplified for demo)
-      // In a real system, this would be based on court assignments
-      const response = await meetingService.getAllMeetings();
+      console.log('🔍 Loading available AA meetings...');
+      
+      const response = await aaIntergroupService.getProofOfAttendanceMeetings();
       if (response.success && response.data) {
         setMeetings(response.data);
+        console.log(`✅ Loaded ${response.data.length} AA meetings available for attendance tracking`);
       } else {
-        // No fallback - show empty if API fails
+        console.error('❌ Failed to load AA meetings:', response.error);
         setMeetings([]);
       }
     } catch (error) {
-      console.error('Failed to load meetings:', error);
-      // No fallback - show empty if API fails
+      console.error('❌ Failed to load AA meetings:', error);
       setMeetings([]);
     }
   };
@@ -64,31 +64,14 @@ const MeetingPage: React.FC = () => {
     setQrScannerOpen(false);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'upcoming':
-        return 'primary';
-      case 'active':
-        return 'success';
-      case 'completed':
-        return 'default';
-      default:
-        return 'default';
-    }
-  };
-
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
-  };
-
   return (
     <Container maxWidth="lg">
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" gutterBottom>
-          Meetings
+          Available AA Meetings
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Join online meetings or check in to in-person sessions
+          Join court-approved AA meetings with proof of attendance capability.
         </Typography>
       </Box>
 
@@ -124,10 +107,10 @@ const MeetingPage: React.FC = () => {
             <Card>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                  <Typography variant="h6">{meeting.title || meeting.type}</Typography>
+                  <Typography variant="h6">{meeting.name}</Typography>
                   <Chip
-                    label={meeting.isActive ? 'active' : (meeting.status || 'upcoming')}
-                    color={getStatusColor(meeting.isActive ? 'active' : (meeting.status || 'upcoming')) as any}
+                    label={meeting.type}
+                    color="primary"
                     size="small"
                   />
                 </Box>
@@ -135,7 +118,7 @@ const MeetingPage: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                   <Schedule sx={{ mr: 1, fontSize: 20 }} />
                   <Typography variant="body2">
-                    {formatDateTime(meeting.scheduledFor || meeting.scheduledStart)}
+                    {meeting.day} at {meeting.time} ({meeting.timezone})
                   </Typography>
                 </Box>
 
@@ -147,18 +130,24 @@ const MeetingPage: React.FC = () => {
                 ) : (
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <LocationOn sx={{ mr: 1, fontSize: 20 }} />
-                    <Typography variant="body2">{meeting.location}</Typography>
+                    <Typography variant="body2">{meeting.location || meeting.address}</Typography>
                   </Box>
                 )}
 
+                {meeting.description && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    {meeting.description}
+                  </Typography>
+                )}
+
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {meeting.zoomJoinUrl ? (
+                  {meeting.zoomUrl ? (
                     <Button
                       variant="contained"
                       startIcon={<VideoCall />}
-                      onClick={() => handleJoinOnlineMeeting(meeting.zoomJoinUrl)}
+                      onClick={() => handleJoinOnlineMeeting(meeting.zoomUrl)}
                     >
-                      Join Zoom Meeting
+                      Join Meeting
                     </Button>
                   ) : (
                     <Button

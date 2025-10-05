@@ -20,8 +20,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  Alert,
-  CircularProgress,
   IconButton,
   Tooltip,
 } from '@mui/material';
@@ -132,11 +130,6 @@ const HostDashboardPage: React.FC = () => {
     console.log('Approving attendance:', selectedAttendance?.id, approved, notes);
     setApprovalDialogOpen(false);
     setSelectedAttendance(null);
-  };
-
-  const handleGenerateQR = (meetingId: string) => {
-    // In real app, this would generate a QR code for the meeting
-    console.log('Generating QR code for meeting:', meetingId);
   };
 
   const getStatusColor = (status: string) => {
@@ -528,27 +521,14 @@ const HostDashboardPage: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setViewingMeeting(null)}>Close</Button>
-          {viewingMeeting && (
-            <>
-              <Button 
-                onClick={() => {
-                  setViewingMeeting(null);
-                  handleEditMeeting(viewingMeeting);
-                }}
-                startIcon={<Edit />}
-              >
-                Edit Meeting
-              </Button>
-              {viewingMeeting.zoomJoinUrl && (
-                <Button 
-                  variant="contained"
-                  onClick={() => window.open(viewingMeeting.zoomJoinUrl, '_blank')}
-                  startIcon={<MeetingRoom />}
-                >
-                  Join Meeting
-                </Button>
-              )}
-            </>
+          {viewingMeeting && viewingMeeting.zoomJoinUrl && (
+            <Button 
+              variant="contained"
+              onClick={() => window.open(viewingMeeting.zoomJoinUrl, '_blank')}
+              startIcon={<MeetingRoom />}
+            >
+              Join Meeting
+            </Button>
           )}
         </DialogActions>
       </Dialog>
