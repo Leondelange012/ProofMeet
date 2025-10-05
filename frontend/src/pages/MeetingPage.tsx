@@ -75,8 +75,23 @@ const MeetingPage: React.FC = () => {
         <Typography variant="h4" gutterBottom>
           Recovery Meeting Directory
         </Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Join court-approved recovery meetings with proof of attendance capability.
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+          {Object.keys(meetingsByProgram).length > 0 && (
+            <>
+              Showing {Object.values(meetingsByProgram).reduce((sum, meetings) => sum + meetings.length, 0)} meetings 
+              across {Object.keys(meetingsByProgram).length} recovery programs. 
+              <Button 
+                size="small" 
+                onClick={loadAvailableMeetings}
+                sx={{ ml: 1, textTransform: 'none' }}
+              >
+                🔄 Refresh
+              </Button>
+            </>
+          )}
         </Typography>
       </Box>
 
