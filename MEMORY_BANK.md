@@ -19,6 +19,7 @@ ProofMeet is a court-ordered meeting attendance tracking system that integrates 
 - **Database**: PostgreSQL on Railway with full schema and migrations
 - **Authentication**: Working email + password registration and login system
 - **Database Cleanup**: DELETE /api/admin/clear-database endpoint for testing
+- **Test Accounts**: Ready-to-use accounts for testers (see Quick Start section)
 
 ### 🎯 **Latest System Enhancements (October 2024)**
 - **✅ COMPLETE REGISTRATION SYSTEM**: Multi-step registration with password setup
@@ -317,7 +318,21 @@ proofmeet/
 1. **Frontend**: https://proof-meet-frontend.vercel.app (Live system)
 2. **Backend**: https://proofmeet-backend-production.up.railway.app (Live API)
 3. **Test Registration**: Use real emails - system supports full registration → login → usage flow
-4. **Database Reset**: `Invoke-WebRequest -Uri "https://proofmeet-backend-production.up.railway.app/api/admin/clear-database" -Method DELETE`
-5. **GitHub Repos**: 
+4. **Ready-to-Use Test Accounts**:
+   - **Participant**: `tester.participant@proofmeet.com` (password: `password123`)
+   - **Host**: `tester.host@proofmeet.com` (password: `password123`)
+5. **Database Reset**: `Invoke-WebRequest -Uri "https://proofmeet-backend-production.up.railway.app/api/admin/clear-database" -Method DELETE`
+6. **GitHub Repos**: 
    - Frontend: https://github.com/Leondelange012/ProofMeet
    - Backend: https://github.com/Leondelange012/ProofMeet-Backend
+
+### 🧪 **Testing Instructions**
+**Option 1: Use Test Accounts (Immediate)**
+- Go to https://proof-meet-frontend.vercel.app/login
+- Login as Participant: `tester.participant@proofmeet.com` / `password123`
+- Login as Host: `tester.host@proofmeet.com` / `password123`
+
+**Option 2: Register New Accounts**
+- Go to https://proof-meet-frontend.vercel.app/register
+- Complete multi-step registration with real email + password
+- Login immediately after registration (auto-activated)
