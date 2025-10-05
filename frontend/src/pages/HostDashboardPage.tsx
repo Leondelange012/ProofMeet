@@ -25,17 +25,11 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material';
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import {
   MeetingRoom,
   People,
-  Add,
   Warning,
   QrCode,
-  Delete,
-  Edit,
   Visibility,
 } from '@mui/icons-material';
 import { useAuthStore } from '../hooks/useAuthStore';
@@ -45,26 +39,10 @@ const HostDashboardPage: React.FC = () => {
   const { user } = useAuthStore();
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState<any>(null);
-  const [openCreateDialog, setOpenCreateDialog] = useState(false);
-  const [isCreatingMeeting, setIsCreatingMeeting] = useState(false);
-  const [createMeetingError, setCreateMeetingError] = useState<string | null>(null);
-  const [createMeetingSuccess, setCreateMeetingSuccess] = useState<string | null>(null);
   
-  // Meeting creation form state
-  const [meetingForm, setMeetingForm] = useState({
-    title: '',
-    description: '',
-    scheduledFor: new Date(Date.now() + 60 * 60 * 1000), // Default to 1 hour from now
-    duration: 60
-  });
-
-  // State for real meetings
+  // State for AA meetings
   const [meetings, setMeetings] = useState<any[]>([]);
   const [isLoadingMeetings, setIsLoadingMeetings] = useState(true);
-  
-  // State for meeting management
-  const [editingMeeting, setEditingMeeting] = useState<any>(null);
-  const [isDeletingMeeting, setIsDeletingMeeting] = useState(false);
   const [viewingMeeting, setViewingMeeting] = useState<any>(null);
   
   // Mock data - in real app, this would come from API
@@ -101,41 +79,6 @@ const HostDashboardPage: React.FC = () => {
     } finally {
       setIsLoadingMeetings(false);
     }
-  };
-
-  const handleDeleteMeeting = async (meetingId: string) => {
-    if (!confirm('Are you sure you want to delete this meeting?')) {
-      return;
-    }
-    
-    setIsDeletingMeeting(true);
-    try {
-      const { meetingService } = await import('../services/meetingService');
-      const response = await meetingService.deleteMeeting(meetingId);
-      if (response.success) {
-        setMeetings(meetings.filter(m => m.id !== meetingId));
-        setCreateMeetingSuccess('Meeting deleted successfully!');
-        setTimeout(() => setCreateMeetingSuccess(null), 3000);
-      } else {
-        setCreateMeetingError(response.error || 'Failed to delete meeting');
-      }
-    } catch (error) {
-      console.error('Failed to delete meeting:', error);
-      setCreateMeetingError('Failed to delete meeting');
-    } finally {
-      setIsDeletingMeeting(false);
-    }
-  };
-
-  const handleEditMeeting = (meeting: any) => {
-    setEditingMeeting(meeting);
-    setMeetingForm({
-      title: meeting.title,
-      description: meeting.description || '',
-      scheduledFor: new Date(meeting.scheduledFor),
-      duration: meeting.duration
-    });
-    setOpenCreateDialog(true);
   };
 
   const handleViewMeetingDetails = (meeting: any) => {
@@ -217,66 +160,6 @@ const HostDashboardPage: React.FC = () => {
         return 'error';
       default:
         return 'default';
-    }
-  };
-
-  const handleCreateMeeting = async () => {
-    setIsCreatingMeeting(true);
-    setCreateMeetingError(null);
-    setCreateMeetingSuccess(null);
-
-    try {
-      // Import meetingService at the top of the file
-      const { meetingService } = await import('../services/meetingService');
-      
-      const meetingData = {
-        title: meetingForm.title,
-        description: meetingForm.description,
-        scheduledFor: meetingForm.scheduledFor.toISOString(),
-        duration: meetingForm.duration
-      };
-
-      let response;
-      if (editingMeeting) {
-        // Update existing meeting
-        response = await meetingService.updateMeeting(editingMeeting.id, meetingData);
-      } else {
-        // Create new meeting
-        response = await meetingService.createMeeting(meetingData);
-      }
-
-      if (response.success) {
-        if (editingMeeting) {
-          setCreateMeetingSuccess(`Meeting "${meetingForm.title}" updated successfully!`);
-          setMeetings(meetings.map(m => m.id === editingMeeting.id ? { ...m, ...meetingData } : m));
-        } else {
-          const joinUrl = response.data?.joinUrl || response.data?.zoomJoinUrl || 'No join URL available';
-          setCreateMeetingSuccess(`Meeting "${meetingForm.title}" created successfully! Join URL: ${joinUrl}`);
-          // Reload meetings to show the new one
-          loadMeetings();
-        }
-        
-        // Reset form and editing state
-        setMeetingForm({
-          title: '',
-          description: '',
-          scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
-          duration: 60
-        });
-        setEditingMeeting(null);
-        
-        // Close dialog after 10 seconds to allow copying the URL
-        setTimeout(() => {
-          setOpenCreateDialog(false);
-          setCreateMeetingSuccess(null);
-        }, 10000);
-      } else {
-        setCreateMeetingError(response.error || `Failed to ${editingMeeting ? 'update' : 'create'} meeting`);
-      }
-    } catch (error: any) {
-      setCreateMeetingError(`Failed to ${editingMeeting ? 'update' : 'create'} meeting: ` + error.message);
-    } finally {
-      setIsCreatingMeeting(false);
     }
   };
 
@@ -385,15 +268,13 @@ const HostDashboardPage: React.FC = () => {
                       </Typography>
                     )}
                     <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {meeting.format === 'in-person' && (
-                        <Button
-                          size="small"
-                          startIcon={<QrCode />}
-                          onClick={() => handleGenerateQR(meeting.id)}
-                        >
-                          Generate QR
-                        </Button>
-                      )}
+                      <Button
+                        size="small"
+                        startIcon={<QrCode />}
+                        onClick={() => alert(`Generate QR for meeting: ${meeting.id}`)}
+                      >
+                        Generate QR
+                      </Button>
                       
                       <Box sx={{ display: 'flex', gap: 0.5 }}>
                         <Tooltip title="View Details">
@@ -406,24 +287,13 @@ const HostDashboardPage: React.FC = () => {
                           </IconButton>
                         </Tooltip>
                         
-                        <Tooltip title="Edit Meeting">
+                        <Tooltip title="Monitor Attendance">
                           <IconButton
                             size="small"
-                            onClick={() => handleEditMeeting(meeting)}
-                            color="primary"
+                            onClick={() => alert(`Monitor attendance for: ${meeting.name || meeting.title}`)}
+                            color="success"
                           >
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        
-                        <Tooltip title="Delete Meeting">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteMeeting(meeting.id)}
-                            disabled={isDeletingMeeting}
-                            color="error"
-                          >
-                            <Delete fontSize="small" />
+                            <People fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </Box>
@@ -680,89 +550,6 @@ const HostDashboardPage: React.FC = () => {
               )}
             </>
           )}
-        </DialogActions>
-      </Dialog>
-
-      {/* Create Meeting Dialog */}
-      <Dialog open={openCreateDialog} onClose={() => {
-        setOpenCreateDialog(false);
-        setEditingMeeting(null);
-        setMeetingForm({
-          title: '',
-          description: '',
-          scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
-          duration: 60
-        });
-      }} maxWidth="md" fullWidth>
-        <DialogTitle>{editingMeeting ? 'Edit Meeting' : 'Create New Meeting'}</DialogTitle>
-        <DialogContent>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
-              {createMeetingError && (
-                <Alert severity="error">{createMeetingError}</Alert>
-              )}
-              {createMeetingSuccess && (
-                <Alert severity="success">{createMeetingSuccess}</Alert>
-              )}
-              
-              <TextField
-                fullWidth
-                label="Meeting Title"
-                value={meetingForm.title}
-                onChange={(e) => setMeetingForm({ ...meetingForm, title: e.target.value })}
-                required
-                placeholder="e.g., AA Meeting - Downtown Group"
-              />
-              
-              <TextField
-                fullWidth
-                label="Description"
-                value={meetingForm.description}
-                onChange={(e) => setMeetingForm({ ...meetingForm, description: e.target.value })}
-                multiline
-                rows={3}
-                placeholder="Meeting description or notes"
-              />
-              
-              <DateTimePicker
-                label="Scheduled Date & Time"
-                value={meetingForm.scheduledFor}
-                onChange={(newValue) => setMeetingForm({ ...meetingForm, scheduledFor: newValue || new Date() })}
-                slotProps={{
-                  textField: {
-                    fullWidth: true,
-                    required: true
-                  }
-                }}
-              />
-              
-              <TextField
-                fullWidth
-                label="Duration (minutes)"
-                type="number"
-                value={meetingForm.duration}
-                onChange={(e) => setMeetingForm({ ...meetingForm, duration: parseInt(e.target.value) || 60 })}
-                required
-                inputProps={{ min: 15, max: 480 }}
-              />
-            </Box>
-          </LocalizationProvider>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenCreateDialog(false)} disabled={isCreatingMeeting}>
-            Cancel
-          </Button>
-          <Button 
-            variant="contained" 
-            onClick={handleCreateMeeting}
-            disabled={isCreatingMeeting || !meetingForm.title}
-            startIcon={isCreatingMeeting ? <CircularProgress size={20} /> : <Add />}
-          >
-            {isCreatingMeeting 
-              ? (editingMeeting ? 'Updating...' : 'Creating...') 
-              : (editingMeeting ? 'Update Meeting' : 'Create Meeting')
-            }
-          </Button>
         </DialogActions>
       </Dialog>
     </Container>
