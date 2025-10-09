@@ -347,7 +347,7 @@ model ApprovedCourtDomain {
 }
 
 // ============================================
-// AUDIT LOG
+// AUDIT LOG (Optional but Recommended)
 // ============================================
 
 model AuditLog {
@@ -387,3 +387,4 @@ model SystemConfig {
   
   @@map("system_config")
 }
+

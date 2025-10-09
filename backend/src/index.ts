@@ -7,6 +7,13 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
+
+// V2 Routes (Court Compliance System)
+import { authV2Routes } from './routes/auth-v2';
+import { courtRepRoutes } from './routes/court-rep';
+import { participantRoutes } from './routes/participant';
+
+// V1 Routes (Phase 1 - for backward compatibility during migration)
 import { authRoutes } from './routes/auth';
 import { meetingRoutes } from './routes/meetings';
 import { attendanceRoutes } from './routes/attendance';
@@ -21,6 +28,9 @@ const PORT = process.env.PORT || 5000;
 
 // Initialize Prisma
 export const prisma = new PrismaClient();
+
+logger.info('ProofMeet Version 2.0 - Court Compliance System');
+logger.info('===============================================');
 
 // Security middleware
 app.use(helmet());
@@ -47,12 +57,27 @@ app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '2.0.0',
+    system: 'Court Compliance'
   });
 });
 
-// API routes
-app.use('/api/auth', authRoutes);
+// API routes - Version 2.0 (Primary)
+app.use('/api/v2/auth', authV2Routes);
+app.use('/api/v2/court-rep', courtRepRoutes);
+app.use('/api/v2/participant', participantRoutes);
+app.use('/api/auth', authV2Routes); // Default to V2
+app.use('/api/court-rep', courtRepRoutes); // Default to V2
+app.use('/api/participant', participantRoutes); // Default to V2
+
+// API routes - Version 1.0 (Backward compatibility)
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/meetings', meetingRoutes);
+app.use('/api/v1/attendance', attendanceRoutes);
+app.use('/api/v1/compliance', complianceRoutes);
+app.use('/api/v1/qr', qrRoutes);
+
+// Phase 1 routes (still accessible during migration)
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/compliance', complianceRoutes);
