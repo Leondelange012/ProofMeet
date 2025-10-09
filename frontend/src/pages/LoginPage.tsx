@@ -8,59 +8,47 @@ import {
   Box,
   Alert,
   CircularProgress,
+  Link as MuiLink,
 } from '@mui/material';
-import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
 import { useNavigate, Link } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import { useAuthStore } from '../hooks/useAuthStore';
-import { authService } from '../services/authService';
-
-const schema = yup.object({
-  email: yup.string().email('Invalid email').required('Email is required'),
-  password: yup.string().required('Password is required'),
-});
-
-type LoginFormData = {
-  email: string;
-  password: string;
-};
+import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
+import { authServiceV2 } from '../services/authService-v2';
 
 const LoginPage: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const navigate = useNavigate();
-  const { login } = useAuthStore();
+  const { login } = useAuthStoreV2();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormData>({
-    resolver: yupResolver(schema),
-  });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-  const onSubmit = async (data: LoginFormData) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await authService.login(data.email, data.password);
-      
-      if (response.success && response.data) {
-        login(response.data.token, response.data.user);
-        toast.success('Login successful!');
-        navigate('/dashboard');
-      } else {
-        setError(response.error || 'Login failed');
-      }
-    } catch (err) {
-      setError('An error occurred during login');
-      toast.error('Login failed');
-    } finally {
-      setIsLoading(false);
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      setLoading(false);
+      return;
     }
+
+    const response = await authServiceV2.login(email, password);
+    
+    if (response.success && response.data) {
+      login(response.data.token, response.data.user);
+      
+      // Redirect based on user type
+      if (response.data.user.userType === 'COURT_REP') {
+        navigate('/court-rep/dashboard');
+      } else {
+        navigate('/participant/dashboard');
+      }
+    } else {
+      setError(response.error || 'Login failed');
+    }
+
+    setLoading(false);
   };
 
   return (
@@ -89,33 +77,28 @@ const LoginPage: React.FC = () => {
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <Box component="form" onSubmit={handleSubmit} noValidate>
             <TextField
-              {...register('email')}
               margin="normal"
               required
               fullWidth
-              id="email"
               label="Email Address"
-              name="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
               autoFocus
-              error={!!errors.email}
-              helperText={errors.email?.message}
             />
 
             <TextField
-              {...register('password')}
               margin="normal"
               required
               fullWidth
-              id="password"
               label="Password"
-              name="password"
               type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-              error={!!errors.password}
-              helperText={errors.password?.message}
             />
 
             <Button
@@ -123,21 +106,24 @@ const LoginPage: React.FC = () => {
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
-              disabled={isLoading}
+              disabled={loading}
             >
-              {isLoading ? <CircularProgress size={24} /> : 'Sign In'}
+              {loading ? <CircularProgress size={24} /> : 'Sign In'}
             </Button>
 
             <Box sx={{ textAlign: 'center', mt: 2 }}>
               <Typography variant="body2" color="text.secondary">
-                Don't have an account?{' '}
-                <Link to="/register" style={{ textDecoration: 'none' }}>
-                  Register here
-                </Link>
+                Don't have an account?
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Court administrators can contact support for access.
-              </Typography>
+              <Box sx={{ mt: 1, display: 'flex', gap: 2, justifyContent: 'center' }}>
+                <MuiLink component={Link} to="/register/court-rep" underline="hover">
+                  Register as Court Rep
+                </MuiLink>
+                <Typography color="text.secondary">|</Typography>
+                <MuiLink component={Link} to="/register/participant" underline="hover">
+                  Register as Participant
+                </MuiLink>
+              </Box>
             </Box>
           </Box>
         </Paper>

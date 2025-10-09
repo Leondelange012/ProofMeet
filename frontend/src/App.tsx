@@ -8,7 +8,11 @@ import { Toaster } from 'react-hot-toast';
 // Pages
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import RegisterCourtRepPage from './pages/RegisterCourtRepPage';
+import RegisterParticipantPage from './pages/RegisterParticipantPage';
 import DashboardPage from './pages/DashboardPage';
+import CourtRepDashboardPage from './pages/CourtRepDashboardPage';
+import ParticipantDashboardPage from './pages/ParticipantDashboardPage';
 import MeetingPage from './pages/MeetingPage';
 import CompliancePage from './pages/CompliancePage';
 import HostDashboardPage from './pages/HostDashboardPage';
@@ -18,7 +22,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
 // Hooks
-import { useAuthStore } from './hooks/useAuthStore';
+import { useAuthStoreV2 } from './hooks/useAuthStore-v2';
 
 // Create theme
 const theme = createTheme({
@@ -46,7 +50,7 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, userType } = useAuthStoreV2();
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -60,24 +64,49 @@ function App() {
               <Route 
                 path="/login" 
                 element={
-                  isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
+                  isAuthenticated ? <Navigate to={userType === 'COURT_REP' ? '/court-rep/dashboard' : '/participant/dashboard'} replace /> : <LoginPage />
                 } 
               />
               
               <Route 
-                path="/register" 
+                path="/register/court-rep" 
                 element={
-                  isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />
+                  isAuthenticated ? <Navigate to="/court-rep/dashboard" replace /> : <RegisterCourtRepPage />
                 } 
               />
               
-              {/* Protected routes */}
-              <Route
-                path="/dashboard"
+              <Route 
+                path="/register/participant" 
                 element={
-                  <ProtectedRoute>
+                  isAuthenticated ? <Navigate to="/participant/dashboard" replace /> : <RegisterParticipantPage />
+                } 
+              />
+              
+              {/* Legacy registration route - redirect to choice */}
+              <Route 
+                path="/register" 
+                element={<Navigate to="/register/participant" replace />} 
+              />
+              
+              {/* Court Rep routes */}
+              <Route
+                path="/court-rep/dashboard"
+                element={
+                  <ProtectedRoute requiredUserType="COURT_REP">
                     <Layout>
-                      <DashboardPage />
+                      <CourtRepDashboardPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              {/* Participant routes */}
+              <Route
+                path="/participant/dashboard"
+                element={
+                  <ProtectedRoute requiredUserType="PARTICIPANT">
+                    <Layout>
+                      <ParticipantDashboardPage />
                     </Layout>
                   </ProtectedRoute>
                 }
@@ -105,23 +134,21 @@ function App() {
                 }
               />
               
-              {/* Host routes */}
+              {/* Legacy Host route - redirect to Court Rep */}
               <Route
                 path="/host/dashboard"
-                element={
-                  <ProtectedRoute requiredRole="host">
-                    <Layout>
-                      <HostDashboardPage />
-                    </Layout>
-                  </ProtectedRoute>
-                }
+                element={<Navigate to="/court-rep/dashboard" replace />}
               />
               
-              {/* Default redirect */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              {/* Default redirect based on user type */}
+              <Route path="/" element={
+                isAuthenticated 
+                  ? <Navigate to={userType === 'COURT_REP' ? '/court-rep/dashboard' : '/participant/dashboard'} replace />
+                  : <Navigate to="/login" replace />
+              } />
               
               {/* 404 */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
         </Router>
