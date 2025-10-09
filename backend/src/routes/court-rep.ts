@@ -15,6 +15,7 @@ import { body, validationResult } from 'express-validator';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';
 import { authenticate, requireCourtRep } from '../middleware/auth';
+import { getCourtCard } from '../services/courtCardService';
 
 const router = Router();
 
@@ -650,6 +651,144 @@ router.delete('/participants/:participantId/requirements', async (req: Request, 
     });
   } catch (error: any) {
     logger.error('Remove requirements error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+// ============================================
+// COURT CARDS & ATTENDANCE REPORTS
+// ============================================
+
+/**
+ * GET /api/court-rep/court-card/:attendanceId
+ * Get Court Card for any participant under this Court Rep
+ */
+router.get('/court-card/:attendanceId', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+    const { attendanceId } = req.params;
+
+    // Verify attendance belongs to this Court Rep's participants
+    const attendance = await prisma.attendanceRecord.findFirst({
+      where: {
+        id: attendanceId,
+        courtRepId,
+      },
+    });
+
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        error: 'Attendance record not found',
+      });
+    }
+
+    // Get Court Card
+    const courtCard = await getCourtCard(attendanceId);
+
+    if (!courtCard) {
+      return res.status(404).json({
+        success: false,
+        error: 'Court Card not yet generated',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        courtCard,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get court card error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * GET /api/court-rep/attendance-reports
+ * Get attendance reports for all participants
+ */
+router.get('/attendance-reports', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+    const participantId = req.query.participantId as string;
+    const program = req.query.program as string;
+
+    const where: any = { courtRepId };
+
+    if (startDate || endDate) {
+      where.meetingDate = {};
+      if (startDate) where.meetingDate.gte = new Date(startDate);
+      if (endDate) where.meetingDate.lte = new Date(endDate);
+    }
+
+    if (participantId) where.participantId = participantId;
+    if (program) where.meetingProgram = program;
+
+    const reports = await prisma.attendanceRecord.findMany({
+      where,
+      orderBy: { meetingDate: 'desc' },
+      include: {
+        participant: {
+          select: {
+            firstName: true,
+            lastName: true,
+            caseNumber: true,
+          },
+        },
+        courtCard: {
+          select: {
+            id: true,
+            cardNumber: true,
+          },
+        },
+      },
+    });
+
+    // Calculate summary statistics
+    const totalMeetings = reports.length;
+    const totalParticipants = new Set(reports.map(r => r.participantId)).size;
+    const avgAttendance = reports.length > 0
+      ? reports.reduce((sum, r) => sum + Number(r.attendancePercent || 0), 0) / reports.length
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        dateRange: {
+          start: startDate || 'All time',
+          end: endDate || 'Present',
+        },
+        summary: {
+          totalMeetings,
+          totalParticipants,
+          averageAttendance: Math.round(avgAttendance * 10) / 10,
+        },
+        reports: reports.map(record => ({
+          attendanceId: record.id,
+          participantName: `${record.participant.firstName} ${record.participant.lastName}`,
+          caseNumber: record.participant.caseNumber,
+          meetingName: record.meetingName,
+          meetingProgram: record.meetingProgram,
+          date: record.meetingDate,
+          duration: record.totalDurationMin,
+          attendancePercentage: record.attendancePercent,
+          courtCardId: record.courtCard?.id,
+          courtCardNumber: record.courtCard?.cardNumber,
+        })),
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get attendance reports error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

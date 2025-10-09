@@ -15,6 +15,8 @@ import { body, validationResult } from 'express-validator';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';
 import { authenticate, requireParticipant } from '../middleware/auth';
+import { generateCourtCard, getCourtCard, verifyCourtCard } from '../services/courtCardService';
+import { queueDailyDigest, sendAttendanceConfirmation } from '../services/emailService';
 
 const router = Router();
 
@@ -549,11 +551,48 @@ router.post(
           leaveTime,
           totalDurationMin: durationMinutes,
           activeDurationMin: durationMinutes, // TODO: Calculate based on activity tracking
+          idleDurationMin: 0,
           attendancePercent,
           status: 'COMPLETED',
-          courtCardGenerated: true, // Will trigger Court Card generation
+          verificationMethod: 'SCREEN_ACTIVITY',
         },
       });
+
+      // Generate Court Card automatically
+      let courtCard = null;
+      try {
+        courtCard = await generateCourtCard(attendanceId);
+        logger.info(`Court Card generated: ${courtCard.cardNumber} for participant ${participantId}`);
+      } catch (error: any) {
+        logger.error(`Failed to generate Court Card: ${error.message}`);
+        // Don't fail the request, just log the error
+      }
+
+      // Queue daily digest for Court Rep
+      if (participant?.courtRepId && courtCard) {
+        try {
+          await queueDailyDigest(participant.courtRepId, [attendanceId]);
+          logger.info(`Queued daily digest for Court Rep ${participant.courtRepId}`);
+        } catch (error: any) {
+          logger.error(`Failed to queue daily digest: ${error.message}`);
+        }
+      }
+
+      // Send attendance confirmation to participant
+      if (courtCard) {
+        try {
+          await sendAttendanceConfirmation(
+            req.user!.email,
+            attendance.meetingName,
+            durationMinutes,
+            Number(attendancePercent),
+            courtCard.cardNumber
+          );
+          logger.info(`Attendance confirmation sent to ${req.user!.email}`);
+        } catch (error: any) {
+          logger.error(`Failed to send confirmation: ${error.message}`);
+        }
+      }
 
       logger.info(`Participant ${participantId} left meeting, duration: ${durationMinutes}min`);
 
@@ -564,8 +603,9 @@ router.post(
           attendanceId: updated.id,
           duration: durationMinutes,
           attendancePercentage: attendancePercent,
-          courtCardGenerated: true,
-          courtCardId: null, // TODO: Generate Court Card
+          courtCardGenerated: !!courtCard,
+          courtCardId: courtCard?.id,
+          courtCardNumber: courtCard?.cardNumber,
           sentToCourtRep: true,
         },
       });
@@ -613,6 +653,59 @@ router.get('/requirements', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Get requirements error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+// ============================================
+// COURT CARDS
+// ============================================
+
+/**
+ * GET /api/participant/court-card/:attendanceId
+ * Get Court Card for a specific attendance record
+ */
+router.get('/court-card/:attendanceId', async (req: Request, res: Response) => {
+  try {
+    const participantId = req.user!.id;
+    const { attendanceId } = req.params;
+
+    // Verify attendance belongs to this participant
+    const attendance = await prisma.attendanceRecord.findFirst({
+      where: {
+        id: attendanceId,
+        participantId,
+      },
+    });
+
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        error: 'Attendance record not found',
+      });
+    }
+
+    // Get Court Card
+    const courtCard = await getCourtCard(attendanceId);
+
+    if (!courtCard) {
+      return res.status(404).json({
+        success: false,
+        error: 'Court Card not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        courtCard,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get court card error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

@@ -12,6 +12,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { authV2Routes } from './routes/auth-v2';
 import { courtRepRoutes } from './routes/court-rep';
 import { participantRoutes } from './routes/participant';
+import { adminRoutes } from './routes/admin';
 
 // V1 Routes (Phase 1 - for backward compatibility during migration)
 import { authRoutes } from './routes/auth';
@@ -66,9 +67,11 @@ app.get('/health', (req, res) => {
 app.use('/api/v2/auth', authV2Routes);
 app.use('/api/v2/court-rep', courtRepRoutes);
 app.use('/api/v2/participant', participantRoutes);
+app.use('/api/v2/admin', adminRoutes);
 app.use('/api/auth', authV2Routes); // Default to V2
 app.use('/api/court-rep', courtRepRoutes); // Default to V2
 app.use('/api/participant', participantRoutes); // Default to V2
+app.use('/api/admin', adminRoutes); // Default to V2
 
 // API routes - Version 1.0 (Backward compatibility)
 app.use('/api/v1/auth', authRoutes);

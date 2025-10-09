@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';
+import { sendVerificationEmail } from '../services/emailService';
 
 const router = Router();
 
@@ -46,24 +47,7 @@ async function isApprovedCourtDomain(email: string): Promise<boolean> {
   return !!approvedDomain;
 }
 
-/**
- * Send verification email (mock for now - integrate with SendGrid later)
- */
-async function sendVerificationEmail(email: string, token: string): Promise<void> {
-  const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email/${token}`;
-  
-  // TODO: Integrate with SendGrid
-  logger.info(`[EMAIL] Verification email would be sent to: ${email}`);
-  logger.info(`[EMAIL] Verification URL: ${verificationUrl}`);
-  
-  // In development, log the token
-  if (process.env.NODE_ENV === 'development') {
-    console.log('\n📧 EMAIL VERIFICATION');
-    console.log(`To: ${email}`);
-    console.log(`Link: ${verificationUrl}`);
-    console.log('');
-  }
-}
+// Email service imported from services/emailService.ts
 
 // ============================================
 // COURT REPRESENTATIVE REGISTRATION
