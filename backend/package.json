@@ -54,6 +54,7 @@
     "node": "18.x"
   },
   "prisma": {
+    "schema": "./prisma/schema.prisma",
     "seed": "tsx prisma/seed.ts"
   }
 }
