@@ -14,7 +14,6 @@ import {
 } from '@mui/material';
 import {
   CheckCircle,
-  TrendingUp,
   CalendarToday,
   Refresh,
   MeetingRoom,

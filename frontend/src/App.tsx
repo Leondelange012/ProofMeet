@@ -7,15 +7,12 @@ import { Toaster } from 'react-hot-toast';
 
 // Pages
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
 import RegisterCourtRepPage from './pages/RegisterCourtRepPage';
 import RegisterParticipantPage from './pages/RegisterParticipantPage';
-import DashboardPage from './pages/DashboardPage';
 import CourtRepDashboardPage from './pages/CourtRepDashboardPage';
 import ParticipantDashboardPage from './pages/ParticipantDashboardPage';
 import MeetingPage from './pages/MeetingPage';
 import CompliancePage from './pages/CompliancePage';
-import HostDashboardPage from './pages/HostDashboardPage';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
