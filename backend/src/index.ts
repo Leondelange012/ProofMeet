@@ -58,7 +58,7 @@ app.use(express.urlencoded({ extended: true }));
     res.status(200).json({ 
       status: 'OK', 
       timestamp: new Date().toISOString(),
-      version: '2.0.1', // Updated to force redeploy
+      version: '2.0.2', // Updated to force redeploy
       system: 'Court Compliance'
     });
   });
