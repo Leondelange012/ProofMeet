@@ -1,6 +1,6 @@
 {
   "name": "proofmeet-backend",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "ProofMeet Version 2.0 - Court Compliance System",
   "main": "dist/index.js",
   "scripts": {

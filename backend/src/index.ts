@@ -55,14 +55,27 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-  // Health check endpoint
-  app.get('/health', (_req, res) => {
-    res.status(200).json({ 
-      status: 'OK', 
-      timestamp: new Date().toISOString(),
-      version: '2.0.3', // Updated to trigger Railway redeploy
-      system: 'Court Compliance'
-    });
+  // Health check endpoint with database test
+  app.get('/health', async (_req, res) => {
+    try {
+      await prisma.$connect();
+      const userCount = await prisma.user.count();
+      
+      res.status(200).json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        version: '2.0.5',
+        system: 'Court Compliance',
+        database: 'Connected',
+        userCount
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        status: 'ERROR',
+        error: error.message,
+        database: 'Disconnected'
+      });
+    }
   });
 
 // API routes - Version 2.0 (Primary)
