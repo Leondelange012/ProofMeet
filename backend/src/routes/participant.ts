@@ -571,10 +571,10 @@ router.post(
       }
 
       // Queue daily digest for Court Rep
-      if (req.user?.courtRepId && courtCard) {
+      if ((req.user as any)?.courtRepId && courtCard) {
         try {
-          await queueDailyDigest(req.user.courtRepId, [attendanceId]);
-          logger.info(`Queued daily digest for Court Rep ${req.user.courtRepId}`);
+          await queueDailyDigest((req.user as any).courtRepId, [attendanceId]);
+          logger.info(`Queued daily digest for Court Rep ${(req.user as any).courtRepId}`);
         } catch (error: any) {
           logger.error(`Failed to queue daily digest: ${error.message}`);
         }
