@@ -73,18 +73,18 @@ app.use('/api/court-rep', courtRepRoutes); // Default to V2
 app.use('/api/participant', participantRoutes); // Default to V2
 app.use('/api/admin', adminRoutes); // Default to V2
 
-// API routes - Version 1.0 (Backward compatibility)
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/meetings', meetingRoutes);
-app.use('/api/v1/attendance', attendanceRoutes);
-app.use('/api/v1/compliance', complianceRoutes);
-app.use('/api/v1/qr', qrRoutes);
+// API routes - Version 1.0 (Backward compatibility) - DISABLED DUE TO SCHEMA MISMATCH
+// app.use('/api/v1/auth', authRoutes);
+// app.use('/api/v1/meetings', meetingRoutes);
+// app.use('/api/v1/attendance', attendanceRoutes);
+// app.use('/api/v1/compliance', complianceRoutes);
+// app.use('/api/v1/qr', qrRoutes);
 
-// Phase 1 routes (still accessible during migration)
-app.use('/api/meetings', meetingRoutes);
-app.use('/api/attendance', attendanceRoutes);
-app.use('/api/compliance', complianceRoutes);
-app.use('/api/qr', qrRoutes);
+// Phase 1 routes (still accessible during migration) - DISABLED DUE TO SCHEMA MISMATCH
+// app.use('/api/meetings', meetingRoutes);
+// app.use('/api/attendance', attendanceRoutes);
+// app.use('/api/compliance', complianceRoutes);
+// app.use('/api/qr', qrRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

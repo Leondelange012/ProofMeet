@@ -37,7 +37,7 @@ router.post('/report', [
     }
 
     // Get attendance records for the period
-    const attendances = await prisma.attendance.findMany({
+    const attendances = await prisma.attendanceRecord.findMany({
       where: {
         userId,
         createdAt: {

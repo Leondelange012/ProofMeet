@@ -140,7 +140,7 @@ router.post('/checkin', [
     }
 
     // Check if user already checked in
-    const existingAttendance = await prisma.attendance.findFirst({
+    const existingAttendance = await prisma.attendanceRecord.findFirst({
       where: {
         userId,
         meetingId: parsedQrData.meetingId,
@@ -156,7 +156,7 @@ router.post('/checkin', [
     }
 
     // Create attendance record
-    const attendance = await prisma.attendance.create({
+    const attendance = await prisma.attendanceRecord.create({
       data: {
         userId,
         meetingId: parsedQrData.meetingId,
@@ -220,7 +220,7 @@ router.post('/checkout', [
     }
 
     // Find attendance record
-    const attendance = await prisma.attendance.findFirst({
+    const attendance = await prisma.attendanceRecord.findFirst({
       where: {
         userId,
         meetingId: parsedQrData.meetingId,
@@ -257,7 +257,7 @@ router.post('/checkout', [
       });
     }
 
-    const updatedAttendance = await prisma.attendance.update({
+    const updatedAttendance = await prisma.attendanceRecord.update({
       where: { id: attendance.id },
       data: {
         checkOutQr: parsedQrData.sessionId,

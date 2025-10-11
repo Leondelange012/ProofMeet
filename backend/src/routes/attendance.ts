@@ -36,7 +36,7 @@ router.post('/join', [
     }
 
     // Check if user already has attendance record
-    const existingAttendance = await prisma.attendance.findFirst({
+    const existingAttendance = await prisma.attendanceRecord.findFirst({
       where: {
         userId,
         meetingId,
@@ -52,7 +52,7 @@ router.post('/join', [
     }
 
     // Create attendance record
-    const attendance = await prisma.attendance.create({
+    const attendance = await prisma.attendanceRecord.create({
       data: {
         userId,
         meetingId,
@@ -95,7 +95,7 @@ router.post('/leave', [
 
     const { attendanceId } = req.body;
 
-    const attendance = await prisma.attendance.findUnique({
+    const attendance = await prisma.attendanceRecord.findUnique({
       where: { id: attendanceId },
       include: { meeting: true }
     });
@@ -127,7 +127,7 @@ router.post('/leave', [
       });
     }
 
-    const updatedAttendance = await prisma.attendance.update({
+    const updatedAttendance = await prisma.attendanceRecord.update({
       where: { id: attendanceId },
       data: {
         leaveTime,
@@ -178,7 +178,7 @@ router.post('/approve', [
     // TODO: Add authentication middleware to get hostId from JWT
     const hostId = 'temp-host-id';
 
-    const attendance = await prisma.attendance.findUnique({
+    const attendance = await prisma.attendanceRecord.findUnique({
       where: { id: attendanceId },
       include: { meeting: true }
     });
@@ -198,7 +198,7 @@ router.post('/approve', [
       });
     }
 
-    const updatedAttendance = await prisma.attendance.update({
+    const updatedAttendance = await prisma.attendanceRecord.update({
       where: { id: attendanceId },
       data: {
         isApproved: approved,
@@ -233,7 +233,7 @@ router.get('/user/:userId', async (req, res) => {
     const take = parseInt(limit as string);
 
     const [attendances, total] = await Promise.all([
-      prisma.attendance.findMany({
+      prisma.attendanceRecord.findMany({
         where: { userId },
         skip,
         take,
@@ -252,7 +252,7 @@ router.get('/user/:userId', async (req, res) => {
           flags: true
         }
       }),
-      prisma.attendance.count({ where: { userId } })
+      prisma.attendanceRecord.count({ where: { userId } })
     ]);
 
     res.json({
