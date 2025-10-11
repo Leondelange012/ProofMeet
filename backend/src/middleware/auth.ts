@@ -73,8 +73,8 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       });
     }
 
-    // Attach user to request
-    req.user = user;
+    // Attach user to request with proper typing
+    req.user = user as Express.User;
     
     next();
   } catch (error: any) {
@@ -168,12 +168,17 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
         userType: true,
         firstName: true,
         lastName: true,
+        courtRepId: true,
+        courtName: true,
+        badgeNumber: true,
+        caseNumber: true,
         isActive: true,
+        isEmailVerified: true,
       },
     });
 
     if (user && user.isActive) {
-      req.user = user;
+      req.user = user as Express.User;
     }
 
     next();

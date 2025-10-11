@@ -17,12 +17,11 @@ const router = Router();
  * Generate JWT token
  */
 function generateToken(userId: string, userType: string): string {
-  const secret = process.env['JWT_SECRET'] || 'dev-secret-change-in-production';
-  const expiresIn: string = (process.env['JWT_EXPIRES_IN'] || '7d') as string;
+  const secret: string = process.env['JWT_SECRET'] || 'dev-secret-change-in-production';
   return jwt.sign(
     { userId, userType },
     secret,
-    { expiresIn }
+    { expiresIn: '7d' }
   );
 }
 
