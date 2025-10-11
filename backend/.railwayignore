@@ -1,0 +1,8 @@
+# Ignore everything except what we need
+*
+!package.json
+!railway.json
+!src/
+!prisma/
+!tsconfig.json
+!.gitignore
