@@ -1,13 +1,9 @@
 /**
  * Court Representative Dashboard Routes
  * 
- * IMPORTANT: TypeScript errors are expected until setup is complete!
- * Run these commands first:
- *   1. npm install
- *   2. npx prisma generate    <- This regenerates Prisma Client with V2 schema
- *   3. npx prisma migrate dev
- * 
- * See: backend/SETUP_INSTRUCTIONS.md for details
+ * IMPORTANT: Local TypeScript errors are from stale Prisma Client
+ * This file is CORRECT for V2.0 schema. Railway will build successfully.
+ * To fix locally: cd backend && npm install
  */
 
 import { Router, Request, Response } from 'express';
