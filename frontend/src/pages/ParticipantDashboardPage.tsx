@@ -21,6 +21,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import axios from 'axios';
+import { aaIntergroupService, AAMeeting } from '../services/aaIntergroupService';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
@@ -30,6 +31,7 @@ const ParticipantDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const [availableMeetings, setAvailableMeetings] = useState<AAMeeting[]>([]);
 
   const loadDashboard = async () => {
     try {
@@ -38,12 +40,20 @@ const ParticipantDashboardPage: React.FC = () => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
+      // Load dashboard data
       const response = await axios.get(`${API_BASE_URL}/participant/dashboard`, { headers });
       
       if (response.data.success) {
         setDashboardData(response.data.data);
       } else {
         setError(response.data.error || 'Failed to load dashboard');
+      }
+
+      // Load available meetings from AA Intergroup service
+      const meetingsResponse = await aaIntergroupService.getAllMeetings();
+      if (meetingsResponse.success && meetingsResponse.data) {
+        // Show only first 6 meetings on dashboard
+        setAvailableMeetings(meetingsResponse.data.slice(0, 6));
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
@@ -157,7 +167,7 @@ const ParticipantDashboardPage: React.FC = () => {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <MeetingRoom sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
-                <Typography variant="h6">Browse Meetings</Typography>
+                <Typography variant="h6">Browse All Meetings</Typography>
               </Box>
               <Typography variant="body2" color="text.secondary">
                 Find recovery meetings to attend
@@ -180,6 +190,77 @@ const ParticipantDashboardPage: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Available Meetings */}
+      {availableMeetings.length > 0 && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">
+                Available Recovery Meetings
+              </Typography>
+              <Button
+                size="small"
+                onClick={() => navigate('/meetings')}
+                sx={{ textTransform: 'none' }}
+              >
+                View All
+              </Button>
+            </Box>
+            <Grid container spacing={2}>
+              {availableMeetings.map((meeting) => (
+                <Grid item xs={12} md={6} key={meeting.id}>
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      '&:hover': {
+                        boxShadow: 2,
+                        transform: 'translateY(-2px)',
+                      },
+                    }}
+                  >
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                          {meeting.name}
+                        </Typography>
+                        <Chip
+                          label={meeting.program}
+                          size="small"
+                          color="primary"
+                          sx={{ ml: 1 }}
+                        />
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        {meeting.type}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                        <Chip
+                          label={meeting.format}
+                          size="small"
+                          variant="outlined"
+                        />
+                        <Chip
+                          label={`${meeting.day} ${meeting.time}`}
+                          size="small"
+                          variant="outlined"
+                        />
+                      </Box>
+                      {meeting.zoomUrl && (
+                        <Typography variant="caption" color="primary" sx={{ display: 'block', mt: 1 }}>
+                          🔗 Online Meeting Available
+                        </Typography>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Meetings */}
       {dashboardData?.recentMeetings && dashboardData.recentMeetings.length > 0 && (
