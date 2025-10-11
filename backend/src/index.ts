@@ -14,12 +14,12 @@ import { courtRepRoutes } from './routes/court-rep';
 import { participantRoutes } from './routes/participant';
 import { adminRoutes } from './routes/admin';
 
-// V1 Routes (Phase 1 - for backward compatibility during migration)
-import { authRoutes } from './routes/auth';
-import { meetingRoutes } from './routes/meetings';
-import { attendanceRoutes } from './routes/attendance';
-import { complianceRoutes } from './routes/compliance';
-import { qrRoutes } from './routes/qr';
+// V1 Routes (Phase 1 - for backward compatibility during migration) - MOVED TO v1-backup/
+// import { authRoutes } from './routes/auth';
+// import { meetingRoutes } from './routes/meetings';
+// import { attendanceRoutes } from './routes/attendance';
+// import { complianceRoutes } from './routes/compliance';
+// import { qrRoutes } from './routes/qr';
 
 // Load environment variables
 dotenv.config();
