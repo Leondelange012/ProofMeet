@@ -1,3 +1,5 @@
+/// <reference path="../types/express.d.ts" />
+
 import { Router, Request, Response } from 'express';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';

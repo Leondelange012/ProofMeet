@@ -6,6 +6,8 @@
  * To fix locally: cd backend && npm install
  */
 
+/// <reference path="../types/express.d.ts" />
+
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { prisma } from '../index';
