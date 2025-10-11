@@ -27,7 +27,7 @@ import {
   AccountCircle,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '@/hooks/useAuthStore';
+import { useAuthStoreV2 } from '@/hooks/useAuthStore-v2';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -38,7 +38,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, logout } = useAuthStoreV2();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -60,20 +60,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     handleProfileMenuClose();
   };
 
-  const menuItems = [
-    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-    { text: 'Meetings', icon: <MeetingRoom />, path: '/meetings' },
-    { text: 'Compliance', icon: <Assessment />, path: '/compliance' },
-  ];
-
-  // Add host-specific menu items
-  if (user?.isHost) {
-    menuItems.push({
-      text: 'Host Dashboard',
-      icon: <Person />,
-      path: '/host/dashboard',
-    });
-  }
+  // Menu items based on user type
+  const menuItems = user?.userType === 'COURT_REP' 
+    ? [
+        { text: 'Dashboard', icon: <Dashboard />, path: '/court-rep/dashboard' },
+        { text: 'Participants', icon: <Person />, path: '/court-rep/participants' },
+        { text: 'Reports', icon: <Assessment />, path: '/court-rep/reports' },
+      ]
+    : [
+        { text: 'Dashboard', icon: <Dashboard />, path: '/participant/dashboard' },
+        { text: 'My Meetings', icon: <MeetingRoom />, path: '/participant/meetings' },
+        { text: 'My Progress', icon: <Assessment />, path: '/participant/progress' },
+      ];
 
   const drawer = (
     <Box sx={{ width: 250 }}>
