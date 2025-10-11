@@ -1,82 +1,90 @@
 # ProofMeet V2.0 Design System
 
-## 🎨 **Inspired by Online Intergroup AA**
+## 🎨 **Modern Professional Design**
 
-ProofMeet's visual design is inspired by the [Online Intergroup Alcoholics Anonymous](https://aa-intergroup.org) website, creating a professional, trustworthy, and calming user experience for court-ordered meeting compliance tracking.
+ProofMeet features a clean, modern interface inspired by leading SaaS applications (Notion, Linear, Stripe). The design prioritizes readability, user-friendliness, and professional aesthetics while avoiding color overwhelming.
 
 ---
 
 ## 🌊 **Color Palette**
 
 ### Primary Colors
-- **Navy Blue (Background):** `#0A2952`
-  - Main background color
-  - Creates a professional, calming atmosphere
-  - High contrast with white text
+- **Refined Teal:** `#0891B2`
+  - Primary buttons and CTAs
+  - Links and interactive elements
+  - Professional and trustworthy
+  - Used strategically (not everywhere)
 
-- **Dark Navy (Cards):** `#0D3A6F`
+- **Warm Orange (Secondary):** `#F97316`
+  - Call-to-action buttons
+  - Important highlights
+  - Energy and hope
+  - Completion indicators
+
+### Background Colors
+- **Soft Off-White:** `#F8F9FA`
+  - Main background
+  - Clean, light, reduces eye strain
+
+- **Pure White:** `#FFFFFF`
   - Card backgrounds
-  - Drawer/sidebar backgrounds
+  - Input fields
   - Elevated surfaces
 
-### Accent Colors
-- **Bright Cyan (Primary):** `#00D9FF`
-  - Primary buttons
-  - Links and interactive elements
-  - Focus states
-  - Logo accents
-
-- **Light Cyan (Secondary):** `#4DD0E1`
-  - Hover states
-  - Gradient transitions
-  - Chip labels
-  - Progress bars
+- **Light Gray (Sidebar):** `#FAFBFC`
+  - Navigation drawer
+  - Subtle differentiation
 
 ### Text Colors
-- **White (Primary Text):** `#FFFFFF`
-  - Main headings
-  - Body text
-  - High contrast for accessibility
+- **Dark Gray (Primary):** `#1F2937`
+  - Main text (easier on eyes than black)
+  - High readability
 
-- **Light Blue (Secondary Text):** `#B3E5FC`
-  - Subheadings
+- **Medium Gray (Secondary):** `#6B7280`
+  - Supporting text
   - Metadata
-  - Less prominent information
+
+- **Nearly Black (Headings):** `#111827`
+  - H1, H2 headings
+  - Strong hierarchy
 
 ### Status Colors
-- **Success Green:** `#4CAF50` / `#81C784`
-- **Warning Orange:** `#FF9800` / `#FFB74D`
-- **Error Red:** `#F44336` / `#EF5350`
+- **Success Green:** `#10B981` / `#34D399`
+- **Warning Amber:** `#F59E0B` / `#FBBF24`
+- **Error Red:** `#EF4444` / `#F87171`
+- **Info Blue:** `#3B82F6` / `#60A5FA` (used sparingly)
 
 ---
 
 ## 🎭 **Visual Elements**
 
-### Gradients
-```css
-/* Primary Button Gradient */
-background: linear-gradient(135deg, #00D9FF 0%, #4DD0E1 100%);
-
-/* App Bar Gradient */
-background: linear-gradient(135deg, #0A2952 0%, #0D3A6F 100%);
-
-/* Drawer Gradient */
-background: linear-gradient(180deg, #0A2952 0%, #0D3A6F 100%);
-
-/* Progress Bar Gradient */
-background: linear-gradient(90deg, #00D9FF 0%, #4DD0E1 100%);
-```
-
-### Shadows
-- **Card Shadow:** `0 4px 20px rgba(0, 0, 0, 0.25)`
-- **Card Hover Shadow:** `0 8px 30px rgba(0, 217, 255, 0.2)`
-- **Button Hover Shadow:** `0 4px 12px rgba(0, 217, 255, 0.3)`
+### Shadows (Tailwind-inspired)
+- **Level 1 (sm):** `0 1px 2px 0 rgba(0, 0, 0, 0.05)`
+- **Level 2 (default):** `0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)`
+- **Level 3 (md):** `0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)`
+- **Level 4 (lg):** `0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)`
+- **Level 5 (xl):** `0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)`
+- **Level 6 (2xl):** `0 25px 50px -12px rgba(0, 0, 0, 0.25)`
 
 ### Borders
-- **Subtle Card Border:** `1px solid rgba(77, 208, 225, 0.15)`
-- **Hover Card Border:** `rgba(77, 208, 225, 0.3)`
-- **Input Border:** `rgba(77, 208, 225, 0.3)`
-- **Focused Input Border:** `#00D9FF`
+- **Card Border:** `1px solid #E5E7EB`
+- **Input Border (default):** `1.5px solid #D1D5DB`
+- **Input Border (hover):** `#9CA3AF`
+- **Input Border (focus):** `2px solid #0891B2`
+- **Divider:** `#E5E7EB`
+
+### Border Radius
+- **Small:** `6px` (chips, small elements)
+- **Medium:** `8px` (buttons, inputs)
+- **Large:** `10px` (default)
+- **Cards:** `12px`
+
+### Animations
+- **Standard Transition:** `all 0.2s ease`
+- **Button Hover:** `translateY(-1px)` + elevated shadow
+- **Card Hover:** `translateY(-2px)` + elevated shadow
+- **Progress Bar:** `cubic-bezier(0.4, 0, 0.2, 1)` (smooth)
+- **Shimmer Effect:** `2s infinite` on progress bars
 
 ---
 
@@ -110,41 +118,50 @@ background: linear-gradient(90deg, #00D9FF 0%, #4DD0E1 100%);
 
 ### Buttons
 - **Border Radius:** `8px`
-- **Padding:** `10px 24px`
-- **Default Shadow:** None
-- **Hover Shadow:** `0 4px 12px rgba(0, 217, 255, 0.3)`
-- **Primary Style:** Cyan gradient with dark text
+- **Padding:** `10px 20px`
+- **Font Weight:** `600`
+- **Default Shadow:** `0 1px 2px 0 rgba(0, 0, 0, 0.05)`
+- **Hover:** Elevated shadow + `translateY(-1px)`
+- **Primary Color:** `#0891B2` (teal)
+- **Secondary Color:** `#F97316` (orange)
 
 ### Cards
-- **Background:** `#0D3A6F` (dark navy)
-- **Border:** `1px solid rgba(77, 208, 225, 0.15)`
+- **Background:** `#FFFFFF` (pure white)
+- **Border:** `1px solid #E5E7EB`
 - **Border Radius:** `12px`
-- **Shadow:** `0 4px 20px rgba(0, 0, 0, 0.25)`
-- **Hover Transformation:** Border glow + elevated shadow
-- **Transition:** `all 0.3s ease`
+- **Shadow:** `0 1px 3px 0 rgba(0, 0, 0, 0.1)`
+- **Hover:** Elevated shadow + `translateY(-2px)`
+- **Transition:** `all 0.2s ease`
 
 ### Chips
-- **Border Radius:** Default
-- **Font Weight:** 600
-- **Primary Style:** Cyan gradient with dark text
+- **Border Radius:** `6px`
+- **Font Weight:** `600`
+- **Font Size:** `0.8125rem`
+- **Primary:** Light blue background (`#DBEAFE`) with dark blue text (`#1E40AF`)
+- **Secondary:** Light orange background (`#FED7AA`) with dark orange text (`#9A3412`)
+- **Success:** Light green background (`#D1FAE5`) with dark green text (`#065F46`)
 
 ### Text Fields
-- **Border Color:** `rgba(77, 208, 225, 0.3)`
-- **Hover Border:** `rgba(77, 208, 225, 0.5)`
-- **Focus Border:** `#00D9FF`
+- **Background:** `#FFFFFF`
+- **Border (default):** `1.5px solid #D1D5DB`
+- **Border (hover):** `#9CA3AF`
+- **Border (focus):** `2px solid #0891B2`
+- **Transition:** All borders animate smoothly
 
 ### Progress Bars
-- **Height:** `10px`
-- **Background:** `rgba(255, 255, 255, 0.1)`
+- **Height:** `8px`
+- **Background:** `#E5E7EB`
 - **Border Radius:** `4px`
-- **Fill:** Cyan gradient
-- **Border:** `1px solid rgba(77, 208, 225, 0.2)`
+- **Fill Color:** `#0891B2` (teal)
+- **Animation:** Shimmer effect (2s infinite)
+- **Transition:** `cubic-bezier(0.4, 0, 0.2, 1)`
 
 ### Scrollbar
-- **Width:** `10px`
-- **Track:** `rgba(10, 41, 82, 0.5)` with 5px border radius
-- **Thumb:** Cyan gradient with 2px border
-- **Hover Thumb:** Darker cyan gradient
+- **Width:** `12px`
+- **Track:** `#F9FAFB` with 6px border radius
+- **Thumb:** `#D1D5DB` with 3px white border
+- **Hover Thumb:** `#9CA3AF`
+- **Modern, subtle design**
 
 ---
 
@@ -153,49 +170,53 @@ background: linear-gradient(90deg, #00D9FF 0%, #4DD0E1 100%);
 ### Meeting Status Badges
 ```css
 .meeting-status {
-  padding: 6px 16px;
-  border-radius: 20px;
+  padding: 6px 14px;
+  border-radius: 6px;
   font-weight: 600;
-  border: 1px solid;
-  backdrop-filter: blur(10px);
+  font-size: 0.8125rem;
+  letter-spacing: 0.01em;
 }
 
 .meeting-status.active {
-  background: rgba(76, 175, 80, 0.15);
-  border-color: #4caf50;
-  color: #81c784;
+  background: #D1FAE5;
+  color: #065F46;
+  border: 1px solid #A7F3D0;
 }
 
 .meeting-status.completed {
-  background: rgba(0, 217, 255, 0.15);
-  border-color: #00D9FF;
-  color: #4DD0E1;
+  background: #DBEAFE;
+  color: #1E40AF;
+  border: 1px solid #BFDBFE;
 }
 
 .meeting-status.flagged {
-  background: rgba(244, 67, 54, 0.15);
-  border-color: #f44336;
-  color: #ef5350;
+  background: #FEE2E2;
+  color: #991B1B;
+  border: 1px solid #FECACA;
 }
 ```
 
 ### Compliance Bars
-- **Good:** Green gradient (`#4caf50` → `#81c784`)
-- **Warning:** Orange gradient (`#ff9800` → `#ffb74d`)
-- **Danger:** Red gradient (`#f44336` → `#ef5350`)
-- All with glowing box shadows
+- **Good:** Solid green (`#10B981`) with shimmer animation
+- **Warning:** Solid amber (`#F59E0B`) with shimmer animation
+- **Danger:** Solid red (`#EF4444`) with shimmer animation
+- **Default:** Teal (`#0891B2`)
+- All bars feature a subtle shimmer effect for visual interest
 
 ---
 
 ## 🌟 **Key Features**
 
-1. **Dark Mode First:** Professional navy background with high contrast
-2. **Gradient Accents:** Smooth cyan gradients for visual appeal
-3. **Glassmorphism:** Subtle backdrop filters and transparency
-4. **Smooth Transitions:** 0.3s ease transitions on interactive elements
-5. **Hover Effects:** Elevated shadows and border glows
-6. **Accessibility:** High contrast text, clear focus states
-7. **Modern Typography:** Inter font with proper weights and spacing
+1. **Light & Clean:** Soft backgrounds that reduce eye strain and create spaciousness
+2. **Strategic Color Use:** Color used purposefully (not overwhelmingly) for hierarchy and CTAs
+3. **Subtle Shadows:** Tailwind-inspired shadow system for depth without heaviness
+4. **Smooth Micro-interactions:** Gentle hover effects and transitions (0.2s ease)
+5. **High Readability:** Dark gray text on light backgrounds for optimal reading
+6. **Accessibility First:** WCAG AA compliant contrast ratios throughout
+7. **Modern Typography:** Inter font with refined weights and spacing
+8. **Balanced Palette:** Teal (trust) + Orange (energy) instead of blue-heavy
+9. **Professional SaaS Aesthetic:** Inspired by Notion, Linear, and Stripe
+10. **Shimmer Effects:** Subtle animations on progress indicators for visual interest
 
 ---
 
@@ -227,24 +248,55 @@ All styles are implemented using:
 ## 🎨 **Brand Identity**
 
 ProofMeet's design communicates:
-- **Trust:** Professional navy blue foundation
-- **Hope:** Bright cyan accents
-- **Clarity:** High contrast text and clean layouts
-- **Support:** Warm, welcoming gradients
-- **Authority:** Strong typography and clear hierarchy
+- **Trust:** Professional teal color + clean white interfaces
+- **Hope:** Warm orange accents for encouragement and completion
+- **Clarity:** High readability with balanced contrast and spacious layouts
+- **Support:** Light, welcoming environment (not heavy or oppressive)
+- **Authority:** Strong typography hierarchy with refined Inter font
+- **Modernity:** Contemporary SaaS aesthetic that feels current and reliable
+- **Approachability:** Friendly without being unprofessional
+
+---
+
+## 🎯 **Design Philosophy**
+
+1. **Less is More:** Strategic use of color, not overwhelming the user
+2. **Content First:** Design supports content, doesn't overpower it
+3. **Micro-interactions Matter:** Small animations create delight
+4. **Consistency is Key:** Unified spacing, shadows, and transitions
+5. **Accessibility Always:** Design decisions prioritize all users
 
 ---
 
 ## 📚 **References**
 
-- **Inspiration:** [Online Intergroup AA](https://aa-intergroup.org)
+- **Inspiration:** Notion, Linear, Stripe Dashboard, Tailwind UI
+- **Color System:** Tailwind CSS color palette (modified)
 - **Font:** [Inter on Google Fonts](https://fonts.google.com/specimen/Inter)
 - **Icons:** Material Design Icons
-- **Framework:** Material-UI (MUI)
+- **Framework:** Material-UI (MUI) v5 with extensive customization
+- **Shadow System:** Tailwind CSS shadows
+
+---
+
+## 📊 **Before & After**
+
+### Previous Design (v1.0)
+- ❌ Dark navy blue everywhere
+- ❌ Overwhelming cyan/blue palette
+- ❌ Heavy, oppressive feel
+- ❌ Low contrast in some areas
+
+### Current Design (v2.0)
+- ✅ Light, clean, spacious
+- ✅ Balanced teal + orange palette
+- ✅ Professional SaaS aesthetic
+- ✅ High readability and accessibility
+- ✅ Strategic use of color
 
 ---
 
 **Last Updated:** October 11, 2025  
-**Version:** 2.0.0  
+**Version:** 2.0.0 (Light Redesign)  
 **Status:** ✅ Complete & Deployed
 
