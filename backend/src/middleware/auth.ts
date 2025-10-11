@@ -74,7 +74,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     }
 
     // Attach user to request with proper typing
-    req.user = user as Express.User;
+    req.user = user as any;
     
     next();
   } catch (error: any) {
@@ -178,7 +178,7 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
     });
 
     if (user && user.isActive) {
-      req.user = user as Express.User;
+      req.user = user as any;
     }
 
     next();
