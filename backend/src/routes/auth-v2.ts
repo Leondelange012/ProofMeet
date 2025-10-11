@@ -136,30 +136,33 @@ router.post(
         },
       });
 
-      // Send verification email
+      // Send verification email (skip for testing)
+      // TODO: Re-enable email verification in production
+      /*
       if (process.env.BYPASS_EMAIL_VERIFICATION !== 'true') {
         await sendVerificationEmail(email, verificationToken);
       }
+      */
 
       logger.info(`Court Rep registered: ${email}`);
 
       res.status(201).json({
         success: true,
-        message: process.env.BYPASS_EMAIL_VERIFICATION === 'true'
-          ? 'Court Representative registered successfully'
-          : 'Court Representative registered successfully. Please verify your email.',
+        message: 'Court Representative registered successfully',
         data: {
           userId: user.id,
           email: user.email,
           userType: user.userType,
-          verificationEmailSent: process.env.BYPASS_EMAIL_VERIFICATION !== 'true',
+          verificationEmailSent: false,
         },
       });
     } catch (error: any) {
       logger.error('Court Rep registration error:', error);
+      logger.error('Error stack:', error.stack);
       res.status(500).json({
         success: false,
         error: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
   }
