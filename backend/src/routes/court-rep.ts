@@ -42,7 +42,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
         userType: 'PARTICIPANT',
       },
       include: {
-        attendance: {
+        attendances: {
           where: {
             meetingDate: {
               gte: new Date(new Date().setDate(new Date().getDate() - 7)), // Last 7 days
@@ -57,7 +57,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
 
     // Calculate statistics
     const totalParticipants = participants.length;
-    const activeThisWeek = participants.filter(p => p.attendance.length > 0).length;
+    const activeThisWeek = participants.filter(p => p.attendances.length > 0).length;
 
     // Get today's meetings
     const today = new Date();
@@ -211,7 +211,7 @@ router.get('/participants', async (req: Request, res: Response) => {
         requirements: {
           where: { isActive: true },
         },
-        attendance: {
+        attendances: {
           where: {
             createdAt: {
               gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
@@ -797,4 +797,3 @@ router.get('/attendance-reports', async (req: Request, res: Response) => {
 });
 
 export { router as courtRepRoutes };
-
