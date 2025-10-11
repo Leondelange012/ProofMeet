@@ -35,8 +35,25 @@ logger.info('===============================================');
 
 // Security middleware
 app.use(helmet());
+
+// CORS configuration - allow Vercel frontend and localhost
+const allowedOrigins = [
+  'https://proof-meet-frontend.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+];
+
 app.use(cors({
-  origin: process.env['CORS_ORIGIN'] || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
