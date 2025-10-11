@@ -25,7 +25,7 @@ import { qrRoutes } from './routes/qr';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env['PORT'] || 5000;
 
 // Initialize Prisma
 export const prisma = new PrismaClient();
@@ -36,14 +36,14 @@ logger.info('===============================================');
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: process.env['CORS_ORIGIN'] || 'http://localhost:3000',
   credentials: true
 }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
+  windowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '900000'), // 15 minutes
+  max: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100'),
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use(limiter);
@@ -54,7 +54,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
   // Health check endpoint
-  app.get('/health', (req, res) => {
+  app.get('/health', (_req, res) => {
     res.status(200).json({ 
       status: 'OK', 
       timestamp: new Date().toISOString(),
@@ -113,7 +113,7 @@ process.on('SIGTERM', async () => {
 // Start server
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
-  logger.info(`Environment: ${process.env.NODE_ENV}`);
+  logger.info(`Environment: ${process.env['NODE_ENV']}`);
 });
 
 export default app;
