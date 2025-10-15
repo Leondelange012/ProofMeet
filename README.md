@@ -32,35 +32,47 @@ ProofMeet helps courts, probation officers, and meeting hosts track attendance f
 - **Backend API**: https://proofmeet-backend-production.up.railway.app
 - **Health Check**: https://proofmeet-backend-production.up.railway.app/health
 
-### 🧪 **Test Accounts**
-- **Host**: `host1@example.com` (Court-appointed monitor)
-- **Participant**: `participant1@example.com` (Meeting attendee)
+### 🎯 **Getting Started**
 
-### 🎯 **Live Demo & Testing**
+**🚀 Try the Live System:**
 
-**🎬 Complete Stakeholder Demo:**
-1. **Host Workflow**: 
-   - Login: `host1@example.com` → Host Dashboard → Create Meeting → Real Zoom meeting generated
-2. **Participant Workflow**: 
-   - Login: `participant1@example.com` → Participant Dashboard → View compliance stats
-3. **Meeting Testing**: 
-   - Use generated Zoom URLs to join actual meetings
-   - Test both desktop and mobile access
-   - Verify court compliance tracking
+1. **Visit**: https://proof-meet-frontend.vercel.app
 
-**🧪 Quick Test:**
-1. Visit https://proof-meet-frontend.vercel.app
-2. Login with either test account (no password needed)
-3. Create a meeting as host and join it via Zoom
-4. Verify end-to-end functionality
+2. **Register an Account** (Choose your role):
+   - **Court Representative**: Register to create and monitor meetings
+   - **Participant**: Register to track your meeting attendance
+
+3. **Complete Your Profile**:
+   - Court Reps: Enter court name and badge number
+   - Participants: Enter case number and select your court rep
+
+4. **Start Using the System**:
+   - Court Reps: Create meetings, manage participants, view compliance
+   - Participants: View assigned meetings, track attendance, monitor compliance status
+
+### 🎬 **Demo Workflow**
+
+**For Court Representatives:**
+1. Register → Login → Court Rep Dashboard
+2. Create a new meeting requirement for a participant
+3. Monitor participant compliance in real-time
+4. Generate compliance reports
+
+**For Participants:**
+1. Register → Login → Participant Dashboard
+2. View your assigned meetings and requirements
+3. Join meetings and get attendance verified
+4. Track your compliance status
 
 ### 📊 **Current Status**
 - ✅ **Production Ready**: Full deployment with persistent database
-- ✅ **User Authentication**: Email-based login with session management  
-- ✅ **Database Integration**: PostgreSQL with Prisma ORM
-- ✅ **Multi-User Support**: Host and participant roles
-- ✅ **Zoom Integration**: Real meeting creation and joining functional
-- ✅ **End-to-End Testing**: Complete workflow verified and operational
+- ✅ **Secure Authentication**: JWT-based with 512-bit secret key
+- ✅ **User Registration**: Separate flows for Court Reps and Participants
+- ✅ **Database Integration**: PostgreSQL with Prisma ORM on Railway
+- ✅ **Role-Based Access**: Court Representative and Participant roles
+- ✅ **Data Persistence**: Automatic backups and migration tracking
+- ✅ **Environment Security**: All secrets properly secured (not in version control)
+- ⏳ **In Development**: Meeting attendance tracking and Zoom integration
 - ⏳ **Next Phase**: QR code system for in-person attendance
 
 ## 🛠️ Local Development
@@ -137,21 +149,32 @@ The application will be available at:
 
 ### Tech Stack
 - **Frontend**: React 18 + TypeScript + Material-UI (Deployed on Vercel)
-- **Backend**: Node.js + Express + Prisma ORM (Deployed on Railway)
-- **Database**: PostgreSQL (Hosted on Railway)
-- **Authentication**: Email-based with persistent sessions
+- **Backend**: Node.js + Express + TypeScript + Prisma ORM (Deployed on Railway)
+- **Database**: PostgreSQL with automatic migrations (Hosted on Railway)
+- **Authentication**: JWT-based with bcrypt password hashing (512-bit secret key)
+- **Security**: Helmet, CORS, rate limiting, secure environment variables
 - **Integration**: Zoom SDK/API (In Development)
 - **Deployment**: Vercel (Frontend) + Railway (Backend + Database)
 
 ### Project Structure
 ```
-proofmeet/
-├── frontend/          # React TypeScript application
-├── backend/           # Node.js Express API server
-├── shared/            # Shared TypeScript types
+ProofMeet/
+├── frontend/          # React + TypeScript + Vite
+│   ├── src/
+│   │   ├── pages/     # Court Rep & Participant dashboards
+│   │   ├── services/  # API integration (V2)
+│   │   └── hooks/     # Authentication & state management
+│   └── vercel.json    # Vercel deployment config
+├── backend/           # Node.js + Express + TypeScript
+│   ├── src/
+│   │   ├── routes/    # API endpoints (auth, court-rep, participant, admin)
+│   │   ├── middleware/# Authentication & error handling
+│   │   └── services/  # Business logic
+│   ├── prisma/        # Database schema & migrations
+│   └── railway.json   # Railway deployment config
 ├── docs/              # User and developer documentation
-├── docker/            # Docker configurations
-└── tests/             # Test suites
+├── docker-compose.yml # Local development setup
+└── .env.example       # Environment variable template
 ```
 
 ## 🔒 Security & Privacy
