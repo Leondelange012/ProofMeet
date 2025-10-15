@@ -8,18 +8,11 @@ import { PrismaClient } from '@prisma/client';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 
-// V2 Routes (Court Compliance System)
+// Routes
 import { authV2Routes } from './routes/auth-v2';
 import { courtRepRoutes } from './routes/court-rep';
 import { participantRoutes } from './routes/participant';
 import { adminRoutes } from './routes/admin';
-
-// V1 Routes (Phase 1 - for backward compatibility during migration) - MOVED TO v1-backup/
-// import { authRoutes } from './routes/auth';
-// import { meetingRoutes } from './routes/meetings';
-// import { attendanceRoutes } from './routes/attendance';
-// import { complianceRoutes } from './routes/compliance';
-// import { qrRoutes } from './routes/qr';
 
 // Load environment variables
 dotenv.config();
@@ -30,8 +23,8 @@ const PORT = process.env['PORT'] || 5000;
 // Initialize Prisma
 export const prisma = new PrismaClient();
 
-logger.info('ProofMeet Version 2.0 - Court Compliance System');
-logger.info('===============================================');
+logger.info('ProofMeet - Court Compliance System');
+logger.info('====================================');
 
 // Security middleware
 app.use(helmet());
@@ -78,28 +71,17 @@ app.use(express.urlencoded({ extended: true }));
     }
   });
 
-// API routes - Version 2.0 (Primary)
+// API routes
 app.use('/api/v2/auth', authV2Routes);
 app.use('/api/v2/court-rep', courtRepRoutes);
 app.use('/api/v2/participant', participantRoutes);
 app.use('/api/v2/admin', adminRoutes);
-app.use('/api/auth', authV2Routes); // Default to V2
-app.use('/api/court-rep', courtRepRoutes); // Default to V2
-app.use('/api/participant', participantRoutes); // Default to V2
-app.use('/api/admin', adminRoutes); // Default to V2
 
-// API routes - Version 1.0 (Backward compatibility) - DISABLED DUE TO SCHEMA MISMATCH
-// app.use('/api/v1/auth', authRoutes);
-// app.use('/api/v1/meetings', meetingRoutes);
-// app.use('/api/v1/attendance', attendanceRoutes);
-// app.use('/api/v1/compliance', complianceRoutes);
-// app.use('/api/v1/qr', qrRoutes);
-
-// Phase 1 routes (still accessible during migration) - DISABLED DUE TO SCHEMA MISMATCH
-// app.use('/api/meetings', meetingRoutes);
-// app.use('/api/attendance', attendanceRoutes);
-// app.use('/api/compliance', complianceRoutes);
-// app.use('/api/qr', qrRoutes);
+// Default routes (no version prefix)
+app.use('/api/auth', authV2Routes);
+app.use('/api/court-rep', courtRepRoutes);
+app.use('/api/participant', participantRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
