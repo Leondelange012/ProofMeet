@@ -1,11 +1,14 @@
 /**
  * Zoom Webhooks Handler
  * Receives real-time events from Zoom to verify actual attendance
+ * FULLY AUTOMATIC - No manual controls needed
  */
 
 import { Router, Request, Response } from 'express';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';
+import { generateCourtCard } from '../services/courtCardService';
+import { sendAttendanceConfirmation, queueDailyDigest } from '../services/emailService';
 
 const router = Router();
 
@@ -61,6 +64,31 @@ router.post('/zoom', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+/**
+ * Calculate active vs idle duration from activity timeline
+ * Uses heartbeat events sent by frontend activity monitor
+ */
+function calculateActivityDurations(activityTimeline: any): {
+  activeDurationMin: number;
+  idleDurationMin: number;
+} {
+  const events = activityTimeline?.events || [];
+  
+  // Count ACTIVE and IDLE events from frontend heartbeats
+  const activeEvents = events.filter((e: any) => e.type === 'ACTIVE' && e.source === 'FRONTEND_MONITOR');
+  const idleEvents = events.filter((e: any) => e.type === 'IDLE' && e.source === 'FRONTEND_MONITOR');
+  
+  // Each heartbeat represents approximately 30 seconds of activity
+  const HEARTBEAT_DURATION_SECONDS = 30;
+  
+  const activeDurationMin = Math.floor((activeEvents.length * HEARTBEAT_DURATION_SECONDS) / 60);
+  const idleDurationMin = Math.floor((idleEvents.length * HEARTBEAT_DURATION_SECONDS) / 60);
+  
+  logger.info(`Activity calculation: ${activeEvents.length} active events, ${idleEvents.length} idle events`);
+  
+  return { activeDurationMin, idleDurationMin };
+}
 
 /**
  * Handle meeting started event
@@ -289,22 +317,89 @@ async function handleParticipantLeft(event: any) {
       },
     });
     
+    // Calculate active vs idle time from activity timeline
+    const { activeDurationMin, idleDurationMin } = calculateActivityDurations({ events });
+    
+    // If no activity heartbeats received, assume all time was active (fallback)
+    const finalActiveDuration = activeDurationMin > 0 ? activeDurationMin : duration;
+    const finalIdleDuration = idleDurationMin > 0 ? idleDurationMin : 0;
+    
     // Update attendance record with REAL leave time from Zoom
-    await prisma.attendanceRecord.update({
+    const updatedRecord = await prisma.attendanceRecord.update({
       where: { id: attendanceRecord.id },
       data: {
         leaveTime,
         totalDurationMin: duration,
+        activeDurationMin: finalActiveDuration,
+        idleDurationMin: finalIdleDuration,
         attendancePercent,
         status: 'COMPLETED',
+        verificationMethod: 'BOTH', // Zoom + Activity monitoring
         activityTimeline: { events },
       },
     });
     
-    logger.info(`✅ Updated attendance record with Zoom leave time: ${attendanceRecord.id}`, {
+    logger.info(`✅ Attendance completed via Zoom webhook: ${attendanceRecord.id}`, {
       duration,
+      activeDuration: finalActiveDuration,
+      idleDuration: finalIdleDuration,
       attendancePercent,
     });
+    
+    // ========================================
+    // AUTOMATIC COURT CARD GENERATION
+    // ========================================
+    try {
+      const courtCard = await generateCourtCard(updatedRecord.id);
+      logger.info(`🎫 Court Card auto-generated: ${courtCard.cardNumber}`, {
+        status: courtCard.validationStatus,
+        violations: (courtCard.violations as any[]).filter((v: any) => v.severity === 'CRITICAL').length,
+      });
+      
+      // Send confirmation email to participant
+      try {
+        await sendAttendanceConfirmation(
+          user.email,
+          meeting.name,
+          duration,
+          Number(attendancePercent),
+          courtCard.cardNumber
+        );
+        logger.info(`📧 Confirmation email sent to ${user.email}`);
+      } catch (emailError: any) {
+        logger.error(`Failed to send confirmation email: ${emailError.message}`);
+      }
+      
+      // Queue daily digest for Court Rep
+      if (user.courtRepId) {
+        try {
+          await queueDailyDigest(user.courtRepId, [updatedRecord.id]);
+          logger.info(`📬 Queued daily digest for Court Rep ${user.courtRepId}`);
+        } catch (digestError: any) {
+          logger.error(`Failed to queue daily digest: ${digestError.message}`);
+        }
+      }
+      
+      // Log warnings if validation failed
+      if (courtCard.validationStatus === 'FAILED') {
+        const criticalViolations = (courtCard.violations as any[])
+          .filter((v: any) => v.severity === 'CRITICAL')
+          .map((v: any) => v.type)
+          .join(', ');
+        
+        logger.warn(`⚠️ Attendance FAILED validation: ${courtCard.cardNumber}`, {
+          participant: user.email,
+          meeting: meeting.name,
+          violations: criticalViolations,
+        });
+      }
+      
+    } catch (cardError: any) {
+      logger.error(`❌ Failed to generate Court Card: ${cardError.message}`, {
+        attendanceId: updatedRecord.id,
+        participant: user.email,
+      });
+    }
   }
 }
 

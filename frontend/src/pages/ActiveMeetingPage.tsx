@@ -57,40 +57,8 @@ const ActiveMeetingPage: React.FC = () => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleCompleteMeeting = async () => {
-    if (!attendanceId) {
-      setError('No active meeting session found');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError('');
-
-      const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.post(
-        `${API_BASE_URL}/participant/leave-meeting`,
-        { attendanceId },
-        { headers }
-      );
-
-      if (response.data.success) {
-        // Success! Navigate to dashboard
-        navigate('/participant/dashboard', {
-          state: {
-            message: 'Meeting attendance recorded successfully!',
-            courtCard: response.data.data.courtCardNumber,
-          },
-        });
-      } else {
-        setError(response.data.error || 'Failed to complete meeting');
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to complete meeting');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Attendance is now fully automatic via Zoom webhooks
+  // No manual completion needed!
 
   // If no attendance ID, redirect back
   useEffect(() => {
@@ -206,33 +174,38 @@ const ActiveMeetingPage: React.FC = () => {
           </Alert>
         )}
 
-        {/* Complete Button */}
-        <Card>
+        {/* Automatic Completion Info */}
+        <Card sx={{ bgcolor: 'success.lighter', border: 2, borderColor: 'success.main' }}>
           <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Finished with the meeting?
+            <Typography variant="h6" gutterBottom color="success.dark">
+              ✅ Fully Automatic Tracking
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Click below after you've left the Zoom meeting to complete your attendance record.
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Your attendance will be <strong>automatically recorded</strong> when you leave the Zoom meeting.
+              No manual actions needed!
             </Typography>
-            <Button
-              variant="contained"
-              color="success"
-              size="large"
-              fullWidth
-              startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <ExitToApp />}
-              onClick={handleCompleteMeeting}
-              disabled={loading}
-            >
-              {loading ? 'Completing...' : 'Complete Attendance'}
-            </Button>
+            <Alert severity="info">
+              <Typography variant="body2">
+                <strong>How it works:</strong>
+                <br />
+                • Zoom tracks your actual join/leave times
+                <br />
+                • Activity monitoring records your presence
+                <br />
+                • Court Card is auto-generated when you leave
+                <br />
+                • Compliance is automatically validated (80% rule)
+                <br />
+                • Your Court Rep receives automatic updates
+              </Typography>
+            </Alert>
           </CardContent>
         </Card>
 
-        {/* Warning */}
-        <Alert severity="warning" sx={{ mt: 3 }}>
+        {/* Info */}
+        <Alert severity="success" sx={{ mt: 3 }}>
           <Typography variant="body2">
-            ⚠️ <strong>Don't close this window</strong> until you click "Complete Attendance"
+            ✨ <strong>Just attend the meeting!</strong> Everything else is tracked automatically via Zoom webhooks.
           </Typography>
         </Alert>
       </Box>

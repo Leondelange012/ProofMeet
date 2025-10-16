@@ -263,6 +263,7 @@ model CourtCard {
   courtRepName          String           @map("court_rep_name")
   
   // Meeting details
+  meetingId             String?          @map("meeting_id") // External meeting ID for tracking
   meetingName           String           @map("meeting_name")
   meetingProgram        String           @map("meeting_program")
   meetingDate           DateTime         @map("meeting_date") @db.Date
@@ -273,7 +274,12 @@ model CourtCard {
   leaveTime             DateTime         @map("leave_time")
   totalDurationMin      Int              @map("total_duration_min")
   activeDurationMin     Int              @map("active_duration_min")
+  idleDurationMin       Int?             @map("idle_duration_min")
   attendancePercent     Decimal          @map("attendance_percent") @db.Decimal(5, 2)
+  
+  // Validation
+  validationStatus      String           @default("PASSED") @map("validation_status") // PASSED, FAILED
+  violations            Json             @default("[]") @map("violations") // Array of violation objects
   
   // Activity summary
   activePeriods         Json             @map("active_periods") // Detailed timeline
@@ -296,6 +302,7 @@ model CourtCard {
   @@index([caseNumber])
   @@index([meetingDate])
   @@index([cardNumber])
+  @@index([validationStatus])
   @@map("court_cards")
 }
 

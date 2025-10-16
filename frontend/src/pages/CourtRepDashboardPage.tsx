@@ -408,51 +408,81 @@ const CourtRepDashboardPage: React.FC = () => {
                                     <TableRow>
                                       <TableCell>Date</TableCell>
                                       <TableCell>Meeting</TableCell>
-                                      <TableCell>Program</TableCell>
-                                      <TableCell>Duration</TableCell>
-                                      <TableCell>Attendance %</TableCell>
-                                      <TableCell>Status</TableCell>
+                                      <TableCell>Active/Idle</TableCell>
+                                      <TableCell>Attendance</TableCell>
+                                      <TableCell>Validation</TableCell>
                                       <TableCell>Court Card</TableCell>
                                     </TableRow>
                                   </TableHead>
                                   <TableBody>
-                                    {participantMeetings[participant.id].meetings.map((meeting: any) => (
-                                      <TableRow key={meeting.id}>
-                                        <TableCell>
-                                          {new Date(meeting.date).toLocaleDateString()}
-                                        </TableCell>
-                                        <TableCell>{meeting.meetingName}</TableCell>
-                                        <TableCell>
-                                          <Chip label={meeting.meetingProgram} size="small" />
-                                        </TableCell>
-                                        <TableCell>{meeting.duration} min</TableCell>
-                                        <TableCell>
-                                          <Chip
-                                            label={`${meeting.attendancePercent}%`}
-                                            color={Number(meeting.attendancePercent) >= 90 ? 'success' : 'warning'}
-                                            size="small"
-                                          />
-                                        </TableCell>
-                                        <TableCell>
-                                          <Chip
-                                            label={meeting.status}
-                                            color={meeting.status === 'COMPLETED' ? 'success' : 'default'}
-                                            size="small"
-                                          />
-                                        </TableCell>
-                                        <TableCell>
-                                          {meeting.courtCard ? (
-                                            <Typography variant="caption" color="primary">
-                                              {meeting.courtCard.cardNumber}
+                                    {participantMeetings[participant.id].meetings.map((meeting: any) => {
+                                      const validationStatus = meeting.courtCard?.validationStatus || 'PENDING';
+                                      const violations = meeting.courtCard?.violations || [];
+                                      const criticalViolations = violations.filter((v: any) => v.severity === 'CRITICAL');
+                                      
+                                      return (
+                                        <TableRow 
+                                          key={meeting.id}
+                                          sx={{ 
+                                            bgcolor: validationStatus === 'FAILED' ? 'error.lighter' : 'inherit',
+                                          }}
+                                        >
+                                          <TableCell>
+                                            {new Date(meeting.date).toLocaleDateString()}
+                                          </TableCell>
+                                          <TableCell>
+                                            <Typography variant="body2">{meeting.meetingName}</Typography>
+                                            <Chip label={meeting.meetingProgram} size="small" sx={{ mt: 0.5 }} />
+                                          </TableCell>
+                                          <TableCell>
+                                            <Typography variant="caption" display="block" color="success.main">
+                                              Active: {meeting.activeDuration || meeting.duration} min
                                             </Typography>
-                                          ) : (
-                                            <Typography variant="caption" color="text.secondary">
-                                              N/A
-                                            </Typography>
-                                          )}
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
+                                            {meeting.idleDuration > 0 && (
+                                              <Typography variant="caption" display="block" color="warning.main">
+                                                Idle: {meeting.idleDuration} min
+                                              </Typography>
+                                            )}
+                                          </TableCell>
+                                          <TableCell>
+                                            <Chip
+                                              label={`${meeting.attendancePercent}%`}
+                                              color={Number(meeting.attendancePercent) >= 90 ? 'success' : Number(meeting.attendancePercent) >= 80 ? 'warning' : 'error'}
+                                              size="small"
+                                            />
+                                          </TableCell>
+                                          <TableCell>
+                                            <Box>
+                                              <Chip
+                                                label={validationStatus}
+                                                color={validationStatus === 'PASSED' ? 'success' : validationStatus === 'FAILED' ? 'error' : 'default'}
+                                                size="small"
+                                              />
+                                              {criticalViolations.length > 0 && (
+                                                <Box sx={{ mt: 1 }}>
+                                                  {criticalViolations.map((v: any, idx: number) => (
+                                                    <Typography key={idx} variant="caption" color="error" display="block">
+                                                      • {v.message}
+                                                    </Typography>
+                                                  ))}
+                                                </Box>
+                                              )}
+                                            </Box>
+                                          </TableCell>
+                                          <TableCell>
+                                            {meeting.courtCard ? (
+                                              <Typography variant="caption" color="primary">
+                                                {meeting.courtCard.cardNumber}
+                                              </Typography>
+                                            ) : (
+                                              <Typography variant="caption" color="text.secondary">
+                                                N/A
+                                              </Typography>
+                                            )}
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
                                   </TableBody>
                                 </Table>
                               </>

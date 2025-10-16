@@ -2,6 +2,13 @@ import crypto from 'crypto';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';
 
+interface Violation {
+  type: string;
+  message: string;
+  severity: 'CRITICAL' | 'WARNING' | 'INFO';
+  timestamp: string;
+}
+
 interface CourtCardData {
   attendanceRecordId: string;
   participantEmail: string;
@@ -9,6 +16,7 @@ interface CourtCardData {
   caseNumber: string;
   courtRepEmail: string;
   courtRepName: string;
+  meetingId: string | null;
   meetingName: string;
   meetingProgram: string;
   meetingDate: Date;
@@ -17,9 +25,86 @@ interface CourtCardData {
   leaveTime: Date;
   totalDurationMin: number;
   activeDurationMin: number;
+  idleDurationMin: number;
   attendancePercent: number;
   activePeriods: any;
   verificationMethod: 'WEBCAM' | 'SCREEN_ACTIVITY' | 'BOTH';
+  violations: Violation[];
+  validationStatus: 'PASSED' | 'FAILED';
+}
+
+/**
+ * Validate attendance and generate violations
+ */
+function validateAttendance(
+  totalDurationMin: number,
+  activeDurationMin: number,
+  idleDurationMin: number,
+  attendancePercent: number,
+  meetingDurationMin: number
+): { violations: Violation[]; validationStatus: 'PASSED' | 'FAILED' } {
+  const violations: Violation[] = [];
+  
+  // Calculate percentages
+  const activePercent = totalDurationMin > 0 ? (activeDurationMin / totalDurationMin) * 100 : 0;
+  const idlePercent = totalDurationMin > 0 ? (idleDurationMin / totalDurationMin) * 100 : 0;
+  const meetingAttendancePercent = meetingDurationMin > 0 ? (totalDurationMin / meetingDurationMin) * 100 : 0;
+  
+  // Rule 1: Must be active for at least 80% of time attended
+  if (activePercent < 80) {
+    violations.push({
+      type: 'LOW_ACTIVE_TIME',
+      message: `Only ${activePercent.toFixed(1)}% active during meeting (required 80%). Active: ${activeDurationMin} min, Total: ${totalDurationMin} min.`,
+      severity: 'CRITICAL',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Rule 2: Idle time must not exceed 20% (complementary to Rule 1)
+  if (idlePercent > 20) {
+    violations.push({
+      type: 'EXCESSIVE_IDLE_TIME',
+      message: `Idle for ${idleDurationMin} minutes (${idlePercent.toFixed(1)}% of attendance). Maximum allowed: 20%.`,
+      severity: 'CRITICAL',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Rule 3: Must attend at least 80% of scheduled meeting duration
+  if (meetingAttendancePercent < 80) {
+    violations.push({
+      type: 'INSUFFICIENT_ATTENDANCE',
+      message: `Attended ${totalDurationMin} minutes of ${meetingDurationMin} minute meeting (${meetingAttendancePercent.toFixed(1)}%). Required: 80%.`,
+      severity: 'CRITICAL',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Rule 4: Warning if attendance percent is below 90% but above 80%
+  if (attendancePercent >= 80 && attendancePercent < 90) {
+    violations.push({
+      type: 'LOW_ATTENDANCE_WARNING',
+      message: `Attendance ${attendancePercent.toFixed(1)}% is acceptable but below recommended 90%.`,
+      severity: 'WARNING',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Rule 5: Flag if idle periods were detected
+  if (idleDurationMin > 0 && idlePercent <= 20) {
+    violations.push({
+      type: 'IDLE_PERIODS_DETECTED',
+      message: `${idleDurationMin} minutes of idle time detected. Stayed within acceptable limits.`,
+      severity: 'INFO',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Determine final validation status
+  const criticalViolations = violations.filter(v => v.severity === 'CRITICAL');
+  const validationStatus = criticalViolations.length > 0 ? 'FAILED' : 'PASSED';
+  
+  return { violations, validationStatus };
 }
 
 /**
@@ -43,12 +128,16 @@ function generateCardHash(cardData: CourtCardData): string {
     attendanceRecordId: cardData.attendanceRecordId,
     participantEmail: cardData.participantEmail,
     caseNumber: cardData.caseNumber,
+    meetingId: cardData.meetingId,
     meetingName: cardData.meetingName,
     meetingDate: cardData.meetingDate,
     joinTime: cardData.joinTime,
     leaveTime: cardData.leaveTime,
     totalDurationMin: cardData.totalDurationMin,
+    activeDurationMin: cardData.activeDurationMin,
+    idleDurationMin: cardData.idleDurationMin,
     attendancePercent: cardData.attendancePercent,
+    validationStatus: cardData.validationStatus,
   });
   
   return crypto.createHash('sha256').update(dataString).digest('hex');
@@ -60,15 +149,61 @@ function generateCardHash(cardData: CourtCardData): string {
 function determineConfidenceLevel(
   attendancePercent: number,
   activeDurationMin: number,
-  totalDurationMin: number
+  totalDurationMin: number,
+  validationStatus: string
 ): 'HIGH' | 'MEDIUM' | 'LOW' {
-  if (attendancePercent >= 90 && activeDurationMin >= totalDurationMin * 0.9) {
+  if (validationStatus === 'FAILED') {
+    return 'LOW';
+  }
+  
+  if (attendancePercent >= 95 && activeDurationMin >= totalDurationMin * 0.95) {
     return 'HIGH';
-  } else if (attendancePercent >= 75) {
+  } else if (attendancePercent >= 80) {
     return 'MEDIUM';
   } else {
     return 'LOW';
   }
+}
+
+/**
+ * Calculate total hours completed by participant across all meetings
+ */
+async function calculateTotalHours(participantId: string): Promise<number> {
+  const completedMeetings = await prisma.attendanceRecord.findMany({
+    where: {
+      participantId,
+      status: 'COMPLETED',
+    },
+    select: {
+      totalDurationMin: true,
+    },
+  });
+  
+  const totalMinutes = completedMeetings.reduce((sum, record) => {
+    return sum + (record.totalDurationMin || 0);
+  }, 0);
+  
+  return Number((totalMinutes / 60).toFixed(2)); // Convert to hours with 2 decimal places
+}
+
+/**
+ * Get all meeting IDs attended by participant
+ */
+async function getAllMeetingIds(participantId: string): Promise<string[]> {
+  const meetings = await prisma.attendanceRecord.findMany({
+    where: {
+      participantId,
+      status: 'COMPLETED',
+      externalMeetingId: { not: null },
+    },
+    select: {
+      externalMeetingId: true,
+    },
+  });
+  
+  return meetings
+    .map(m => m.externalMeetingId)
+    .filter((id): id is string => id !== null);
 }
 
 /**
@@ -82,6 +217,7 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       include: {
         participant: {
           select: {
+            id: true,
             email: true,
             firstName: true,
             lastName: true,
@@ -97,6 +233,7 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         },
         externalMeeting: {
           select: {
+            id: true,
             durationMinutes: true,
           },
         },
@@ -121,6 +258,26 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       return existingCard;
     }
 
+    // Calculate durations
+    const totalDurationMin = attendance.totalDurationMin || 0;
+    const activeDurationMin = attendance.activeDurationMin || totalDurationMin;
+    const idleDurationMin = attendance.idleDurationMin || (totalDurationMin - activeDurationMin);
+    const attendancePercent = Number(attendance.attendancePercent || 0);
+    const meetingDurationMin = attendance.externalMeeting?.durationMinutes || 60;
+
+    // Validate attendance and generate violations
+    const { violations, validationStatus } = validateAttendance(
+      totalDurationMin,
+      activeDurationMin,
+      idleDurationMin,
+      attendancePercent,
+      meetingDurationMin
+    );
+
+    // Get total hours and meeting IDs for this participant
+    const totalHoursCompleted = await calculateTotalHours(attendance.participant.id);
+    const allMeetingIds = await getAllMeetingIds(attendance.participant.id);
+
     // Prepare card data
     const cardData: CourtCardData = {
       attendanceRecordId,
@@ -129,17 +286,21 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       caseNumber: attendance.participant.caseNumber || 'N/A',
       courtRepEmail: attendance.courtRep.email,
       courtRepName: `${attendance.courtRep.firstName} ${attendance.courtRep.lastName}`,
+      meetingId: attendance.externalMeeting?.id || null,
       meetingName: attendance.meetingName,
       meetingProgram: attendance.meetingProgram,
       meetingDate: attendance.meetingDate,
-      meetingDurationMin: attendance.externalMeeting?.durationMinutes || 60,
+      meetingDurationMin,
       joinTime: attendance.joinTime,
       leaveTime: attendance.leaveTime || new Date(),
-      totalDurationMin: attendance.totalDurationMin || 0,
-      activeDurationMin: attendance.activeDurationMin || attendance.totalDurationMin || 0,
-      attendancePercent: Number(attendance.attendancePercent || 0),
+      totalDurationMin,
+      activeDurationMin,
+      idleDurationMin,
+      attendancePercent,
       activePeriods: attendance.activityTimeline || {},
       verificationMethod: attendance.verificationMethod || 'SCREEN_ACTIVITY',
+      violations,
+      validationStatus,
     };
 
     // Generate card number and hash
@@ -148,7 +309,8 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
     const confidenceLevel = determineConfidenceLevel(
       cardData.attendancePercent,
       cardData.activeDurationMin,
-      cardData.totalDurationMin
+      cardData.totalDurationMin,
+      validationStatus
     );
 
     // Create Court Card
@@ -161,6 +323,7 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         caseNumber: cardData.caseNumber,
         courtRepEmail: cardData.courtRepEmail,
         courtRepName: cardData.courtRepName,
+        meetingId: cardData.meetingId,
         meetingName: cardData.meetingName,
         meetingProgram: cardData.meetingProgram,
         meetingDate: cardData.meetingDate,
@@ -169,7 +332,10 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         leaveTime: cardData.leaveTime,
         totalDurationMin: cardData.totalDurationMin,
         activeDurationMin: cardData.activeDurationMin,
+        idleDurationMin: cardData.idleDurationMin,
         attendancePercent: cardData.attendancePercent,
+        validationStatus: cardData.validationStatus,
+        violations: violations,
         activePeriods: cardData.activePeriods,
         verificationMethod: cardData.verificationMethod,
         confidenceLevel,
@@ -183,12 +349,28 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       data: {
         courtCardGenerated: true,
         courtCardSentAt: new Date(),
+        isValid: validationStatus === 'PASSED',
       },
     });
 
-    logger.info(`Court Card generated: ${cardNumber} for participant ${cardData.participantEmail}`);
+    logger.info(
+      `Court Card generated: ${cardNumber} for participant ${cardData.participantEmail} - Status: ${validationStatus}`
+    );
+    
+    if (validationStatus === 'FAILED') {
+      logger.warn(
+        `Court Card ${cardNumber} FAILED validation. Violations: ${violations
+          .filter(v => v.severity === 'CRITICAL')
+          .map(v => v.type)
+          .join(', ')}`
+      );
+    }
 
-    return courtCard;
+    return {
+      ...courtCard,
+      totalHoursCompleted,
+      allMeetingIds,
+    };
   } catch (error: any) {
     logger.error('Court Card generation error:', error);
     throw error;
@@ -216,6 +398,7 @@ export async function verifyCourtCard(courtCardId: string): Promise<boolean> {
       caseNumber: courtCard.caseNumber,
       courtRepEmail: courtCard.courtRepEmail,
       courtRepName: courtCard.courtRepName,
+      meetingId: courtCard.meetingId,
       meetingName: courtCard.meetingName,
       meetingProgram: courtCard.meetingProgram,
       meetingDate: courtCard.meetingDate,
@@ -224,9 +407,12 @@ export async function verifyCourtCard(courtCardId: string): Promise<boolean> {
       leaveTime: courtCard.leaveTime,
       totalDurationMin: courtCard.totalDurationMin,
       activeDurationMin: courtCard.activeDurationMin,
+      idleDurationMin: courtCard.idleDurationMin || 0,
       attendancePercent: Number(courtCard.attendancePercent),
       activePeriods: courtCard.activePeriods,
       verificationMethod: courtCard.verificationMethod,
+      violations: courtCard.violations as Violation[],
+      validationStatus: courtCard.validationStatus as 'PASSED' | 'FAILED',
     };
 
     const expectedHash = generateCardHash(cardData);
@@ -250,11 +436,18 @@ export async function verifyCourtCard(courtCardId: string): Promise<boolean> {
 }
 
 /**
- * Get Court Card with verification
+ * Get Court Card with verification and total hours
  */
 export async function getCourtCard(attendanceRecordId: string): Promise<any> {
   const courtCard = await prisma.courtCard.findUnique({
     where: { attendanceRecordId },
+    include: {
+      attendanceRecord: {
+        select: {
+          participantId: true,
+        },
+      },
+    },
   });
 
   if (!courtCard) {
@@ -263,10 +456,16 @@ export async function getCourtCard(attendanceRecordId: string): Promise<any> {
 
   // Verify integrity
   const isValid = await verifyCourtCard(courtCard.id);
+  
+  // Get total hours and meeting IDs
+  const totalHoursCompleted = await calculateTotalHours(courtCard.attendanceRecord.participantId);
+  const allMeetingIds = await getAllMeetingIds(courtCard.attendanceRecord.participantId);
 
   return {
     ...courtCard,
     isValid,
+    totalHoursCompleted,
+    allMeetingIds,
   };
 }
 
@@ -275,4 +474,3 @@ export const courtCardService = {
   verifyCourtCard,
   getCourtCard,
 };
-
