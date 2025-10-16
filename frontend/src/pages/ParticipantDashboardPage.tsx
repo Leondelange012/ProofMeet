@@ -33,6 +33,9 @@ const ParticipantDashboardPage: React.FC = () => {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [availableMeetings, setAvailableMeetings] = useState<AAMeeting[]>([]);
 
+  const [testMeetings, setTestMeetings] = useState<any[]>([]);
+  const [joiningMeeting, setJoiningMeeting] = useState<string | null>(null);
+
   const loadDashboard = async () => {
     try {
       setLoading(true);
@@ -49,16 +52,66 @@ const ParticipantDashboardPage: React.FC = () => {
         setError(response.data.error || 'Failed to load dashboard');
       }
 
-      // Load available meetings from AA Intergroup service
-      const meetingsResponse = await aaIntergroupService.getAllMeetings();
-      if (meetingsResponse.success && meetingsResponse.data) {
-        // Show only first 6 meetings on dashboard
-        setAvailableMeetings(meetingsResponse.data.slice(0, 6));
+      // Load available meetings (including test meetings)
+      const meetingsResponse = await axios.get(`${API_BASE_URL}/participant/meetings/available`, { headers });
+      if (meetingsResponse.data.success && meetingsResponse.data.data) {
+        // Extract TEST meetings for quick join
+        const allMeetings = meetingsResponse.data.data;
+        if (allMeetings.TEST) {
+          setTestMeetings(allMeetings.TEST);
+        }
+      }
+
+      // Load AA meetings from intergroup service
+      const aaMeetingsResponse = await aaIntergroupService.getAllMeetings();
+      if (aaMeetingsResponse.success && aaMeetingsResponse.data) {
+        setAvailableMeetings(aaMeetingsResponse.data.slice(0, 6));
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleJoinMeeting = async (meetingId: string, meetingName: string, zoomUrl: string) => {
+    try {
+      setJoiningMeeting(meetingId);
+      setError('');
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Start attendance tracking
+      const response = await axios.post(
+        `${API_BASE_URL}/participant/join-meeting`,
+        {
+          meetingId,
+          joinMethod: 'ONLINE',
+        },
+        { headers }
+      );
+
+      if (response.data.success) {
+        const { attendanceId } = response.data.data;
+
+        // Open Zoom in new tab
+        window.open(zoomUrl, '_blank');
+
+        // Navigate to active meeting page
+        navigate('/participant/active-meeting', {
+          state: {
+            attendanceId,
+            meetingName,
+            meetingUrl: zoomUrl,
+          },
+        });
+      } else {
+        setError(response.data.error || 'Failed to start meeting tracking');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to join meeting');
+    } finally {
+      setJoiningMeeting(null);
     }
   };
 
@@ -156,6 +209,72 @@ const ParticipantDashboardPage: React.FC = () => {
                 Average Attendance: {progress.averageAttendance}%
               </Typography>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Active Test Meetings (Court Rep Created) */}
+      {testMeetings.length > 0 && (
+        <Card sx={{ mb: 3, border: 2, borderColor: 'primary.main' }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'between', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <MeetingRoom sx={{ fontSize: 32, color: 'primary.main', mr: 2 }} />
+                <Box>
+                  <Typography variant="h6">🎥 Available Test Meetings</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Created by your Court Rep for compliance testing
+                  </Typography>
+                </Box>
+              </Box>
+              <Chip label="New" color="primary" size="small" />
+            </Box>
+
+            <Grid container spacing={2}>
+              {testMeetings.map((meeting: any) => (
+                <Grid item xs={12} key={meeting.id}>
+                  <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="h6" gutterBottom>
+                            {meeting.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            {meeting.dayOfWeek} at {meeting.time} {meeting.timezone && `(${meeting.timezone})`}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Duration: {meeting.durationMinutes} minutes
+                          </Typography>
+                          {meeting.description && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                              {meeting.description}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          size="large"
+                          startIcon={joiningMeeting === meeting.id ? <CircularProgress size={20} color="inherit" /> : <MeetingRoom />}
+                          onClick={() => handleJoinMeeting(meeting.id, meeting.name, meeting.zoomUrl)}
+                          disabled={joiningMeeting === meeting.id}
+                          sx={{ ml: 2 }}
+                        >
+                          {joiningMeeting === meeting.id ? 'Starting...' : 'Join Now'}
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="body2">
+                <strong>📋 How it works:</strong> Click "Join Now" to start tracking. Keep the tracking page open during the meeting. Your attendance will be verified through Zoom.
+              </Typography>
+            </Alert>
           </CardContent>
         </Card>
       )}

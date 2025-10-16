@@ -13,6 +13,7 @@ import CourtRepDashboardPage from './pages/CourtRepDashboardPage';
 import ParticipantDashboardPage from './pages/ParticipantDashboardPage';
 import MeetingPage from './pages/MeetingPage';
 import CompliancePage from './pages/CompliancePage';
+import ActiveMeetingPage from './pages/ActiveMeetingPage';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -358,6 +359,17 @@ function App() {
                   <ProtectedRoute>
                     <Layout>
                       <MeetingPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/participant/active-meeting"
+                element={
+                  <ProtectedRoute requiredUserType="PARTICIPANT">
+                    <Layout>
+                      <ActiveMeetingPage />
                     </Layout>
                   </ProtectedRoute>
                 }

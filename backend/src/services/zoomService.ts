@@ -6,10 +6,14 @@
 import axios from 'axios';
 import { logger } from '../utils/logger';
 
-// Zoom API credentials from environment or hardcoded for testing
-const ZOOM_ACCOUNT_ID = process.env['ZOOM_ACCOUNT_ID'] || 'csxjpAf5Ruml6T-ol_hJBQ';
-const ZOOM_CLIENT_ID = process.env['ZOOM_CLIENT_ID'] || 'Xyt7NChhTe679v_P865ktw';
-const ZOOM_CLIENT_SECRET = process.env['ZOOM_CLIENT_SECRET'] || 'w4Jerea8ifg8tafDYlq2jBKAh8v0j5eY';
+// Zoom API credentials - MUST be set in environment variables
+const ZOOM_ACCOUNT_ID = process.env['ZOOM_ACCOUNT_ID'];
+const ZOOM_CLIENT_ID = process.env['ZOOM_CLIENT_ID'];
+const ZOOM_CLIENT_SECRET = process.env['ZOOM_CLIENT_SECRET'];
+
+if (!ZOOM_ACCOUNT_ID || !ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET) {
+  logger.error('❌ ZOOM API credentials not configured. Please set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET environment variables.');
+}
 
 interface ZoomMeetingOptions {
   topic: string;
