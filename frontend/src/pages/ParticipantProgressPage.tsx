@@ -36,7 +36,7 @@ import axios from 'axios';
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
 const ParticipantProgressPage: React.FC = () => {
-  const { user, token } = useAuthStoreV2();
+  const { token } = useAuthStoreV2();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

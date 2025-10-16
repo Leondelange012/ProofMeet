@@ -19,14 +19,10 @@ import {
 import {
   CheckCircle,
   AccessTime,
-  ExitToApp,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import ActivityMonitor from '../components/ActivityMonitor';
-import axios from 'axios';
-
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
 const ActiveMeetingPage: React.FC = () => {
   const { token } = useAuthStoreV2();
@@ -34,8 +30,7 @@ const ActiveMeetingPage: React.FC = () => {
   const location = useLocation();
   const { attendanceId, meetingName, meetingUrl } = location.state || {};
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error] = useState('');
   const [duration, setDuration] = useState(0);
   const [startTime] = useState(Date.now());
 
