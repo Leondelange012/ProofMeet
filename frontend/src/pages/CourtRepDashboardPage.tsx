@@ -15,6 +15,14 @@ import {
   TableRow,
   CircularProgress,
   Alert,
+  Collapse,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Snackbar,
 } from '@mui/material';
 import {
   People,
@@ -22,6 +30,9 @@ import {
   Warning,
   TrendingUp,
   Refresh,
+  VideoCall,
+  KeyboardArrowDown,
+  KeyboardArrowUp,
 } from '@mui/icons-material';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import axios from 'axios';
@@ -34,6 +45,16 @@ const CourtRepDashboardPage: React.FC = () => {
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [participants, setParticipants] = useState<any[]>([]);
+  
+  // Test meeting creation
+  const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
+  const [creatingMeeting, setCreatingMeeting] = useState(false);
+  const [meetingCreated, setMeetingCreated] = useState<any>(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  
+  // Expandable participant rows
+  const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
+  const [participantMeetings, setParticipantMeetings] = useState<{ [key: string]: any }>({});
 
   const loadDashboard = async () => {
     try {
@@ -67,6 +88,76 @@ const CourtRepDashboardPage: React.FC = () => {
     loadDashboard();
   }, []);
 
+  const createTestMeeting = async () => {
+    try {
+      setCreatingMeeting(true);
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const response = await axios.post(
+        `${API_BASE_URL}/court-rep/create-test-meeting`,
+        {},
+        { headers }
+      );
+
+      if (response.data.success) {
+        setMeetingCreated(response.data.data);
+        setSnackbar({
+          open: true,
+          message: 'Test meeting created successfully!',
+          severity: 'success',
+        });
+      }
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.error || 'Failed to create test meeting',
+        severity: 'error',
+      });
+    } finally {
+      setCreatingMeeting(false);
+    }
+  };
+
+  const loadParticipantMeetings = async (participantId: string) => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(
+        `${API_BASE_URL}/court-rep/participants/${participantId}/meetings`,
+        { headers }
+      );
+
+      if (response.data.success) {
+        setParticipantMeetings((prev: any) => ({
+          ...prev,
+          [participantId]: response.data.data,
+        }));
+      }
+    } catch (err: any) {
+      console.error('Failed to load participant meetings:', err);
+    }
+  };
+
+  const toggleParticipantExpand = async (participantId: string) => {
+    if (expandedParticipant === participantId) {
+      setExpandedParticipant(null);
+    } else {
+      setExpandedParticipant(participantId);
+      // Load meetings if not already loaded
+      if (!participantMeetings[participantId]) {
+        await loadParticipantMeetings(participantId);
+      }
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setSnackbar({
+      open: true,
+      message: 'Copied to clipboard!',
+      severity: 'success',
+    });
+  };
+
   if (loading) {
     return (
       <Container>
@@ -94,13 +185,23 @@ const CourtRepDashboardPage: React.FC = () => {
             </Typography>
           )}
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={loadDashboard}
-        >
-          Refresh
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<VideoCall />}
+            onClick={() => setCreateMeetingOpen(true)}
+          >
+            Create Test Meeting
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={loadDashboard}
+          >
+            Refresh
+          </Button>
+        </Box>
       </Box>
 
       {error && (
@@ -190,6 +291,7 @@ const CourtRepDashboardPage: React.FC = () => {
             <Table>
               <TableHead>
                 <TableRow>
+                  <TableCell />
                   <TableCell>Name</TableCell>
                   <TableCell>Case Number</TableCell>
                   <TableCell>This Week</TableCell>
@@ -198,32 +300,172 @@ const CourtRepDashboardPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {participants.map((participant) => (
-                  <TableRow key={participant.id}>
-                    <TableCell>
-                      {participant.firstName} {participant.lastName}
-                    </TableCell>
-                    <TableCell>{participant.caseNumber}</TableCell>
-                    <TableCell>
-                      {participant.thisWeek.meetingsAttended}/{participant.thisWeek.meetingsRequired || 0}
-                    </TableCell>
-                    <TableCell>
-                      {participant.thisWeek.averageAttendance}%
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={participant.thisWeek.status}
-                        color={
-                          participant.thisWeek.status === 'COMPLIANT'
-                            ? 'success'
-                            : participant.thisWeek.status === 'AT_RISK'
-                            ? 'warning'
-                            : 'error'
-                        }
-                        size="small"
-                      />
-                    </TableCell>
-                  </TableRow>
+                {participants.map((participant: any) => (
+                  <React.Fragment key={participant.id}>
+                    <TableRow
+                      hover
+                      sx={{ cursor: 'pointer', '& > *': { borderBottom: 'unset' } }}
+                      onClick={() => toggleParticipantExpand(participant.id)}
+                    >
+                      <TableCell>
+                        <IconButton size="small">
+                          {expandedParticipant === participant.id ? (
+                            <KeyboardArrowUp />
+                          ) : (
+                            <KeyboardArrowDown />
+                          )}
+                        </IconButton>
+                      </TableCell>
+                      <TableCell>
+                        {participant.firstName} {participant.lastName}
+                      </TableCell>
+                      <TableCell>{participant.caseNumber}</TableCell>
+                      <TableCell>
+                        {participant.thisWeek.meetingsAttended}/{participant.thisWeek.meetingsRequired || 0}
+                      </TableCell>
+                      <TableCell>
+                        {participant.thisWeek.averageAttendance}%
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={participant.thisWeek.status}
+                          color={
+                            participant.thisWeek.status === 'COMPLIANT'
+                              ? 'success'
+                              : participant.thisWeek.status === 'AT_RISK'
+                              ? 'warning'
+                              : 'error'
+                          }
+                          size="small"
+                        />
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={6}>
+                        <Collapse in={expandedParticipant === participant.id} timeout="auto" unmountOnExit>
+                          <Box sx={{ margin: 2 }}>
+                            <Typography variant="h6" gutterBottom component="div">
+                              Meeting History & Compliance Details
+                            </Typography>
+                            
+                            {participantMeetings[participant.id] ? (
+                              <>
+                                {/* Summary Stats */}
+                                <Grid container spacing={2} sx={{ mb: 3 }}>
+                                  <Grid item xs={3}>
+                                    <Card variant="outlined">
+                                      <CardContent>
+                                        <Typography color="text.secondary" gutterBottom>
+                                          Total Meetings
+                                        </Typography>
+                                        <Typography variant="h5">
+                                          {participantMeetings[participant.id].summary.totalMeetings}
+                                        </Typography>
+                                      </CardContent>
+                                    </Card>
+                                  </Grid>
+                                  <Grid item xs={3}>
+                                    <Card variant="outlined">
+                                      <CardContent>
+                                        <Typography color="text.secondary" gutterBottom>
+                                          Total Hours
+                                        </Typography>
+                                        <Typography variant="h5">
+                                          {participantMeetings[participant.id].summary.totalHours}
+                                        </Typography>
+                                      </CardContent>
+                                    </Card>
+                                  </Grid>
+                                  <Grid item xs={3}>
+                                    <Card variant="outlined">
+                                      <CardContent>
+                                        <Typography color="text.secondary" gutterBottom>
+                                          Avg Attendance
+                                        </Typography>
+                                        <Typography variant="h5">
+                                          {participantMeetings[participant.id].summary.averageAttendance}%
+                                        </Typography>
+                                      </CardContent>
+                                    </Card>
+                                  </Grid>
+                                  <Grid item xs={3}>
+                                    <Card variant="outlined">
+                                      <CardContent>
+                                        <Typography color="text.secondary" gutterBottom>
+                                          Completed
+                                        </Typography>
+                                        <Typography variant="h5">
+                                          {participantMeetings[participant.id].summary.completedMeetings}
+                                        </Typography>
+                                      </CardContent>
+                                    </Card>
+                                  </Grid>
+                                </Grid>
+
+                                {/* Meeting Details Table */}
+                                <Table size="small">
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell>Date</TableCell>
+                                      <TableCell>Meeting</TableCell>
+                                      <TableCell>Program</TableCell>
+                                      <TableCell>Duration</TableCell>
+                                      <TableCell>Attendance %</TableCell>
+                                      <TableCell>Status</TableCell>
+                                      <TableCell>Court Card</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {participantMeetings[participant.id].meetings.map((meeting: any) => (
+                                      <TableRow key={meeting.id}>
+                                        <TableCell>
+                                          {new Date(meeting.date).toLocaleDateString()}
+                                        </TableCell>
+                                        <TableCell>{meeting.meetingName}</TableCell>
+                                        <TableCell>
+                                          <Chip label={meeting.meetingProgram} size="small" />
+                                        </TableCell>
+                                        <TableCell>{meeting.duration} min</TableCell>
+                                        <TableCell>
+                                          <Chip
+                                            label={`${meeting.attendancePercent}%`}
+                                            color={Number(meeting.attendancePercent) >= 90 ? 'success' : 'warning'}
+                                            size="small"
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          <Chip
+                                            label={meeting.status}
+                                            color={meeting.status === 'COMPLETED' ? 'success' : 'default'}
+                                            size="small"
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          {meeting.courtCard ? (
+                                            <Typography variant="caption" color="primary">
+                                              {meeting.courtCard.cardNumber}
+                                            </Typography>
+                                          ) : (
+                                            <Typography variant="caption" color="text.secondary">
+                                              N/A
+                                            </Typography>
+                                          )}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </>
+                            ) : (
+                              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                                <CircularProgress size={30} />
+                              </Box>
+                            )}
+                          </Box>
+                        </Collapse>
+                      </TableCell>
+                    </TableRow>
+                  </React.Fragment>
                 ))}
               </TableBody>
             </Table>
@@ -260,6 +502,142 @@ const CourtRepDashboardPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Create Test Meeting Dialog */}
+      <Dialog
+        open={createMeetingOpen}
+        onClose={() => {
+          setCreateMeetingOpen(false);
+          setMeetingCreated(null);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Create Test Zoom Meeting</DialogTitle>
+        <DialogContent>
+          {!meetingCreated ? (
+            <>
+              <Typography variant="body1" paragraph>
+                This will create a test Zoom meeting that you can use to test the ProofMeet compliance tracking system.
+              </Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                The meeting will:
+                <ul>
+                  <li>Start in 2 minutes</li>
+                  <li>Last for 60 minutes</li>
+                  <li>Be available for participants to join and track attendance</li>
+                  <li>Generate court cards and compliance reports</li>
+                </ul>
+              </Alert>
+            </>
+          ) : (
+            <Box>
+              <Alert severity="success" sx={{ mb: 3 }}>
+                Test meeting created successfully! Share the details below with participants.
+              </Alert>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Meeting Topic"
+                    value={meetingCreated.topic}
+                    InputProps={{ readOnly: true }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Join URL"
+                    value={meetingCreated.joinUrl}
+                    InputProps={{
+                      readOnly: true,
+                      endAdornment: (
+                        <Button
+                          size="small"
+                          onClick={() => copyToClipboard(meetingCreated.joinUrl)}
+                        >
+                          Copy
+                        </Button>
+                      ),
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label="Meeting Password"
+                    value={meetingCreated.password}
+                    InputProps={{ readOnly: true }}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label="Start Time"
+                    value={new Date(meetingCreated.startTime).toLocaleString()}
+                    InputProps={{ readOnly: true }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Alert severity="info">
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                      Next Steps:
+                    </Typography>
+                    <Typography variant="body2" component="div">
+                      1. Share the join URL with participants
+                    </Typography>
+                    <Typography variant="body2" component="div">
+                      2. Have participants join the meeting
+                    </Typography>
+                    <Typography variant="body2" component="div">
+                      3. Use the "Join Meeting" feature in the participant dashboard
+                    </Typography>
+                    <Typography variant="body2" component="div">
+                      4. After the meeting, check compliance data here in the PO dashboard
+                    </Typography>
+                  </Alert>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {!meetingCreated ? (
+            <>
+              <Button onClick={() => setCreateMeetingOpen(false)}>Cancel</Button>
+              <Button
+                onClick={createTestMeeting}
+                variant="contained"
+                disabled={creatingMeeting}
+                startIcon={creatingMeeting ? <CircularProgress size={20} /> : <VideoCall />}
+              >
+                {creatingMeeting ? 'Creating...' : 'Create Meeting'}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => {
+              setCreateMeetingOpen(false);
+              setMeetingCreated(null);
+              loadDashboard(); // Refresh to show new meeting
+            }} variant="contained">
+              Done
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

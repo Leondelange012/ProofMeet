@@ -14,6 +14,7 @@ import { prisma } from '../index';
 import { logger } from '../utils/logger';
 import { authenticate, requireCourtRep } from '../middleware/auth';
 import { getCourtCard } from '../services/courtCardService';
+import { zoomService } from '../services/zoomService';
 
 const router = Router();
 
@@ -787,6 +788,165 @@ router.get('/attendance-reports', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Get attendance reports error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+// ============================================
+// ZOOM MEETINGS (FOR TESTING)
+// ============================================
+
+/**
+ * POST /api/court-rep/create-test-meeting
+ * Create a test Zoom meeting for compliance tracking
+ */
+router.post('/create-test-meeting', async (req: Request, res: Response) => {
+  try {
+    const courtRep = req.user!;
+    const courtRepName = `${courtRep.firstName} ${courtRep.lastName}`;
+
+    // Create Zoom meeting
+    const meeting = await zoomService.createTestMeeting(courtRepName);
+
+    // Store meeting in database as external meeting
+    const externalMeeting = await prisma.externalMeeting.create({
+      data: {
+        externalId: meeting.id,
+        name: meeting.topic,
+        program: 'TEST',
+        meetingType: 'Test Meeting',
+        description: 'Test meeting for ProofMeet compliance tracking',
+        dayOfWeek: new Date(meeting.start_time).toLocaleDateString('en-US', { weekday: 'long' }),
+        time: new Date(meeting.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        timezone: meeting.timezone,
+        durationMinutes: meeting.duration,
+        format: 'ONLINE',
+        zoomUrl: meeting.join_url,
+        zoomId: meeting.id,
+        zoomPassword: meeting.password,
+        tags: ['test', 'compliance-tracking'],
+        hasProofCapability: true,
+        lastSyncedAt: new Date(),
+      },
+    });
+
+    logger.info(`Test meeting created by ${courtRep.email}: ${meeting.id}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Test meeting created successfully',
+      data: {
+        meetingId: externalMeeting.id,
+        zoomMeetingId: meeting.id,
+        topic: meeting.topic,
+        joinUrl: meeting.join_url,
+        password: meeting.password,
+        startTime: meeting.start_time,
+        duration: meeting.duration,
+        instructions: 'Share this meeting link with participants to test attendance tracking.',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Create test meeting error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to create test meeting',
+    });
+  }
+});
+
+/**
+ * GET /api/court-rep/participants/:participantId/meetings
+ * Get detailed meeting history for a specific participant
+ */
+router.get('/participants/:participantId/meetings', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+    const { participantId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    // Verify participant belongs to this Court Rep
+    const participant = await prisma.user.findFirst({
+      where: {
+        id: participantId,
+        courtRepId,
+        userType: 'PARTICIPANT',
+      },
+    });
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        error: 'Participant not found',
+      });
+    }
+
+    // Get all meetings for this participant
+    const meetings = await prisma.attendanceRecord.findMany({
+      where: { participantId },
+      orderBy: { meetingDate: 'desc' },
+      take: limit,
+      include: {
+        courtCard: {
+          select: {
+            id: true,
+            cardNumber: true,
+            confidenceLevel: true,
+          },
+        },
+      },
+    });
+
+    // Get summary statistics
+    const totalMeetings = meetings.length;
+    const completedMeetings = meetings.filter(m => m.status === 'COMPLETED').length;
+    const totalMinutes = meetings.reduce((sum, m) => sum + (m.totalDurationMin || 0), 0);
+    const avgAttendance = meetings.length > 0
+      ? meetings.reduce((sum, m) => sum + Number(m.attendancePercent || 0), 0) / meetings.length
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        participant: {
+          id: participant.id,
+          name: `${participant.firstName} ${participant.lastName}`,
+          caseNumber: participant.caseNumber,
+        },
+        summary: {
+          totalMeetings,
+          completedMeetings,
+          totalHours: Math.round((totalMinutes / 60) * 10) / 10,
+          averageAttendance: Math.round(avgAttendance * 10) / 10,
+        },
+        meetings: meetings.map(meeting => ({
+          id: meeting.id,
+          meetingName: meeting.meetingName,
+          meetingProgram: meeting.meetingProgram,
+          date: meeting.meetingDate,
+          joinTime: meeting.joinTime,
+          leaveTime: meeting.leaveTime,
+          duration: meeting.totalDurationMin,
+          activeDuration: meeting.activeDurationMin,
+          idleDuration: meeting.idleDurationMin,
+          attendancePercent: meeting.attendancePercent,
+          status: meeting.status,
+          isValid: meeting.isValid,
+          courtCard: meeting.courtCard ? {
+            id: meeting.courtCard.id,
+            cardNumber: meeting.courtCard.cardNumber,
+            confidenceLevel: meeting.courtCard.confidenceLevel,
+          } : null,
+          verificationMethod: meeting.verificationMethod,
+          webcamSnapshots: meeting.webcamSnapshotCount,
+        })),
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get participant meetings error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

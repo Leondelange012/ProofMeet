@@ -21,8 +21,13 @@ import {
   Schedule,
 } from '@mui/icons-material';
 import { aaIntergroupService } from '../services/aaIntergroupService';
+import axios from 'axios';
+import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
+
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
 const MeetingPage: React.FC = () => {
+  const { token } = useAuthStoreV2();
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [meetingId, setMeetingId] = useState('');
   const [meetingsByProgram, setMeetingsByProgram] = useState<{ [program: string]: any[] }>({});
@@ -39,15 +44,39 @@ const MeetingPage: React.FC = () => {
       setLoading(true);
       console.log('🔍 Loading recovery meetings organized by program...');
       
+      // Load from AA Intergroup Service
       const response = await aaIntergroupService.getMeetingsByProgram();
+      let allMeetings: { [program: string]: any[] } = {};
+      
       if (response.success && response.data) {
-        setMeetingsByProgram(response.data);
-        const totalMeetings = Object.values(response.data).reduce((sum, meetings) => sum + meetings.length, 0);
-        console.log(`✅ Loaded ${totalMeetings} meetings across ${Object.keys(response.data).length} programs`);
-      } else {
-        console.error('❌ Failed to load recovery meetings:', response.error);
-        setMeetingsByProgram({});
+        allMeetings = { ...response.data };
       }
+
+      // Load from backend API (includes test meetings)
+      if (token) {
+        try {
+          const headers = { Authorization: `Bearer ${token}` };
+          const backendResponse = await axios.get(`${API_BASE_URL}/participant/meetings/available`, { headers });
+          
+          if (backendResponse.data.success && backendResponse.data.data) {
+            // Merge backend meetings with AA Intergroup meetings
+              const backendMeetings = backendResponse.data.data as { [program: string]: any[] };
+              Object.keys(backendMeetings).forEach((program: string) => {
+                if (allMeetings[program]) {
+                  allMeetings[program] = [...allMeetings[program], ...backendMeetings[program]];
+                } else {
+                  allMeetings[program] = backendMeetings[program];
+                }
+              });
+          }
+        } catch (error) {
+          console.error('Failed to load backend meetings:', error);
+        }
+      }
+
+      setMeetingsByProgram(allMeetings);
+      const totalMeetings = Object.values(allMeetings).reduce((sum: number, meetings: any[]) => sum + meetings.length, 0);
+      console.log(`✅ Loaded ${totalMeetings} meetings across ${Object.keys(allMeetings).length} programs`);
     } catch (error) {
       console.error('❌ Failed to load recovery meetings:', error);
       setMeetingsByProgram({});
@@ -81,7 +110,7 @@ const MeetingPage: React.FC = () => {
         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
           {Object.keys(meetingsByProgram).length > 0 && (
             <>
-              Showing {Object.values(meetingsByProgram).reduce((sum, meetings) => sum + meetings.length, 0)} meetings 
+              Showing {(Object.values(meetingsByProgram) as any[][]).reduce((sum: number, meetings: any[]) => sum + meetings.length, 0)} meetings 
               across {Object.keys(meetingsByProgram).length} recovery programs. 
               <Button 
                 size="small" 
@@ -105,7 +134,7 @@ const MeetingPage: React.FC = () => {
             <TextField
               label="Meeting ID"
               value={meetingId}
-              onChange={(e) => setMeetingId(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMeetingId(e.target.value)}
               variant="outlined"
               size="small"
             />
@@ -126,7 +155,7 @@ const MeetingPage: React.FC = () => {
           <Typography>Loading recovery meetings...</Typography>
         </Box>
       ) : (
-        Object.keys(meetingsByProgram).map((program) => (
+        Object.keys(meetingsByProgram).map((program: string) => (
           <Box key={program} sx={{ mb: 4 }}>
             {/* Program Header */}
             <Typography variant="h5" sx={{ mb: 2, color: 'primary.main', fontWeight: 'bold' }}>
@@ -141,7 +170,7 @@ const MeetingPage: React.FC = () => {
             
             {/* Meetings Grid for this Program */}
             <Grid container spacing={3}>
-              {meetingsByProgram[program].map((meeting) => (
+              {meetingsByProgram[program].map((meeting: any) => (
                 <Grid item xs={12} md={6} lg={4} key={meeting.id}>
                   <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <CardContent sx={{ flexGrow: 1 }}>
