@@ -335,7 +335,7 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         idleDurationMin: cardData.idleDurationMin,
         attendancePercent: cardData.attendancePercent,
         validationStatus: cardData.validationStatus,
-        violations: violations,
+        violations: violations as any,
         activePeriods: cardData.activePeriods,
         verificationMethod: cardData.verificationMethod,
         confidenceLevel,
@@ -411,7 +411,7 @@ export async function verifyCourtCard(courtCardId: string): Promise<boolean> {
       attendancePercent: Number(courtCard.attendancePercent),
       activePeriods: courtCard.activePeriods,
       verificationMethod: courtCard.verificationMethod,
-      violations: courtCard.violations as Violation[],
+      violations: (courtCard.violations || []) as any,
       validationStatus: courtCard.validationStatus as 'PASSED' | 'FAILED',
     };
 
