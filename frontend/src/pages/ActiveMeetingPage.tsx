@@ -1,6 +1,7 @@
 /**
  * Active Meeting Page
- * Shows active meeting tracking with completion button
+ * Shows active meeting tracking status
+ * Tracking is fully automatic via Zoom webhooks - no manual controls needed
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,12 +13,12 @@ import {
   CardContent,
   Alert,
   Chip,
-  LinearProgress,
   Button,
 } from '@mui/material';
 import {
   CheckCircle,
-  AccessTime,
+  VideoCall,
+  Assessment,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
@@ -27,39 +28,50 @@ const ActiveMeetingPage: React.FC = () => {
   const { token } = useAuthStoreV2();
   const navigate = useNavigate();
   const location = useLocation();
-  const { attendanceId, meetingName, meetingUrl } = location.state || {};
+  
+  // Try to get from navigation state or sessionStorage
+  const stateData = location.state || {};
+  const [attendanceId, setAttendanceId] = useState<string>(
+    stateData.attendanceId || sessionStorage.getItem('activeAttendanceId') || ''
+  );
+  const [meetingName, setMeetingName] = useState<string>(
+    stateData.meetingName || sessionStorage.getItem('activeMeetingName') || ''
+  );
+  const [meetingUrl, setMeetingUrl] = useState<string>(
+    stateData.meetingUrl || sessionStorage.getItem('activeMeetingUrl') || ''
+  );
 
-  const [error] = useState('');
-  const [duration, setDuration] = useState(0);
-  const [startTime] = useState(Date.now());
-
-  // Update duration every second
+  // Persist to sessionStorage when data changes
   useEffect(() => {
-    const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      setDuration(elapsed);
-    }, 1000);
+    if (attendanceId) {
+      sessionStorage.setItem('activeAttendanceId', attendanceId);
+      sessionStorage.setItem('activeMeetingName', meetingName);
+      sessionStorage.setItem('activeMeetingUrl', meetingUrl);
+    }
+  }, [attendanceId, meetingName, meetingUrl]);
 
-    return () => clearInterval(interval);
-  }, [startTime]);
+  // Clear session storage when component unmounts
+  useEffect(() => {
+    return () => {
+      // Only clear if navigating away intentionally
+      // Don't clear on refresh
+    };
+  }, []);
 
-  // Format duration as HH:MM:SS
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Attendance is now fully automatic via Zoom webhooks
-  // No manual completion needed!
-
-  // If no attendance ID, redirect back
+  // If no attendance ID after checking both sources, redirect
   useEffect(() => {
     if (!attendanceId) {
       navigate('/participant/dashboard');
     }
   }, [attendanceId, navigate]);
+
+  const handleReturnToDashboard = () => {
+    // Clear session storage
+    sessionStorage.removeItem('activeAttendanceId');
+    sessionStorage.removeItem('activeMeetingName');
+    sessionStorage.removeItem('activeMeetingUrl');
+    navigate('/participant/dashboard');
+  };
 
   if (!attendanceId) {
     return null;
@@ -67,7 +79,7 @@ const ActiveMeetingPage: React.FC = () => {
 
   return (
     <Container maxWidth="md">
-      {/* Activity Monitor */}
+      {/* Activity Monitor - sends heartbeats while page is open */}
       <ActivityMonitor
         attendanceId={attendanceId}
         token={token!}
@@ -80,7 +92,7 @@ const ActiveMeetingPage: React.FC = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
                 <Typography variant="h5" gutterBottom>
-                  🎥 Meeting In Progress
+                  🎥 Meeting Tracking Active
                 </Typography>
                 <Typography variant="body1">
                   {meetingName || 'Active Meeting'}
@@ -90,122 +102,125 @@ const ActiveMeetingPage: React.FC = () => {
                 icon={<CheckCircle />}
                 label="Tracking Active"
                 color="success"
-                sx={{ bgcolor: 'white', color: 'success.main' }}
+                sx={{ bgcolor: 'white', color: 'success.main', fontWeight: 'bold' }}
               />
             </Box>
           </CardContent>
         </Card>
 
-        {/* Duration Card */}
+        {/* How It Works */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Box sx={{ textAlign: 'center' }}>
-              <AccessTime sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-              <Typography variant="h3" gutterBottom sx={{ fontFamily: 'monospace' }}>
-                {formatDuration(duration)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Meeting Duration
-              </Typography>
-            </Box>
-
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Attendance Progress
-              </Typography>
-              <LinearProgress
-                variant="determinate"
-                value={Math.min((duration / 3600) * 100, 100)} // Assume 60 min meeting
-                sx={{ height: 8, borderRadius: 4 }}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                {duration >= 3600 ? 'Meeting goal reached!' : `${Math.floor((3600 - duration) / 60)} minutes to full hour`}
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-
-        {/* Instructions */}
-        <Alert severity="info" sx={{ mb: 3 }}>
-          <Typography variant="body2" gutterBottom>
-            <strong>What's Happening:</strong>
-          </Typography>
-          <Typography variant="body2" component="div">
-            ✅ Your attendance is being tracked<br />
-            ✅ Activity monitoring is active<br />
-            ✅ Zoom participation is being verified<br />
-            ✅ Stay active to maintain compliance
-          </Typography>
-        </Alert>
-
-        {/* Zoom Link */}
-        {meetingUrl && (
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Meeting Link
-              </Typography>
-              <Button
-                variant="outlined"
-                fullWidth
-                href={meetingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{ mb: 1 }}
-              >
-                Open Zoom Meeting
-              </Button>
-              <Typography variant="caption" color="text.secondary">
-                Keep this window open while attending the meeting
-              </Typography>
-            </CardContent>
-          </Card>
-        )}
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
-
-        {/* Automatic Completion Info */}
-        <Card sx={{ bgcolor: 'success.lighter', border: 2, borderColor: 'success.main' }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom color="success.dark">
-              ✅ Fully Automatic Tracking
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Assessment /> How Tracking Works
             </Typography>
-            <Typography variant="body2" sx={{ mb: 2 }}>
-              Your attendance will be <strong>automatically recorded</strong> when you leave the Zoom meeting.
-              No manual actions needed!
-            </Typography>
-            <Alert severity="info">
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2" gutterBottom>
+                <strong>✅ Fully Automatic via Zoom</strong>
+              </Typography>
+              <Typography variant="body2" component="div">
+                • Your join time is recorded when you enter the Zoom meeting
+                <br />
+                • Your leave time is recorded when you exit the Zoom meeting
+                <br />
+                • Activity monitoring runs in this tab (keep it open)
+                <br />
+                • Everything is validated automatically - no manual actions needed!
+              </Typography>
+            </Alert>
+
+            <Alert severity="success">
               <Typography variant="body2">
-                <strong>How it works:</strong>
-                <br />
-                • Zoom tracks your actual join/leave times
-                <br />
-                • Activity monitoring records your presence
-                <br />
-                • Court Card is auto-generated when you leave
-                <br />
-                • Compliance is automatically validated (80% rule)
-                <br />
-                • Your Court Rep receives automatic updates
+                <strong>What to do:</strong> Just attend your Zoom meeting normally. 
+                Attendance is tracked via Zoom webhooks automatically.
               </Typography>
             </Alert>
           </CardContent>
         </Card>
 
-        {/* Info */}
-        <Alert severity="success" sx={{ mt: 3 }}>
-          <Typography variant="body2">
-            ✨ <strong>Just attend the meeting!</strong> Everything else is tracked automatically via Zoom webhooks.
+        {/* Zoom Meeting Link */}
+        {meetingUrl && (
+          <Card sx={{ mb: 3, border: 2, borderColor: 'primary.main' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <VideoCall /> Zoom Meeting
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Click below to join or return to your Zoom meeting:
+              </Typography>
+              <Button
+                variant="contained"
+                fullWidth
+                size="large"
+                href={meetingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                startIcon={<VideoCall />}
+              >
+                Open Zoom Meeting
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Important Instructions */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              📋 Important
+            </Typography>
+            <Box component="ul" sx={{ pl: 2 }}>
+              <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                <strong>Keep this tab open</strong> during the meeting for activity monitoring
+              </Typography>
+              <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                <strong>Attend the Zoom meeting</strong> with the same email you used to register ({token ? 'verified' : 'required'})
+              </Typography>
+              <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                <strong>Your attendance ends automatically</strong> when you leave the Zoom meeting
+              </Typography>
+              <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                <strong>Court Card will be generated</strong> automatically after the meeting
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Validation Information */}
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <Typography variant="body2" gutterBottom>
+            <strong>⚖️ Attendance Validation:</strong>
+          </Typography>
+          <Typography variant="body2" component="div">
+            • Must attend at least <strong>80% of the meeting duration</strong>
+            <br />
+            • Join/leave times verified via Zoom webhooks
+            <br />
+            • Activity monitoring provides supplementary evidence
+            <br />
+            • Court Card shows PASSED or FAILED based on validation
           </Typography>
         </Alert>
+
+        {/* Return to Dashboard */}
+        <Card>
+          <CardContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              You can safely refresh this page - your tracking will continue.
+              When you're done with the meeting, return to your dashboard:
+            </Typography>
+            <Button
+              variant="outlined"
+              fullWidth
+              onClick={handleReturnToDashboard}
+            >
+              Return to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
       </Box>
     </Container>
   );
 };
 
 export default ActiveMeetingPage;
-

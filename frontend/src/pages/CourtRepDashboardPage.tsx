@@ -419,6 +419,8 @@ const CourtRepDashboardPage: React.FC = () => {
                                       const validationStatus = meeting.courtCard?.validationStatus || 'PENDING';
                                       const violations = meeting.courtCard?.violations || [];
                                       const criticalViolations = violations.filter((v: any) => v.severity === 'CRITICAL');
+                                      const warningViolations = violations.filter((v: any) => v.severity === 'WARNING');
+                                      const infoViolations = violations.filter((v: any) => v.severity === 'INFO');
                                       
                                       return (
                                         <TableRow 
@@ -458,13 +460,41 @@ const CourtRepDashboardPage: React.FC = () => {
                                                 color={validationStatus === 'PASSED' ? 'success' : validationStatus === 'FAILED' ? 'error' : 'default'}
                                                 size="small"
                                               />
+                                              
+                                              {/* Critical Violations */}
                                               {criticalViolations.length > 0 && (
                                                 <Box sx={{ mt: 1 }}>
+                                                  <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                                                    CRITICAL:
+                                                  </Typography>
                                                   {criticalViolations.map((v: any, idx: number) => (
                                                     <Typography key={idx} variant="caption" color="error" display="block">
                                                       • {v.message}
                                                     </Typography>
                                                   ))}
+                                                </Box>
+                                              )}
+                                              
+                                              {/* Warning Violations */}
+                                              {warningViolations.length > 0 && (
+                                                <Box sx={{ mt: 1 }}>
+                                                  <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'warning.main' }}>
+                                                    WARNINGS:
+                                                  </Typography>
+                                                  {warningViolations.map((v: any, idx: number) => (
+                                                    <Typography key={idx} variant="caption" color="warning.main" display="block">
+                                                      • {v.message}
+                                                    </Typography>
+                                                  ))}
+                                                </Box>
+                                              )}
+                                              
+                                              {/* Info - Good behavior */}
+                                              {infoViolations.some((v: any) => v.type === 'GOOD_MONITORING') && (
+                                                <Box sx={{ mt: 1 }}>
+                                                  <Typography variant="caption" color="success.main" display="block">
+                                                    ✓ Good monitoring behavior
+                                                  </Typography>
                                                 </Box>
                                               )}
                                             </Box>

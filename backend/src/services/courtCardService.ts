@@ -35,13 +35,16 @@ interface CourtCardData {
 
 /**
  * Validate attendance and generate violations
+ * PRIMARY SOURCE: Zoom webhook join/leave times
+ * SECONDARY: Activity heartbeats (supplementary evidence)
  */
 function validateAttendance(
   totalDurationMin: number,
   activeDurationMin: number,
   idleDurationMin: number,
   attendancePercent: number,
-  meetingDurationMin: number
+  meetingDurationMin: number,
+  activityTimeline: any
 ): { violations: Violation[]; validationStatus: 'PASSED' | 'FAILED' } {
   const violations: Violation[] = [];
   
@@ -49,6 +52,12 @@ function validateAttendance(
   const activePercent = totalDurationMin > 0 ? (activeDurationMin / totalDurationMin) * 100 : 0;
   const idlePercent = totalDurationMin > 0 ? (idleDurationMin / totalDurationMin) * 100 : 0;
   const meetingAttendancePercent = meetingDurationMin > 0 ? (totalDurationMin / meetingDurationMin) * 100 : 0;
+  
+  // Count activity heartbeats
+  const events = activityTimeline?.events || [];
+  const activityEvents = events.filter((e: any) => e.source === 'FRONTEND_MONITOR');
+  const activeHeartbeats = events.filter((e: any) => e.type === 'ACTIVE' && e.source === 'FRONTEND_MONITOR').length;
+  const idleHeartbeats = events.filter((e: any) => e.type === 'IDLE' && e.source === 'FRONTEND_MONITOR').length;
   
   // Rule 1: Must be active for at least 80% of time attended
   if (activePercent < 80) {
@@ -100,7 +109,45 @@ function validateAttendance(
     });
   }
   
+  // Rule 6: SUSPICIOUS PATTERN - Attended meeting but zero activity heartbeats
+  // Indicates participant may have closed ProofMeet tab but stayed in Zoom
+  if (totalDurationMin >= 10 && activityEvents.length === 0) {
+    violations.push({
+      type: 'NO_ACTIVITY_MONITORING',
+      message: `Attended ${totalDurationMin} minutes but no activity heartbeats received. ProofMeet monitoring tab may have been closed.`,
+      severity: 'WARNING',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Rule 7: SUSPICIOUS PATTERN - Very few heartbeats for long attendance
+  // Expected: ~2 heartbeats per minute (30s intervals)
+  const expectedHeartbeats = totalDurationMin * 2;
+  const receivedHeartbeats = activityEvents.length;
+  const heartbeatRatio = expectedHeartbeats > 0 ? (receivedHeartbeats / expectedHeartbeats) * 100 : 0;
+  
+  if (totalDurationMin >= 10 && heartbeatRatio < 30) {
+    violations.push({
+      type: 'LOW_ACTIVITY_MONITORING',
+      message: `Received ${receivedHeartbeats} activity heartbeats (expected ~${expectedHeartbeats}). Monitoring tab may have been intermittently closed or inactive.`,
+      severity: 'WARNING',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Rule 8: INFO - Good monitoring behavior
+  if (heartbeatRatio >= 70 && totalDurationMin >= 10) {
+    violations.push({
+      type: 'GOOD_MONITORING',
+      message: `Received ${receivedHeartbeats} activity heartbeats. ProofMeet monitoring tab was kept open as instructed.`,
+      severity: 'INFO',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
   // Determine final validation status
+  // CRITICAL violations = automatic FAIL
+  // WARNING violations = PASS but flagged for review
   const criticalViolations = violations.filter(v => v.severity === 'CRITICAL');
   const validationStatus = criticalViolations.length > 0 ? 'FAILED' : 'PASSED';
   
@@ -271,7 +318,8 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       activeDurationMin,
       idleDurationMin,
       attendancePercent,
-      meetingDurationMin
+      meetingDurationMin,
+      attendance.activityTimeline
     );
 
     // Get total hours and meeting IDs for this participant
@@ -323,7 +371,7 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         caseNumber: cardData.caseNumber,
         courtRepEmail: cardData.courtRepEmail,
         courtRepName: cardData.courtRepName,
-        meetingId: cardData.meetingId,
+        meetingId: cardData.meetingId as any,
         meetingName: cardData.meetingName,
         meetingProgram: cardData.meetingProgram,
         meetingDate: cardData.meetingDate,
@@ -398,7 +446,7 @@ export async function verifyCourtCard(courtCardId: string): Promise<boolean> {
       caseNumber: courtCard.caseNumber,
       courtRepEmail: courtCard.courtRepEmail,
       courtRepName: courtCard.courtRepName,
-      meetingId: courtCard.meetingId,
+      meetingId: courtCard.meetingId as any,
       meetingName: courtCard.meetingName,
       meetingProgram: courtCard.meetingProgram,
       meetingDate: courtCard.meetingDate,
@@ -407,12 +455,12 @@ export async function verifyCourtCard(courtCardId: string): Promise<boolean> {
       leaveTime: courtCard.leaveTime,
       totalDurationMin: courtCard.totalDurationMin,
       activeDurationMin: courtCard.activeDurationMin,
-      idleDurationMin: courtCard.idleDurationMin || 0,
+      idleDurationMin: (courtCard as any).idleDurationMin || 0,
       attendancePercent: Number(courtCard.attendancePercent),
       activePeriods: courtCard.activePeriods,
       verificationMethod: courtCard.verificationMethod,
-      violations: (courtCard.violations || []) as any,
-      validationStatus: courtCard.validationStatus as 'PASSED' | 'FAILED',
+      violations: ((courtCard as any).violations || []) as any,
+      validationStatus: (courtCard as any).validationStatus as 'PASSED' | 'FAILED',
     };
 
     const expectedHash = generateCardHash(cardData);
