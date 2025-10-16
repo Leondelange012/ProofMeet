@@ -31,13 +31,13 @@ const ActiveMeetingPage: React.FC = () => {
   
   // Try to get from navigation state or sessionStorage
   const stateData = location.state || {};
-  const [attendanceId, setAttendanceId] = useState<string>(
+  const [attendanceId] = useState<string>(
     stateData.attendanceId || sessionStorage.getItem('activeAttendanceId') || ''
   );
-  const [meetingName, setMeetingName] = useState<string>(
+  const [meetingName] = useState<string>(
     stateData.meetingName || sessionStorage.getItem('activeMeetingName') || ''
   );
-  const [meetingUrl, setMeetingUrl] = useState<string>(
+  const [meetingUrl] = useState<string>(
     stateData.meetingUrl || sessionStorage.getItem('activeMeetingUrl') || ''
   );
 
