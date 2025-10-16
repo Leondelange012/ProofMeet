@@ -22,7 +22,6 @@ import {
   Dashboard,
   MeetingRoom,
   Assessment,
-  Person,
   Logout,
   AccountCircle,
 } from '@mui/icons-material';
@@ -64,7 +63,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const menuItems = user?.userType === 'COURT_REP' 
     ? [
         { text: 'Dashboard', icon: <Dashboard />, path: '/court-rep/dashboard' },
-        { text: 'Participants', icon: <Person />, path: '/court-rep/participants' },
         { text: 'Reports', icon: <Assessment />, path: '/court-rep/reports' },
       ]
     : [
