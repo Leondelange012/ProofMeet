@@ -715,5 +715,97 @@ router.get('/court-card/:attendanceId', async (req: Request, res: Response) => {
   }
 });
 
+// ============================================
+// ACTIVITY TRACKING (SCREEN ACTIVITY)
+// ============================================
+
+/**
+ * POST /api/participant/activity-heartbeat
+ * Receive activity heartbeat from frontend to track presence
+ */
+router.post(
+  '/activity-heartbeat',
+  [body('attendanceId').isString(), body('activityType').isIn(['ACTIVE', 'IDLE'])],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      const participantId = req.user!.id;
+      const { attendanceId, activityType, metadata } = req.body;
+
+      // Verify attendance belongs to this participant
+      const attendance = await prisma.attendanceRecord.findFirst({
+        where: {
+          id: attendanceId,
+          participantId,
+          status: 'IN_PROGRESS',
+        },
+      });
+
+      if (!attendance) {
+        return res.status(404).json({
+          success: false,
+          error: 'Attendance record not found or already completed',
+        });
+      }
+
+      // Get existing activity timeline
+      const existingTimeline = (attendance.activityTimeline as any) || { events: [] };
+      const events = existingTimeline.events || [];
+
+      // Add activity event
+      const activityEvent = {
+        type: activityType,
+        timestamp: new Date().toISOString(),
+        source: 'FRONTEND_MONITOR',
+        data: metadata || {},
+      };
+
+      events.push(activityEvent);
+
+      // Calculate active vs idle duration
+      const activeEvents = events.filter((e: any) => e.type === 'ACTIVE');
+      const idleEvents = events.filter((e: any) => e.type === 'IDLE');
+
+      // Estimate durations (each heartbeat represents ~30 seconds of activity)
+      const activeDurationMin = Math.floor((activeEvents.length * 30) / 60);
+      const idleDurationMin = Math.floor((idleEvents.length * 30) / 60);
+
+      // Update attendance record
+      await prisma.attendanceRecord.update({
+        where: { id: attendanceId },
+        data: {
+          activityTimeline: { events },
+          activeDurationMin,
+          idleDurationMin,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Activity recorded',
+        data: {
+          totalEvents: events.length,
+          activeDurationMin,
+          idleDurationMin,
+        },
+      });
+    } catch (error: any) {
+      logger.error('Activity heartbeat error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+      });
+    }
+  }
+);
+
 export { router as participantRoutes };
 
