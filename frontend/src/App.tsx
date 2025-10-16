@@ -11,6 +11,7 @@ import RegisterCourtRepPage from './pages/RegisterCourtRepPage';
 import RegisterParticipantPage from './pages/RegisterParticipantPage';
 import CourtRepDashboardPage from './pages/CourtRepDashboardPage';
 import ParticipantDashboardPage from './pages/ParticipantDashboardPage';
+import ParticipantProgressPage from './pages/ParticipantProgressPage';
 import MeetingPage from './pages/MeetingPage';
 import CompliancePage from './pages/CompliancePage';
 import ActiveMeetingPage from './pages/ActiveMeetingPage';
@@ -359,6 +360,17 @@ function App() {
                   <ProtectedRoute>
                     <Layout>
                       <MeetingPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/participant/progress"
+                element={
+                  <ProtectedRoute requiredUserType="PARTICIPANT">
+                    <Layout>
+                      <ParticipantProgressPage />
                     </Layout>
                   </ProtectedRoute>
                 }

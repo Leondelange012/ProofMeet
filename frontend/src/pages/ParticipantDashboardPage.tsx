@@ -1,3 +1,8 @@
+/**
+ * Participant Dashboard Page
+ * Overview page with quick stats and navigation
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
   Container,
@@ -17,24 +22,22 @@ import {
   CalendarToday,
   Refresh,
   MeetingRoom,
+  TrendingUp,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import axios from 'axios';
-import { aaIntergroupService, AAMeeting } from '../services/aaIntergroupService';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
 const ParticipantDashboardPage: React.FC = () => {
   const { user, token } = useAuthStoreV2();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<any>(null);
-  const [availableMeetings, setAvailableMeetings] = useState<AAMeeting[]>([]);
-
-  const [testMeetings, setTestMeetings] = useState<any[]>([]);
-  const [joiningMeeting, setJoiningMeeting] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const loadDashboard = async () => {
     try {
@@ -51,22 +54,6 @@ const ParticipantDashboardPage: React.FC = () => {
       } else {
         setError(response.data.error || 'Failed to load dashboard');
       }
-
-      // Load available meetings (including test meetings)
-      const meetingsResponse = await axios.get(`${API_BASE_URL}/participant/meetings/available`, { headers });
-      if (meetingsResponse.data.success && meetingsResponse.data.data) {
-        // Extract TEST meetings for quick join
-        const allMeetings = meetingsResponse.data.data;
-        if (allMeetings.TEST) {
-          setTestMeetings(allMeetings.TEST);
-        }
-      }
-
-      // Load AA meetings from intergroup service
-      const aaMeetingsResponse = await aaIntergroupService.getAllMeetings();
-      if (aaMeetingsResponse.success && aaMeetingsResponse.data) {
-        setAvailableMeetings(aaMeetingsResponse.data.slice(0, 6));
-      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
     } finally {
@@ -74,65 +61,32 @@ const ParticipantDashboardPage: React.FC = () => {
     }
   };
 
-  const handleJoinMeeting = async (meetingId: string, meetingName: string, zoomUrl: string) => {
-    try {
-      setJoiningMeeting(meetingId);
-      setError('');
-
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // Start attendance tracking
-      const response = await axios.post(
-        `${API_BASE_URL}/participant/join-meeting`,
-        {
-          meetingId,
-          joinMethod: 'ONLINE',
-        },
-        { headers }
-      );
-
-      if (response.data.success) {
-        const { attendanceId } = response.data.data;
-
-        // Open Zoom in new tab
-        window.open(zoomUrl, '_blank');
-
-        // Navigate to active meeting page
-        navigate('/participant/active-meeting', {
-          state: {
-            attendanceId,
-            meetingName,
-            meetingUrl: zoomUrl,
-          },
-        });
-      } else {
-        setError(response.data.error || 'Failed to start meeting tracking');
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to join meeting');
-    } finally {
-      setJoiningMeeting(null);
-    }
-  };
-
   useEffect(() => {
     loadDashboard();
+
+    // Check for success message from navigation state
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+      // Clear the state after showing
+      window.history.replaceState({}, document.title);
+    }
   }, []);
 
   if (loading) {
     return (
-      <Container>
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+      <Container maxWidth="lg">
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
           <CircularProgress />
         </Box>
       </Container>
     );
   }
 
-  const progress = dashboardData?.progress?.thisWeek;
+  const progress = dashboardData?.thisWeek;
   const requirements = dashboardData?.requirements;
-  const progressPercentage = requirements?.meetingsPerWeek > 0
-    ? Math.min((progress?.attended / requirements.meetingsPerWeek) * 100, 100)
+  const recentAttendance = dashboardData?.recentAttendance || [];
+  const progressPercentage = requirements?.meetingsPerWeek 
+    ? Math.min((progress?.attended || 0) / requirements.meetingsPerWeek * 100, 100)
     : 0;
 
   return (
@@ -141,14 +95,14 @@ const ParticipantDashboardPage: React.FC = () => {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" gutterBottom>
-            Welcome, {user?.firstName}!
+            Welcome, {user?.firstName}
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Case #{dashboardData?.participant?.caseNumber}
+            Track your meetings and stay compliant
           </Typography>
-          {dashboardData?.participant?.courtRep && (
+          {requirements?.courtName && (
             <Typography variant="body2" color="text.secondary">
-              Officer: {dashboardData.participant.courtRep.name}
+              {requirements.courtName}
             </Typography>
           )}
         </Box>
@@ -160,6 +114,17 @@ const ParticipantDashboardPage: React.FC = () => {
           Refresh
         </Button>
       </Box>
+
+      {successMessage && (
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccessMessage('')}>
+          {successMessage}
+          {location.state?.courtCard && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Court Card: <strong>{location.state.courtCard}</strong>
+            </Typography>
+          )}
+        </Alert>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -182,7 +147,7 @@ const ParticipantDashboardPage: React.FC = () => {
                 <Chip
                   label={progress?.status || 'Not Started'}
                   color={
-                    progress?.status === 'ON_TRACK'
+                    progress?.status === 'ON_TRACK' || progress?.status === 'COMPLIANT'
                       ? 'success'
                       : progress?.status === 'AT_RISK'
                       ? 'warning'
@@ -213,221 +178,143 @@ const ParticipantDashboardPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Active Test Meetings (Court Rep Created) */}
-      {testMeetings.length > 0 && (
-        <Card sx={{ mb: 3, border: 2, borderColor: 'primary.main' }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'between', mb: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <MeetingRoom sx={{ fontSize: 32, color: 'primary.main', mr: 2 }} />
-                <Box>
-                  <Typography variant="h6">🎥 Available Test Meetings</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Created by your Court Rep for compliance testing
-                  </Typography>
-                </Box>
-              </Box>
-              <Chip label="New" color="primary" size="small" />
-            </Box>
-
-            <Grid container spacing={2}>
-              {testMeetings.map((meeting: any) => (
-                <Grid item xs={12} key={meeting.id}>
-                  <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="h6" gutterBottom>
-                            {meeting.name}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
-                            {meeting.dayOfWeek} at {meeting.time} {meeting.timezone && `(${meeting.timezone})`}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Duration: {meeting.durationMinutes} minutes
-                          </Typography>
-                          {meeting.description && (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                              {meeting.description}
-                            </Typography>
-                          )}
-                        </Box>
-                        <Button
-                          variant="contained"
-                          color="primary"
-                          size="large"
-                          startIcon={joiningMeeting === meeting.id ? <CircularProgress size={20} color="inherit" /> : <MeetingRoom />}
-                          onClick={() => handleJoinMeeting(meeting.id, meeting.name, meeting.zoomUrl)}
-                          disabled={joiningMeeting === meeting.id}
-                          sx={{ ml: 2 }}
-                        >
-                          {joiningMeeting === meeting.id ? 'Starting...' : 'Join Now'}
-                        </Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-
-            <Alert severity="info" sx={{ mt: 2 }}>
-              <Typography variant="body2">
-                <strong>📋 How it works:</strong> Click "Join Now" to start tracking. Keep the tracking page open during the meeting. Your attendance will be verified through Zoom.
-              </Typography>
-            </Alert>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Quick Actions */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6}>
-          <Card sx={{ height: '100%', cursor: 'pointer' }} onClick={() => navigate('/meetings')}>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card 
+            sx={{ 
+              height: '100%', 
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              '&:hover': { 
+                transform: 'translateY(-4px)',
+                boxShadow: 4,
+              } 
+            }} 
+            onClick={() => navigate('/meetings')}
+          >
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <MeetingRoom sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
-                <Typography variant="h6">Browse All Meetings</Typography>
+                <Typography variant="h6">Browse Meetings</Typography>
               </Box>
               <Typography variant="body2" color="text.secondary">
-                Find recovery meetings to attend
+                Find and join recovery meetings
               </Typography>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6}>
-          <Card sx={{ height: '100%', cursor: 'pointer' }} onClick={() => navigate('/participant/my-attendance')}>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card 
+            sx={{ 
+              height: '100%', 
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              '&:hover': { 
+                transform: 'translateY(-4px)',
+                boxShadow: 4,
+              } 
+            }} 
+            onClick={() => navigate('/participant/progress')}
+          >
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <CalendarToday sx={{ fontSize: 40, color: 'success.main', mr: 2 }} />
-                <Typography variant="h6">My Attendance</Typography>
+                <TrendingUp sx={{ fontSize: 40, color: 'success.main', mr: 2 }} />
+                <Typography variant="h6">My Progress</Typography>
               </Box>
               <Typography variant="body2" color="text.secondary">
-                View your attendance history
+                View detailed attendance history
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={4}>
+          <Card 
+            sx={{ 
+              height: '100%', 
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              '&:hover': { 
+                transform: 'translateY(-4px)',
+                boxShadow: 4,
+              } 
+            }} 
+            onClick={() => navigate('/compliance')}
+          >
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <CalendarToday sx={{ fontSize: 40, color: 'secondary.main', mr: 2 }} />
+                <Typography variant="h6">Compliance</Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                View court requirements
               </Typography>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* Available Meetings */}
-      {availableMeetings.length > 0 && (
-        <Card sx={{ mb: 3 }}>
+      {/* Recent Activity Preview */}
+      {recentAttendance.length > 0 && (
+        <Card>
           <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Available Recovery Meetings
-              </Typography>
-              <Button
-                size="small"
-                onClick={() => navigate('/meetings')}
-                sx={{ textTransform: 'none' }}
+            <Box sx={{ display: 'flex', justifyContent: 'between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">Recent Meetings</Typography>
+              <Button 
+                size="small" 
+                onClick={() => navigate('/participant/progress')}
               >
                 View All
               </Button>
             </Box>
             <Grid container spacing={2}>
-              {availableMeetings.map((meeting) => (
-                <Grid item xs={12} md={6} key={meeting.id}>
-                  <Card
-                    variant="outlined"
-                    sx={{
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        boxShadow: 2,
-                        transform: 'translateY(-2px)',
-                      },
+              {recentAttendance.slice(0, 3).map((record: any) => (
+                <Grid item xs={12} key={record.id}>
+                  <Box 
+                    sx={{ 
+                      p: 2, 
+                      bgcolor: 'action.hover', 
+                      borderRadius: 2,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
                     }}
                   >
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                          {meeting.name}
-                        </Typography>
-                        <Chip
-                          label={meeting.program}
-                          size="small"
-                          color="primary"
-                          sx={{ ml: 1 }}
-                        />
-                      </Box>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        {meeting.type}
+                    <Box>
+                      <Typography variant="body1" fontWeight="medium">
+                        {record.meetingName}
                       </Typography>
-                      <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-                        <Chip
-                          label={meeting.format}
-                          size="small"
-                          variant="outlined"
-                        />
-                        <Chip
-                          label={`${meeting.day} ${meeting.time}`}
-                          size="small"
-                          variant="outlined"
-                        />
-                      </Box>
-                      {meeting.zoomUrl && (
-                        <Typography variant="caption" color="primary" sx={{ display: 'block', mt: 1 }}>
-                          🔗 Online Meeting Available
-                        </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {new Date(record.meetingDate).toLocaleDateString()} • {record.meetingProgram}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <Chip 
+                        label={`${record.attendancePercent || 0}%`}
+                        size="small"
+                        color={
+                          Number(record.attendancePercent || 0) >= 90
+                            ? 'success'
+                            : Number(record.attendancePercent || 0) >= 75
+                            ? 'warning'
+                            : 'error'
+                        }
+                      />
+                      {record.status === 'COMPLETED' && (
+                        <CheckCircle sx={{ color: 'success.main', fontSize: 20 }} />
                       )}
-                    </CardContent>
-                  </Card>
+                    </Box>
+                  </Box>
                 </Grid>
               ))}
             </Grid>
           </CardContent>
         </Card>
       )}
-
-      {/* Recent Meetings */}
-      {dashboardData?.recentMeetings && dashboardData.recentMeetings.length > 0 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Recent Meetings
-            </Typography>
-            {dashboardData.recentMeetings.map((meeting: any) => (
-              <Box
-                key={meeting.id}
-                sx={{
-                  p: 2,
-                  mb: 1,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Box>
-                    <Typography variant="body1">{meeting.meetingName}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {new Date(meeting.date).toLocaleDateString()} • {meeting.duration} min
-                    </Typography>
-                  </Box>
-                  <Chip
-                    icon={<CheckCircle />}
-                    label={`${meeting.attendancePercentage}%`}
-                    color="success"
-                    size="small"
-                  />
-                </Box>
-              </Box>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* No Requirements Set */}
-      {!requirements && (
-        <Alert severity="info" sx={{ mt: 3 }}>
-          Your Court Representative hasn't set specific meeting requirements yet. You can still attend meetings and they will be tracked.
-        </Alert>
-      )}
     </Container>
   );
 };
 
 export default ParticipantDashboardPage;
-

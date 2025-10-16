@@ -13,25 +13,32 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import {
   QrCodeScanner,
   VideoCall,
   LocationOn,
   Schedule,
+  MeetingRoom,
 } from '@mui/icons-material';
 import { aaIntergroupService } from '../services/aaIntergroupService';
 import axios from 'axios';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
+import { useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
 const MeetingPage: React.FC = () => {
   const { token } = useAuthStoreV2();
+  const navigate = useNavigate();
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [meetingId, setMeetingId] = useState('');
   const [meetingsByProgram, setMeetingsByProgram] = useState<{ [program: string]: any[] }>({});
   const [loading, setLoading] = useState(true);
+  const [joiningMeeting, setJoiningMeeting] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
 
   // Load available meetings for participants
@@ -90,6 +97,47 @@ const MeetingPage: React.FC = () => {
     window.open(zoomJoinUrl, '_blank');
   };
 
+  const handleJoinMeeting = async (meetingId: string, meetingName: string, zoomUrl: string) => {
+    try {
+      setJoiningMeeting(meetingId);
+      setError('');
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Start attendance tracking
+      const response = await axios.post(
+        `${API_BASE_URL}/participant/join-meeting`,
+        {
+          meetingId,
+          joinMethod: 'ONLINE',
+        },
+        { headers }
+      );
+
+      if (response.data.success) {
+        const { attendanceId } = response.data.data;
+
+        // Open Zoom in new tab
+        window.open(zoomUrl, '_blank');
+
+        // Navigate to active meeting page
+        navigate('/participant/active-meeting', {
+          state: {
+            attendanceId,
+            meetingName,
+            meetingUrl: zoomUrl,
+          },
+        });
+      } else {
+        setError(response.data.error || 'Failed to start meeting tracking');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to join meeting');
+    } finally {
+      setJoiningMeeting(null);
+    }
+  };
+
   const handleQrScan = () => {
     setQrScannerOpen(true);
   };
@@ -100,6 +148,12 @@ const MeetingPage: React.FC = () => {
 
   return (
     <Container maxWidth="lg">
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" gutterBottom>
           Recovery Meeting Directory
@@ -238,15 +292,31 @@ const MeetingPage: React.FC = () => {
 
                       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 'auto' }}>
                         {meeting.zoomUrl ? (
-                          <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={<VideoCall />}
-                            onClick={() => handleJoinOnlineMeeting(meeting.zoomUrl)}
-                            sx={{ fontSize: '0.8rem' }}
-                          >
-                            Join Meeting
-                          </Button>
+                          <>
+                            {/* For test meetings or meetings with ProofMeet capability, use proper tracking */}
+                            {(program === 'TEST' || meeting.hasProofCapability) ? (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={joiningMeeting === meeting.id ? <CircularProgress size={16} color="inherit" /> : <MeetingRoom />}
+                                onClick={() => handleJoinMeeting(meeting.id, meeting.name, meeting.zoomUrl)}
+                                disabled={joiningMeeting === meeting.id}
+                                sx={{ fontSize: '0.8rem' }}
+                              >
+                                {joiningMeeting === meeting.id ? 'Starting...' : 'Join Now'}
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<VideoCall />}
+                                onClick={() => handleJoinOnlineMeeting(meeting.zoomUrl)}
+                                sx={{ fontSize: '0.8rem' }}
+                              >
+                                Join Meeting
+                              </Button>
+                            )}
+                          </>
                         ) : (
                           <Button
                             variant="contained"
