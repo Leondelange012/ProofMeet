@@ -252,7 +252,7 @@ const CourtRepDashboardPage: React.FC = () => {
         setSnackbar({
           open: true,
           message,
-          severity: updated > 0 ? 'warning' : 'success',
+          severity: 'success',
         });
 
         // Log corrections to console for review
