@@ -86,15 +86,28 @@ router.get('/dashboard', async (req: Request, res: Response) => {
         weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week
         weekStart.setHours(0, 0, 0, 0);
 
-        const weekAttendance = await prisma.attendanceRecord.count({
+        // ONLY count meetings with PASSED validation (80%+ attendance)
+        const weekAttendanceRecords = await prisma.attendanceRecord.findMany({
           where: {
             participantId: participant.id,
             meetingDate: { gte: weekStart },
             status: 'COMPLETED',
           },
+          include: {
+            courtCard: {
+              select: {
+                validationStatus: true as any,
+              },
+            },
+          },
         });
 
-        if (weekAttendance >= requirement.meetingsPerWeek) {
+        const validMeetings = weekAttendanceRecords.filter(record => {
+          const validationStatus = (record.courtCard as any)?.validationStatus;
+          return validationStatus === 'PASSED';
+        });
+
+        if (validMeetings.length >= requirement.meetingsPerWeek) {
           compliantCount++;
         }
       }
@@ -130,20 +143,33 @@ router.get('/dashboard', async (req: Request, res: Response) => {
         weekStart.setDate(weekStart.getDate() - weekStart.getDay());
         weekStart.setHours(0, 0, 0, 0);
 
-        const weekAttendance = await prisma.attendanceRecord.count({
+        // ONLY count VALID meetings (80%+ attendance)
+        const weekAttendanceRecords = await prisma.attendanceRecord.findMany({
           where: {
             participantId: participant.id,
             meetingDate: { gte: weekStart },
             status: 'COMPLETED',
           },
+          include: {
+            courtCard: {
+              select: {
+                validationStatus: true as any,
+              },
+            },
+          },
         });
 
-        if (weekAttendance < requirement.meetingsPerWeek) {
+        const validMeetings = weekAttendanceRecords.filter(record => {
+          const validationStatus = (record.courtCard as any)?.validationStatus;
+          return validationStatus === 'PASSED';
+        });
+
+        if (validMeetings.length < requirement.meetingsPerWeek) {
           alerts.push({
             type: 'LOW_COMPLIANCE',
             participantName: `${participant.firstName} ${participant.lastName}`,
             caseNumber: participant.caseNumber,
-            message: `Only ${weekAttendance}/${requirement.meetingsPerWeek} required meetings this week`,
+            message: `Only ${validMeetings.length}/${requirement.meetingsPerWeek} valid meetings this week (${weekAttendanceRecords.length} total)`,
           });
         }
       }
@@ -242,11 +268,24 @@ router.get('/participants', async (req: Request, res: Response) => {
             meetingDate: { gte: weekStart },
             status: 'COMPLETED',
           },
+          include: {
+            courtCard: {
+              select: {
+                validationStatus: true as any,
+              },
+            },
+          },
+        });
+
+        // ONLY count meetings with 80%+ attendance (PASSED validation)
+        const validMeetings = thisWeekAttendance.filter(record => {
+          const validationStatus = (record.courtCard as any)?.validationStatus;
+          return validationStatus === 'PASSED';
         });
 
         const requirement = participant.requirements[0];
         const meetingsRequired = requirement?.meetingsPerWeek || 0;
-        const meetingsAttended = thisWeekAttendance.length;
+        const meetingsAttended = validMeetings.length; // Only count VALID meetings
 
         // Calculate average attendance percentage
         const avgAttendance = thisWeekAttendance.length > 0
@@ -364,6 +403,19 @@ router.get('/participants/:participantId', async (req: Request, res: Response) =
         meetingDate: { gte: weekStart },
         status: 'COMPLETED',
       },
+      include: {
+        courtCard: {
+          select: {
+            validationStatus: true as any,
+          },
+        },
+      },
+    });
+
+    // ONLY count valid meetings (80%+ attendance)
+    const validThisWeek = thisWeekAttendance.filter(record => {
+      const validationStatus = (record.courtCard as any)?.validationStatus;
+      return validationStatus === 'PASSED';
     });
 
     const monthStart = new Date();
@@ -376,6 +428,19 @@ router.get('/participants/:participantId', async (req: Request, res: Response) =
         meetingDate: { gte: monthStart },
         status: 'COMPLETED',
       },
+      include: {
+        courtCard: {
+          select: {
+            validationStatus: true as any,
+          },
+        },
+      },
+    });
+
+    // ONLY count valid meetings for the month
+    const validThisMonth = thisMonthAttendance.filter(record => {
+      const validationStatus = (record.courtCard as any)?.validationStatus;
+      return validationStatus === 'PASSED';
     });
 
     // Get recent meetings
@@ -410,18 +475,20 @@ router.get('/participants/:participantId', async (req: Request, res: Response) =
         } : null,
         compliance: {
           currentWeek: {
-            attended: thisWeekAttendance.length,
+            attended: validThisWeek.length, // Only VALID meetings
             required: requirement?.meetingsPerWeek || 0,
+            totalCompleted: thisWeekAttendance.length, // Total including failed
             percentage: requirement?.meetingsPerWeek
-              ? Math.round((thisWeekAttendance.length / requirement.meetingsPerWeek) * 100)
+              ? Math.round((validThisWeek.length / requirement.meetingsPerWeek) * 100)
               : 0,
-            status: thisWeekAttendance.length >= (requirement?.meetingsPerWeek || 0) ? 'ON_TRACK' : 'BEHIND',
+            status: validThisWeek.length >= (requirement?.meetingsPerWeek || 0) ? 'ON_TRACK' : 'BEHIND',
           },
           lastMonth: {
-            attended: thisMonthAttendance.length,
+            attended: validThisMonth.length, // Only VALID meetings
             required: requirement ? Math.ceil((requirement.meetingsPerWeek * 4.33)) : 0,
+            totalCompleted: thisMonthAttendance.length, // Total including failed
             percentage: requirement
-              ? Math.round((thisMonthAttendance.length / (requirement.meetingsPerWeek * 4.33)) * 100)
+              ? Math.round((validThisMonth.length / (requirement.meetingsPerWeek * 4.33)) * 100)
               : 0,
           },
         },

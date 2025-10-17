@@ -75,16 +75,29 @@ router.get('/dashboard', async (req: Request, res: Response) => {
         meetingDate: { gte: weekStart },
         status: 'COMPLETED',
       },
+      include: {
+        courtCard: {
+          select: {
+            validationStatus: true as any,
+          },
+        },
+      },
     });
 
-    // Calculate average attendance
+    // ONLY count meetings with 80%+ attendance (PASSED validation)
+    const validMeetings = thisWeekAttendance.filter(record => {
+      const validationStatus = (record.courtCard as any)?.validationStatus;
+      return validationStatus === 'PASSED';
+    });
+
+    // Calculate average attendance from ALL completed meetings (for info)
     const avgAttendance = thisWeekAttendance.length > 0
       ? thisWeekAttendance.reduce((sum, r) => sum + Number(r.attendancePercent || 0), 0) / thisWeekAttendance.length
       : 0;
 
     const requirement = participant.requirements[0];
     const meetingsRequired = requirement?.meetingsPerWeek || 0;
-    const meetingsAttended = thisWeekAttendance.length;
+    const meetingsAttended = validMeetings.length; // Only count VALID meetings
 
     // Determine status
     let status = 'ON_TRACK';
@@ -119,10 +132,12 @@ router.get('/dashboard', async (req: Request, res: Response) => {
         },
         progress: {
           thisWeek: {
-            attended: meetingsAttended,
+            attended: meetingsAttended, // Only VALID meetings (80%+)
             required: meetingsRequired,
             status,
             averageAttendance: Math.round(avgAttendance * 10) / 10,
+            totalCompleted: thisWeekAttendance.length, // Total completed (including failed)
+            validMeetings: meetingsAttended, // Same as attended, for clarity
           },
         },
         requirements: requirement ? {
