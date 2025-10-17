@@ -104,6 +104,8 @@ const MeetingPage: React.FC = () => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
+      console.log('Joining meeting:', { meetingId, meetingName, zoomUrl });
+
       // Start attendance tracking
       const response = await axios.post(
         `${API_BASE_URL}/participant/join-meeting`,
@@ -113,6 +115,8 @@ const MeetingPage: React.FC = () => {
         },
         { headers }
       );
+
+      console.log('Join meeting response:', response.data);
 
       if (response.data.success) {
         const { attendanceId } = response.data.data;
@@ -129,10 +133,14 @@ const MeetingPage: React.FC = () => {
           },
         });
       } else {
-        setError(response.data.error || 'Failed to start meeting tracking');
+        const errorMsg = response.data.error || 'Failed to start meeting tracking';
+        console.error('Join meeting failed:', errorMsg);
+        setError(errorMsg);
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to join meeting');
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to join meeting';
+      console.error('Join meeting error:', err);
+      setError(errorMsg);
     } finally {
       setJoiningMeeting(null);
     }

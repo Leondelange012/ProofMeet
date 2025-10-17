@@ -959,6 +959,94 @@ router.post('/create-test-meeting', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/court-rep/test-meetings
+ * Get all test meetings
+ */
+router.get('/test-meetings', async (req: Request, res: Response) => {
+  try {
+    const testMeetings = await prisma.externalMeeting.findMany({
+      where: { program: 'TEST' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        meetings: testMeetings.map(m => ({
+          id: m.id,
+          name: m.name,
+          zoomUrl: m.zoomUrl,
+          zoomId: m.zoomId,
+          password: m.zoomPassword,
+          startTime: m.time,
+          duration: m.durationMinutes,
+          createdAt: m.createdAt,
+        })),
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get test meetings error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * DELETE /api/court-rep/delete-meeting/:meetingId
+ * Delete a test meeting (for testing purposes only)
+ */
+router.delete('/delete-meeting/:meetingId', async (req: Request, res: Response) => {
+  try {
+    const { meetingId } = req.params;
+
+    // Find the meeting
+    const meeting = await prisma.externalMeeting.findUnique({
+      where: { id: meetingId },
+    });
+
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        error: 'Meeting not found',
+      });
+    }
+
+    // Only allow deletion of TEST meetings
+    if (meeting.program !== 'TEST') {
+      return res.status(403).json({
+        success: false,
+        error: 'Can only delete TEST meetings',
+      });
+    }
+
+    // Delete related attendance records first
+    await prisma.attendanceRecord.deleteMany({
+      where: { externalMeetingId: meetingId },
+    });
+
+    // Delete the meeting
+    await prisma.externalMeeting.delete({
+      where: { id: meetingId },
+    });
+
+    logger.info(`Test meeting deleted: ${meetingId} by ${req.user!.email}`);
+
+    res.json({
+      success: true,
+      message: 'Test meeting deleted successfully',
+    });
+  } catch (error: any) {
+    logger.error('Delete meeting error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
  * GET /api/court-rep/participants/:participantId/meetings
  * Get detailed meeting history for a specific participant
  */

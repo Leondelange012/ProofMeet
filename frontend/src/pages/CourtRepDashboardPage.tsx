@@ -55,6 +55,10 @@ const CourtRepDashboardPage: React.FC = () => {
   // Expandable participant rows
   const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
   const [participantMeetings, setParticipantMeetings] = useState<{ [key: string]: any }>({});
+  
+  // Test meetings management
+  const [testMeetings, setTestMeetings] = useState<any[]>([]);
+  const [showTestMeetings, setShowTestMeetings] = useState(false);
 
   const loadDashboard = async () => {
     try {
@@ -187,6 +191,45 @@ const CourtRepDashboardPage: React.FC = () => {
     }
   };
 
+  const loadTestMeetings = async () => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_BASE_URL}/court-rep/test-meetings`, { headers });
+      
+      if (response.data.success) {
+        setTestMeetings(response.data.data.meetings);
+      }
+    } catch (error: any) {
+      console.error('Failed to load test meetings:', error);
+    }
+  };
+
+  const deleteTestMeeting = async (meetingId: string) => {
+    if (!confirm('Are you sure you want to delete this test meeting? This will also delete all related attendance records.')) {
+      return;
+    }
+
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.delete(`${API_BASE_URL}/court-rep/delete-meeting/${meetingId}`, { headers });
+      
+      if (response.data.success) {
+        setSnackbar({
+          open: true,
+          message: 'Test meeting deleted successfully',
+          severity: 'success',
+        });
+        loadTestMeetings(); // Reload the list
+      }
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to delete meeting',
+        severity: 'error',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Container>
@@ -224,6 +267,16 @@ const CourtRepDashboardPage: React.FC = () => {
             Create Test Meeting
           </Button>
           <Button
+            variant={showTestMeetings ? 'contained' : 'outlined'}
+            color="secondary"
+            onClick={() => {
+              setShowTestMeetings(!showTestMeetings);
+              if (!showTestMeetings) loadTestMeetings();
+            }}
+          >
+            {showTestMeetings ? 'Hide' : 'Manage'} Test Meetings
+          </Button>
+          <Button
             variant="outlined"
             startIcon={<Refresh />}
             onClick={loadDashboard}
@@ -237,6 +290,61 @@ const CourtRepDashboardPage: React.FC = () => {
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
+      )}
+
+      {/* Test Meetings Management */}
+      {showTestMeetings && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">Test Meetings ({testMeetings.length})</Typography>
+              <Button size="small" startIcon={<Refresh />} onClick={loadTestMeetings}>
+                Refresh List
+              </Button>
+            </Box>
+            
+            {testMeetings.length === 0 ? (
+              <Box sx={{ py: 4, textAlign: 'center' }}>
+                <Typography color="text.secondary">No test meetings created yet</Typography>
+              </Box>
+            ) : (
+              <Box sx={{ overflowX: 'auto' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Meeting Name</TableCell>
+                      <TableCell>Zoom ID</TableCell>
+                      <TableCell>Password</TableCell>
+                      <TableCell>Duration</TableCell>
+                      <TableCell>Created</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {testMeetings.map((meeting: any) => (
+                      <TableRow key={meeting.id}>
+                        <TableCell>{meeting.name}</TableCell>
+                        <TableCell>{meeting.zoomId}</TableCell>
+                        <TableCell>{meeting.password}</TableCell>
+                        <TableCell>{meeting.duration} min</TableCell>
+                        <TableCell>{new Date(meeting.createdAt).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="small"
+                            color="error"
+                            onClick={() => deleteTestMeeting(meeting.id)}
+                          >
+                            Delete
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Statistics Cards */}

@@ -78,9 +78,9 @@ const ParticipantProgressPage: React.FC = () => {
     );
   }
 
-  const progress = dashboardData?.thisWeek;
+  const progress = dashboardData?.progress?.thisWeek;
   const requirements = dashboardData?.requirements;
-  const recentAttendance = dashboardData?.recentAttendance || [];
+  const recentAttendance = dashboardData?.recentMeetings || [];
   const progressPercentage = requirements?.meetingsPerWeek 
     ? Math.min((progress?.attended || 0) / requirements.meetingsPerWeek * 100, 100)
     : 0;
@@ -261,7 +261,7 @@ const ParticipantProgressPage: React.FC = () => {
                   {recentAttendance.map((record: any) => (
                     <TableRow key={record.id} hover>
                       <TableCell>
-                        {new Date(record.meetingDate).toLocaleDateString()}
+                        {new Date(record.date || record.meetingDate).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
@@ -270,23 +270,23 @@ const ParticipantProgressPage: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={record.meetingProgram}
+                          label={record.meetingProgram || 'N/A'}
                           size="small"
                           color="primary"
                           variant="outlined"
                         />
                       </TableCell>
                       <TableCell>
-                        {record.totalDurationMin ? `${record.totalDurationMin} min` : 'N/A'}
+                        {record.duration || record.totalDurationMin ? `${record.duration || record.totalDurationMin} min` : 'N/A'}
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={`${record.attendancePercent || 0}%`}
+                          label={`${record.attendancePercentage || record.attendancePercent || 0}%`}
                           size="small"
                           color={
-                            Number(record.attendancePercent || 0) >= 90
+                            Number(record.attendancePercentage || record.attendancePercent || 0) >= 90
                               ? 'success'
-                              : Number(record.attendancePercent || 0) >= 75
+                              : Number(record.attendancePercentage || record.attendancePercent || 0) >= 75
                               ? 'warning'
                               : 'error'
                           }

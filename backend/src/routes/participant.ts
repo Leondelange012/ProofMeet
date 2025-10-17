@@ -102,7 +102,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     const recentMeetings = await prisma.attendanceRecord.findMany({
       where: { participantId },
       orderBy: { meetingDate: 'desc' },
-      take: 5,
+      take: 10,
     });
 
     res.json({
@@ -133,6 +133,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
         recentMeetings: recentMeetings.map(record => ({
           id: record.id,
           meetingName: record.meetingName,
+          meetingProgram: record.meetingProgram,
           date: record.meetingDate,
           duration: record.totalDurationMin,
           attendancePercentage: record.attendancePercent,
