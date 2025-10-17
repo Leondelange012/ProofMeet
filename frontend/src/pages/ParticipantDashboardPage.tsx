@@ -19,7 +19,6 @@ import {
 } from '@mui/material';
 import {
   CheckCircle,
-  CalendarToday,
   Refresh,
   MeetingRoom,
   TrendingUp,
@@ -113,23 +112,13 @@ const ParticipantDashboardPage: React.FC = () => {
             </Typography>
           )}
         </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<Download />}
-            onClick={handleDownloadCourtCard}
-          >
-            Download Court Card
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={loadDashboard}
-          >
-            Refresh
-          </Button>
-        </Box>
+        <Button
+          variant="outlined"
+          startIcon={<Refresh />}
+          onClick={loadDashboard}
+        >
+          Refresh
+        </Button>
       </Box>
 
       {successMessage && (
@@ -168,6 +157,8 @@ const ParticipantDashboardPage: React.FC = () => {
                       ? 'success'
                       : progress?.status === 'AT_RISK'
                       ? 'warning'
+                      : progress?.status === 'BEHIND'
+                      ? 'error'
                       : 'default'
                   }
                   size="small"
@@ -258,15 +249,15 @@ const ParticipantDashboardPage: React.FC = () => {
                 boxShadow: 4,
               } 
             }} 
-            onClick={() => navigate('/compliance')}
+            onClick={handleDownloadCourtCard}
           >
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <CalendarToday sx={{ fontSize: 40, color: 'secondary.main', mr: 2 }} />
-                <Typography variant="h6">Compliance</Typography>
+                <Download sx={{ fontSize: 40, color: 'secondary.main', mr: 2 }} />
+                <Typography variant="h6">Court Card</Typography>
               </Box>
               <Typography variant="body2" color="text.secondary">
-                View court requirements
+                Download compliance report
               </Typography>
             </CardContent>
           </Card>

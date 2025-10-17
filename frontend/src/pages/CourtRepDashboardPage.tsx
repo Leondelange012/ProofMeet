@@ -33,7 +33,6 @@ import {
   VideoCall,
   KeyboardArrowDown,
   KeyboardArrowUp,
-  Download,
 } from '@mui/icons-material';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import axios from 'axios';
@@ -409,18 +408,6 @@ const CourtRepDashboardPage: React.FC = () => {
                                   </Grid>
                                 </Grid>
 
-                                {/* Download Court Card Button */}
-                                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
-                                  <Button
-                                    variant="contained"
-                                    color="primary"
-                                    startIcon={<Download />}
-                                    onClick={() => downloadParticipantCourtCard(participant.id)}
-                                  >
-                                    Download Complete Court Card (PDF)
-                                  </Button>
-                                </Box>
-
                                 {/* Meeting Details Table */}
                                 <Table size="small">
                                   <TableHead>
@@ -520,7 +507,19 @@ const CourtRepDashboardPage: React.FC = () => {
                                           </TableCell>
                                           <TableCell>
                                             {meeting.courtCard ? (
-                                              <Typography variant="caption" color="primary">
+                                              <Typography 
+                                                variant="caption" 
+                                                color="primary"
+                                                sx={{ 
+                                                  cursor: 'pointer',
+                                                  textDecoration: 'underline',
+                                                  '&:hover': { 
+                                                    color: 'primary.dark',
+                                                    fontWeight: 'bold'
+                                                  }
+                                                }}
+                                                onClick={() => downloadParticipantCourtCard(participant.id)}
+                                              >
                                                 {meeting.courtCard.cardNumber}
                                               </Typography>
                                             ) : (
