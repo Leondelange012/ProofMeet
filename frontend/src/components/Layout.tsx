@@ -63,7 +63,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const menuItems = user?.userType === 'COURT_REP' 
     ? [
         { text: 'Dashboard', icon: <Dashboard />, path: '/court-rep/dashboard' },
-        { text: 'Reports', icon: <Assessment />, path: '/court-rep/reports' },
       ]
     : [
         { text: 'Dashboard', icon: <Dashboard />, path: '/participant/dashboard' },

@@ -23,6 +23,7 @@ import {
   Refresh,
   MeetingRoom,
   TrendingUp,
+  Download,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
@@ -59,6 +60,12 @@ const ParticipantDashboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadCourtCard = () => {
+    // Open the Court Card PDF in a new tab
+    const url = `${API_BASE_URL}/participant/my-court-card-pdf`;
+    window.open(url, '_blank');
   };
 
   useEffect(() => {
@@ -106,13 +113,23 @@ const ParticipantDashboardPage: React.FC = () => {
             </Typography>
           )}
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={loadDashboard}
-        >
-          Refresh
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<Download />}
+            onClick={handleDownloadCourtCard}
+          >
+            Download Court Card
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={loadDashboard}
+          >
+            Refresh
+          </Button>
+        </Box>
       </Box>
 
       {successMessage && (

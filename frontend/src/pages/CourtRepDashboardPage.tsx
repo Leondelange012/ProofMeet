@@ -33,6 +33,7 @@ import {
   VideoCall,
   KeyboardArrowDown,
   KeyboardArrowUp,
+  Download,
 } from '@mui/icons-material';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import axios from 'axios';
@@ -156,6 +157,12 @@ const CourtRepDashboardPage: React.FC = () => {
       message: 'Copied to clipboard!',
       severity: 'success',
     });
+  };
+
+  const downloadParticipantCourtCard = (participantId: string) => {
+    // Open the Court Card PDF in a new tab
+    const url = `${API_BASE_URL}/court-rep/participant/${participantId}/court-card-pdf`;
+    window.open(url, '_blank');
   };
 
   if (loading) {
@@ -401,6 +408,18 @@ const CourtRepDashboardPage: React.FC = () => {
                                     </Card>
                                   </Grid>
                                 </Grid>
+
+                                {/* Download Court Card Button */}
+                                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+                                  <Button
+                                    variant="contained"
+                                    color="primary"
+                                    startIcon={<Download />}
+                                    onClick={() => downloadParticipantCourtCard(participant.id)}
+                                  >
+                                    Download Complete Court Card (PDF)
+                                  </Button>
+                                </Box>
 
                                 {/* Meeting Details Table */}
                                 <Table size="small">

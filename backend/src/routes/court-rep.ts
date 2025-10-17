@@ -15,6 +15,7 @@ import { logger } from '../utils/logger';
 import { authenticate, requireCourtRep } from '../middleware/auth';
 import { getCourtCard } from '../services/courtCardService';
 import { zoomService } from '../services/zoomService';
+import { generateCourtCardHTML } from '../services/pdfGenerator';
 
 const router = Router();
 
@@ -703,6 +704,105 @@ router.get('/court-card/:attendanceId', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Get court card error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * GET /api/court-rep/participant/:participantId/court-card-pdf
+ * Generate comprehensive Court Card PDF for participant (all meetings)
+ */
+router.get('/participant/:participantId/court-card-pdf', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+    const { participantId } = req.params;
+
+    // Verify participant belongs to this Court Rep
+    const participant = await prisma.user.findFirst({
+      where: {
+        id: participantId,
+        courtRepId,
+        userType: 'PARTICIPANT',
+      },
+      include: {
+        courtRep: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        error: 'Participant not found',
+      });
+    }
+
+    // Get all completed meetings
+    const meetings = await prisma.attendanceRecord.findMany({
+      where: {
+        participantId,
+        status: 'COMPLETED',
+      },
+      orderBy: { meetingDate: 'desc' },
+      include: {
+        courtCard: {
+          select: {
+            validationStatus: true as any,
+          },
+        },
+      },
+    });
+
+    // Calculate statistics
+    const totalMinutes = meetings.reduce((sum, m) => sum + (m.totalDurationMin || 0), 0);
+    const totalHours = totalMinutes / 60;
+
+    // Count meetings by type
+    const meetingsByType: { [key: string]: number } = {};
+    meetings.forEach(m => {
+      meetingsByType[m.meetingProgram] = (meetingsByType[m.meetingProgram] || 0) + 1;
+    });
+
+    // Prepare PDF data
+    const pdfData = {
+      participantName: `${participant.firstName} ${participant.lastName}`,
+      participantEmail: participant.email,
+      caseNumber: participant.caseNumber || 'N/A',
+      courtRepName: `${participant.courtRep.firstName} ${participant.courtRep.lastName}`,
+      courtRepEmail: participant.courtRep.email,
+      totalMeetings: meetings.length,
+      totalHours,
+      meetingsByType,
+      meetings: meetings.map(m => ({
+        date: m.meetingDate,
+        meetingName: m.meetingName,
+        meetingProgram: m.meetingProgram,
+        duration: m.totalDurationMin || 0,
+        attendancePercent: Number(m.attendancePercent || 0),
+        validationStatus: (m.courtCard as any)?.validationStatus || 'PENDING',
+      })),
+      generatedDate: new Date(),
+    };
+
+    // Generate HTML (can be converted to PDF client-side or server-side)
+    const html = generateCourtCardHTML(pdfData);
+
+    // Set response headers for HTML download
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Content-Disposition', `inline; filename="CourtCard_${participant.caseNumber}_${Date.now()}.html"`);
+    res.send(html);
+
+    logger.info(`Court Card PDF generated for participant ${participant.email} by Court Rep ${req.user!.email}`);
+  } catch (error: any) {
+    logger.error('Generate court card PDF error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
