@@ -1214,4 +1214,136 @@ router.get('/participants/:participantId/meetings', async (req: Request, res: Re
   }
 });
 
+/**
+ * POST /api/court-rep/admin/revalidate-court-cards
+ * Revalidate all Court Cards to ensure correct PASSED/FAILED status
+ * ADMIN ONLY - for fixing validation issues
+ */
+router.post('/admin/revalidate-court-cards', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+
+    // Get all Court Cards (for this Court Rep only for safety)
+    const courtCards = await prisma.courtCard.findMany({
+      where: {
+        courtRepEmail: req.user!.email, // Only revalidate this Court Rep's cards
+      },
+      include: {
+        attendanceRecord: {
+          include: {
+            externalMeeting: {
+              select: {
+                durationMinutes: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    logger.info(`Revalidating ${courtCards.length} Court Cards for ${req.user!.email}`);
+
+    let updatedCount = 0;
+    const results: any[] = [];
+
+    for (const card of courtCards) {
+      const totalDurationMin = card.totalDurationMin;
+      const meetingDurationMin = card.meetingDurationMin;
+      const activeDurationMin = card.activeDurationMin;
+      const idleDurationMin = (card as any).idleDurationMin || 0;
+      
+      // Calculate percentages
+      const activePercent = totalDurationMin > 0 ? (activeDurationMin / totalDurationMin) * 100 : 0;
+      const idlePercent = totalDurationMin > 0 ? (idleDurationMin / totalDurationMin) * 100 : 0;
+      const meetingAttendancePercent = meetingDurationMin > 0 ? (totalDurationMin / meetingDurationMin) * 100 : 0;
+      
+      const violations: any[] = [];
+      
+      // Rule 1: Must be active for at least 80% of time attended
+      if (activePercent < 80) {
+        violations.push({
+          type: 'LOW_ACTIVE_TIME',
+          message: `Only ${activePercent.toFixed(1)}% active during meeting (required 80%).`,
+          severity: 'CRITICAL',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      // Rule 2: Idle time must not exceed 20%
+      if (idlePercent > 20) {
+        violations.push({
+          type: 'EXCESSIVE_IDLE_TIME',
+          message: `Idle for ${idleDurationMin} minutes (${idlePercent.toFixed(1)}% of attendance). Maximum allowed: 20%.`,
+          severity: 'CRITICAL',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      // Rule 3: Must attend at least 80% of scheduled meeting duration
+      if (meetingAttendancePercent < 80) {
+        violations.push({
+          type: 'INSUFFICIENT_ATTENDANCE',
+          message: `Attended ${totalDurationMin} minutes of ${meetingDurationMin} minute meeting (${meetingAttendancePercent.toFixed(1)}%). Required: 80%.`,
+          severity: 'CRITICAL',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      // Determine correct validation status
+      const criticalViolations = violations.filter(v => v.severity === 'CRITICAL');
+      const correctStatus = criticalViolations.length > 0 ? 'FAILED' : 'PASSED';
+      const currentStatus = (card as any).validationStatus || 'PASSED';
+      
+      // Check if status needs updating
+      if (currentStatus !== correctStatus) {
+        // Update the Court Card
+        await prisma.courtCard.update({
+          where: { id: card.id },
+          data: {
+            validationStatus: correctStatus as any,
+            violations: violations as any,
+          },
+        });
+        
+        // Update the attendance record isValid flag
+        await prisma.attendanceRecord.update({
+          where: { id: card.attendanceRecordId },
+          data: {
+            isValid: correctStatus === 'PASSED',
+          },
+        });
+        
+        results.push({
+          cardNumber: card.cardNumber,
+          oldStatus: currentStatus,
+          newStatus: correctStatus,
+          attendancePercent: meetingAttendancePercent.toFixed(1),
+          violations: criticalViolations.length,
+        });
+        
+        updatedCount++;
+      }
+    }
+
+    logger.info(`Revalidation complete: ${updatedCount} Court Cards updated`);
+
+    res.json({
+      success: true,
+      message: `Revalidated ${courtCards.length} Court Cards, updated ${updatedCount}`,
+      data: {
+        total: courtCards.length,
+        updated: updatedCount,
+        alreadyCorrect: courtCards.length - updatedCount,
+        corrections: results,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Revalidate court cards error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
 export { router as courtRepRoutes };

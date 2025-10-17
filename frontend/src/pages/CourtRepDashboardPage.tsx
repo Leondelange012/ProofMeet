@@ -230,6 +230,48 @@ const CourtRepDashboardPage: React.FC = () => {
     }
   };
 
+  const revalidateCourtCards = async () => {
+    if (!confirm('This will revalidate all Court Cards to ensure correct PASSED/FAILED status based on 80% attendance rule. Continue?')) {
+      return;
+    }
+
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.post(`${API_BASE_URL}/court-rep/admin/revalidate-court-cards`, {}, { headers });
+      
+      if (response.data.success) {
+        const { total, updated, corrections } = response.data.data;
+        
+        let message = `Revalidated ${total} Court Cards. `;
+        if (updated > 0) {
+          message += `Fixed ${updated} incorrect status(es).`;
+        } else {
+          message += 'All were already correct!';
+        }
+
+        setSnackbar({
+          open: true,
+          message,
+          severity: updated > 0 ? 'warning' : 'success',
+        });
+
+        // Log corrections to console for review
+        if (corrections.length > 0) {
+          console.log('Court Card Corrections:', corrections);
+        }
+
+        // Reload dashboard
+        loadDashboard();
+      }
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to revalidate Court Cards',
+        severity: 'error',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Container>
@@ -257,7 +299,7 @@ const CourtRepDashboardPage: React.FC = () => {
             </Typography>
           )}
         </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           <Button
             variant="contained"
             color="primary"
@@ -275,6 +317,14 @@ const CourtRepDashboardPage: React.FC = () => {
             }}
           >
             {showTestMeetings ? 'Hide' : 'Manage'} Test Meetings
+          </Button>
+          <Button
+            variant="outlined"
+            color="warning"
+            onClick={revalidateCourtCards}
+            sx={{ fontWeight: 'bold' }}
+          >
+            🔧 Fix Validation
           </Button>
           <Button
             variant="outlined"
