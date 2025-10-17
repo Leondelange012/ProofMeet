@@ -61,10 +61,29 @@ const ParticipantDashboardPage: React.FC = () => {
     }
   };
 
-  const handleDownloadCourtCard = () => {
-    // Open the Court Card PDF in a new tab
-    const url = `${API_BASE_URL}/participant/my-court-card-pdf`;
-    window.open(url, '_blank');
+  const handleDownloadCourtCard = async () => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      // Fetch the Court Card HTML with authentication
+      const response = await axios.get(
+        `${API_BASE_URL}/participant/my-court-card-pdf`,
+        { 
+          headers,
+          responseType: 'blob'  // Get as blob
+        }
+      );
+
+      // Create a blob URL and open it
+      const blob = new Blob([response.data], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+
+      // Clean up the blob URL after a short delay
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to download Court Card');
+    }
   };
 
   useEffect(() => {

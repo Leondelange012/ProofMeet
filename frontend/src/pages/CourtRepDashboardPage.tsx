@@ -158,10 +158,33 @@ const CourtRepDashboardPage: React.FC = () => {
     });
   };
 
-  const downloadParticipantCourtCard = (participantId: string) => {
-    // Open the Court Card PDF in a new tab
-    const url = `${API_BASE_URL}/court-rep/participant/${participantId}/court-card-pdf`;
-    window.open(url, '_blank');
+  const downloadParticipantCourtCard = async (participantId: string) => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      // Fetch the Court Card HTML with authentication
+      const response = await axios.get(
+        `${API_BASE_URL}/court-rep/participant/${participantId}/court-card-pdf`,
+        { 
+          headers,
+          responseType: 'blob'  // Get as blob
+        }
+      );
+
+      // Create a blob URL and open it
+      const blob = new Blob([response.data], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+
+      // Clean up the blob URL after a short delay
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to download Court Card',
+        severity: 'error',
+      });
+    }
   };
 
   if (loading) {
