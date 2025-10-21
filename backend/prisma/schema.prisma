@@ -225,6 +225,9 @@ model AttendanceRecord {
   // Flags
   flags               Json?             // Array of flag objects
   
+  // Tier 2 Enhanced Security Metadata
+  metadata            Json?             // Engagement, fraud detection, blockchain data
+  
   // Court Card
   courtCardGenerated  Boolean           @default(false) @map("court_card_generated")
   courtCardData       Json?             @map("court_card_data")
