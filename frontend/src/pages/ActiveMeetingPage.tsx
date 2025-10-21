@@ -14,15 +14,26 @@ import {
   Alert,
   Chip,
   Button,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
 } from '@mui/material';
 import {
   CheckCircle,
   VideoCall,
   Assessment,
+  ExitToApp,
+  CheckCircleOutline,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import ActivityMonitor from '../components/ActivityMonitor';
+import axios from 'axios';
+
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
 const ActiveMeetingPage: React.FC = () => {
   const { token } = useAuthStoreV2();
@@ -40,6 +51,11 @@ const ActiveMeetingPage: React.FC = () => {
   const [meetingUrl] = useState<string>(
     stateData.meetingUrl || sessionStorage.getItem('activeMeetingUrl') || ''
   );
+  
+  // Leave meeting state
+  const [leavingMeeting, setLeavingMeeting] = useState(false);
+  const [leaveDialog, setLeaveDialog] = useState(false);
+  const [leaveResult, setLeaveResult] = useState<any>(null);
 
   // Persist to sessionStorage when data changes
   useEffect(() => {
@@ -70,6 +86,39 @@ const ActiveMeetingPage: React.FC = () => {
     sessionStorage.removeItem('activeAttendanceId');
     sessionStorage.removeItem('activeMeetingName');
     sessionStorage.removeItem('activeMeetingUrl');
+    navigate('/participant/dashboard');
+  };
+
+  const handleLeaveMeeting = async () => {
+    try {
+      setLeavingMeeting(true);
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const response = await axios.post(
+        `${API_BASE_URL}/participant/leave-meeting`,
+        { attendanceId },
+        { headers }
+      );
+
+      if (response.data.success) {
+        setLeaveResult(response.data);
+        setLeaveDialog(true);
+        
+        // Clear session storage
+        sessionStorage.removeItem('activeAttendanceId');
+        sessionStorage.removeItem('activeMeetingName');
+        sessionStorage.removeItem('activeMeetingUrl');
+      }
+    } catch (error: any) {
+      console.error('Leave meeting error:', error);
+      alert(error.response?.data?.error || 'Failed to end meeting tracking');
+    } finally {
+      setLeavingMeeting(false);
+    }
+  };
+
+  const handleCloseLeaveDialog = () => {
+    setLeaveDialog(false);
     navigate('/participant/dashboard');
   };
 
@@ -202,23 +251,155 @@ const ActiveMeetingPage: React.FC = () => {
           </Typography>
         </Alert>
 
-        {/* Return to Dashboard */}
+        {/* Leave Meeting Actions */}
+        <Card sx={{ mb: 3, border: 2, borderColor: 'error.main' }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ExitToApp /> End Meeting
+            </Typography>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <Typography variant="body2" gutterBottom>
+                <strong>Ready to leave?</strong>
+              </Typography>
+              <Typography variant="body2">
+                Click the button below when you've left the Zoom meeting to immediately stop tracking and generate your Court Card.
+              </Typography>
+            </Alert>
+            <Button
+              variant="contained"
+              color="error"
+              fullWidth
+              size="large"
+              startIcon={leavingMeeting ? <CircularProgress size={20} color="inherit" /> : <ExitToApp />}
+              onClick={handleLeaveMeeting}
+              disabled={leavingMeeting}
+            >
+              {leavingMeeting ? 'Ending Tracking...' : 'I Have Left the Meeting - Stop Tracking'}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Return to Dashboard (without ending) */}
         <Card>
           <CardContent>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              You can safely refresh this page - your tracking will continue.
-              When you're done with the meeting, return to your dashboard:
+              You can safely return to your dashboard while the meeting is still ongoing. 
+              Your tracking will continue via Zoom webhooks.
             </Typography>
             <Button
               variant="outlined"
               fullWidth
               onClick={handleReturnToDashboard}
             >
-              Return to Dashboard
+              Return to Dashboard (Keep Tracking Active)
             </Button>
           </CardContent>
         </Card>
       </Box>
+
+      {/* Leave Meeting Result Dialog */}
+      <Dialog open={leaveDialog} onClose={handleCloseLeaveDialog} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CheckCircleOutline color="success" />
+          Meeting Tracking Complete
+        </DialogTitle>
+        <DialogContent>
+          {leaveResult && (
+            <Box>
+              <Alert 
+                severity={
+                  leaveResult.data.status === 'APPROVED' ? 'success' 
+                  : leaveResult.data.status === 'REJECTED' ? 'error' 
+                  : 'warning'
+                }
+                sx={{ mb: 2 }}
+              >
+                <Typography variant="body2" gutterBottom>
+                  <strong>{leaveResult.message}</strong>
+                </Typography>
+              </Alert>
+
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Duration
+                  </Typography>
+                  <Typography variant="h6">
+                    {leaveResult.data.duration} min
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Attendance %
+                  </Typography>
+                  <Typography variant="h6">
+                    {Math.round(leaveResult.data.attendancePercentage)}%
+                  </Typography>
+                </Grid>
+                
+                {leaveResult.data.courtCardNumber && (
+                  <Grid item xs={12}>
+                    <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Court Card Number
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontFamily: 'monospace' }}>
+                        {leaveResult.data.courtCardNumber}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+
+                {leaveResult.data.engagementLevel && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">
+                      Engagement
+                    </Typography>
+                    <Typography variant="body1">
+                      {leaveResult.data.engagementLevel}
+                    </Typography>
+                  </Grid>
+                )}
+
+                {leaveResult.data.status && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">
+                      Status
+                    </Typography>
+                    <Chip 
+                      label={leaveResult.data.status}
+                      color={
+                        leaveResult.data.status === 'APPROVED' ? 'success'
+                        : leaveResult.data.status === 'REJECTED' ? 'error'
+                        : 'warning'
+                      }
+                      size="small"
+                    />
+                  </Grid>
+                )}
+              </Grid>
+
+              {leaveResult.data.flags && leaveResult.data.flags.length > 0 && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <Typography variant="caption" display="block" gutterBottom>
+                    Notes:
+                  </Typography>
+                  {leaveResult.data.flags.map((flag: string, index: number) => (
+                    <Typography key={index} variant="caption" display="block">
+                      • {flag}
+                    </Typography>
+                  ))}
+                </Alert>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseLeaveDialog} variant="contained" fullWidth>
+            Return to Dashboard
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
