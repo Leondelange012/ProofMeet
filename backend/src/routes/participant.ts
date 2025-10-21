@@ -648,13 +648,16 @@ router.post(
         await prisma.attendanceRecord.update({
           where: { id: attendanceId },
           data: {
-            metadata: {
-              ...((updated as any).metadata || {}),
-              blockHash: ledgerBlock.hash,
-              blockSignature: ledgerBlock.signature,
-              fraudRiskScore: fraudResult.riskScore,
-              fraudRecommendation: fraudResult.recommendation,
-            },
+            metadata: Object.assign(
+              {},
+              (updated as any).metadata || {},
+              {
+                blockHash: ledgerBlock.hash,
+                blockSignature: ledgerBlock.signature,
+                fraudRiskScore: fraudResult.riskScore,
+                fraudRecommendation: fraudResult.recommendation,
+              }
+            ),
           },
         });
         
@@ -674,11 +677,14 @@ router.post(
           where: { id: attendanceId },
           data: {
             isValid: false,
-            metadata: {
-              ...((updated as any).metadata || {}),
-              rejectionReason: fraudResult.reasons.join('; '),
-              autoRejected: true,
-            },
+            metadata: Object.assign(
+              {},
+              (updated as any).metadata || {},
+              {
+                rejectionReason: fraudResult.reasons.join('; '),
+                autoRejected: true,
+              }
+            ),
           },
         });
         
@@ -693,11 +699,14 @@ router.post(
         await prisma.attendanceRecord.update({
           where: { id: attendanceId },
           data: {
-            metadata: {
-              ...((updated as any).metadata || {}),
-              flaggedForReview: true,
-              flaggedReason: fraudResult.reasons.join('; '),
-            },
+            metadata: Object.assign(
+              {},
+              (updated as any).metadata || {},
+              {
+                flaggedForReview: true,
+                flaggedReason: fraudResult.reasons.join('; '),
+              }
+            ),
           },
         });
         
