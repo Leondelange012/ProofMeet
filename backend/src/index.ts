@@ -36,13 +36,22 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
+// Rate limiting - more lenient for development/testing
 const limiter = rateLimit({
   windowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '900000'), // 15 minutes
-  max: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100'),
-  message: 'Too many requests from this IP, please try again later.'
+  max: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '500'), // Increased from 100 to 500
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
-app.use(limiter);
+
+// Apply rate limiter to all routes except health check
+app.use((req, res, next) => {
+  if (req.path === '/health') {
+    return next();
+  }
+  return limiter(req, res, next);
+});
 
 // Body parsing middleware
 app.use(compression());
