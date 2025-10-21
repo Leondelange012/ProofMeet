@@ -1165,15 +1165,45 @@ router.get('/participants/:participantId/meetings', async (req: Request, res: Re
             idleDurationMin: true as any,
           },
         },
+        externalMeeting: {
+          select: {
+            durationMinutes: true,
+          },
+        },
       },
     });
 
-    // Get summary statistics
-    const totalMeetings = meetings.length;
-    const completedMeetings = meetings.filter(m => m.status === 'COMPLETED').length;
-    const totalMinutes = meetings.reduce((sum, m) => sum + (m.totalDurationMin || 0), 0);
-    const avgAttendance = meetings.length > 0
-      ? meetings.reduce((sum, m) => sum + Number(m.attendancePercent || 0), 0) / meetings.length
+    // Process meetings to calculate accurate durations
+    const now = new Date();
+    const processedMeetings = meetings.map(meeting => {
+      let actualDuration = meeting.totalDurationMin || 0;
+      let actualStatus = meeting.status;
+      
+      // If meeting is IN_PROGRESS, calculate current duration
+      if (meeting.status === 'IN_PROGRESS') {
+        const elapsedMs = now.getTime() - meeting.joinTime.getTime();
+        actualDuration = Math.floor(elapsedMs / (1000 * 60));
+        
+        // If meeting has exceeded expected duration + 15 min buffer, mark as stale
+        const expectedDuration = meeting.externalMeeting?.durationMinutes || 60;
+        if (actualDuration > expectedDuration + 15) {
+          actualStatus = 'COMPLETED' as any; // Should be auto-completed
+        }
+      }
+      
+      return {
+        ...meeting,
+        calculatedDuration: actualDuration,
+        calculatedStatus: actualStatus,
+      };
+    });
+
+    // Get summary statistics (only for COMPLETED meetings)
+    const completedMeetingsList = processedMeetings.filter(m => m.status === 'COMPLETED');
+    const totalMeetings = completedMeetingsList.length;
+    const totalMinutes = completedMeetingsList.reduce((sum, m) => sum + (m.totalDurationMin || 0), 0);
+    const avgAttendance = completedMeetingsList.length > 0
+      ? completedMeetingsList.reduce((sum, m) => sum + Number(m.attendancePercent || 0), 0) / completedMeetingsList.length
       : 0;
 
     res.json({
@@ -1186,11 +1216,11 @@ router.get('/participants/:participantId/meetings', async (req: Request, res: Re
         },
         summary: {
           totalMeetings,
-          completedMeetings,
+          completedMeetings: totalMeetings,
           totalHours: Math.round((totalMinutes / 60) * 10) / 10,
           averageAttendance: Math.round(avgAttendance * 10) / 10,
         },
-        meetings: meetings.map(meeting => ({
+        meetings: processedMeetings.map(meeting => ({
           id: meeting.id,
           meetingName: meeting.meetingName,
           meetingProgram: meeting.meetingProgram,
@@ -1198,10 +1228,11 @@ router.get('/participants/:participantId/meetings', async (req: Request, res: Re
           joinTime: meeting.joinTime,
           leaveTime: meeting.leaveTime,
           duration: meeting.totalDurationMin,
-          activeDuration: meeting.activeDurationMin,
+          // For IN_PROGRESS meetings, show calculated duration, otherwise use stored value
+          activeDuration: meeting.status === 'IN_PROGRESS' ? meeting.calculatedDuration : meeting.activeDurationMin,
           idleDuration: meeting.idleDurationMin,
           attendancePercent: meeting.attendancePercent,
-          status: meeting.status,
+          status: meeting.calculatedStatus,
           isValid: meeting.isValid,
           courtCard: meeting.courtCard ? {
             id: meeting.courtCard.id,

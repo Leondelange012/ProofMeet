@@ -99,6 +99,17 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     const meetingsRequired = requirement?.meetingsPerWeek || 0;
     const meetingsAttended = validMeetings.length; // Only count VALID meetings
 
+    // Get count of test meetings created by their court rep (these are "assigned")
+    let assignedMeetingsCount = 0;
+    if (participant.courtRepId) {
+      assignedMeetingsCount = await prisma.externalMeeting.count({
+        where: {
+          program: 'TEST',
+          // Test meetings are created by court reps, so count all TEST meetings as assigned
+        },
+      });
+    }
+
     // Determine status
     let status = 'ON_TRACK';
     if (meetingsRequired > 0) {
@@ -141,9 +152,11 @@ router.get('/dashboard', async (req: Request, res: Response) => {
           },
         },
         requirements: requirement ? {
-          meetingsPerWeek: requirement.meetingsPerWeek,
+          meetingsPerWeek: assignedMeetingsCount > 0 ? assignedMeetingsCount : requirement.meetingsPerWeek,
           requiredPrograms: requirement.requiredPrograms,
           minimumDuration: requirement.minimumDurationMinutes,
+          minimumAttendancePercent: requirement.minimumAttendancePercent,
+          courtName: participant.courtRep?.email || 'N/A',
         } : null,
         recentMeetings: recentMeetings.map(record => ({
           id: record.id,

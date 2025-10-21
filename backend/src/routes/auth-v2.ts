@@ -252,6 +252,27 @@ router.post(
         },
       });
 
+      // Automatically create default meeting requirement for the participant
+      try {
+        await prisma.meetingRequirement.create({
+          data: {
+            participantId: participant.id,
+            courtRepId: courtRep.id,
+            createdById: courtRep.id,
+            meetingsPerWeek: 1, // Default: 1 meeting per week
+            meetingsPerMonth: 4,
+            requiredPrograms: ['TEST', 'AA'], // Allow test meetings and AA
+            minimumDurationMinutes: 5, // Minimum 5 minutes
+            minimumAttendancePercent: 80, // 80% attendance required
+            isActive: true,
+          },
+        });
+        logger.info(`Default meeting requirement created for participant: ${email}`);
+      } catch (reqError: any) {
+        logger.error('Failed to create default meeting requirement:', reqError);
+        // Don't fail registration if requirement creation fails
+      }
+
       // Send verification email
       if (process.env.BYPASS_EMAIL_VERIFICATION !== 'true') {
         await sendVerificationEmail(email, verificationToken);
