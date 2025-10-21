@@ -99,25 +99,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     </Box>
   );
 
+  // Court Rep has no sidebar - just the main dashboard
+  const isCourtRep = user?.userType === 'COURT_REP';
+
   return (
     <Box sx={{ display: 'flex' }}>
       <AppBar
         position="fixed"
         sx={{
-          width: { md: `calc(100% - 250px)` },
-          ml: { md: '250px' },
+          width: isCourtRep ? '100%' : { md: `calc(100% - 250px)` },
+          ml: isCourtRep ? 0 : { md: '250px' },
         }}
       >
         <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
+          {!isCourtRep && (
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 2, display: { md: 'none' } }}
+            >
+              <MenuIcon />
+            </IconButton>
+          )}
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {menuItems.find(item => item.path === location.pathname)?.text || 'ProofMeet'}
           </Typography>
@@ -165,43 +170,46 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </Toolbar>
       </AppBar>
 
-      <Box
-        component="nav"
-        sx={{ width: { md: 250 }, flexShrink: { md: 0 } }}
-        aria-label="mailbox folders"
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true,
-          }}
-          sx={{
-            display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 250 },
-          }}
+      {/* Only show sidebar for participants */}
+      {!isCourtRep && (
+        <Box
+          component="nav"
+          sx={{ width: { md: 250 }, flexShrink: { md: 0 } }}
+          aria-label="mailbox folders"
         >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 250 },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
+          <Drawer
+            variant="temporary"
+            open={mobileOpen}
+            onClose={handleDrawerToggle}
+            ModalProps={{
+              keepMounted: true,
+            }}
+            sx={{
+              display: { xs: 'block', md: 'none' },
+              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 250 },
+            }}
+          >
+            {drawer}
+          </Drawer>
+          <Drawer
+            variant="permanent"
+            sx={{
+              display: { xs: 'none', md: 'block' },
+              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 250 },
+            }}
+            open
+          >
+            {drawer}
+          </Drawer>
+        </Box>
+      )}
 
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { md: `calc(100% - 250px)` },
+          width: isCourtRep ? '100%' : { md: `calc(100% - 250px)` },
           mt: 8,
         }}
       >
