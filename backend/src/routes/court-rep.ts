@@ -974,9 +974,19 @@ router.post('/create-test-meeting', async (req: Request, res: Response) => {
   try {
     const courtRep = req.user!;
     const courtRepName = `${courtRep.firstName} ${courtRep.lastName}`;
+    
+    // Get optional parameters from request body with defaults
+    const duration = req.body.duration || 30;
+    const startInMinutes = req.body.startInMinutes || 2;
+    const topic = req.body.topic;
 
-    // Create Zoom meeting
-    const meeting = await zoomService.createTestMeeting(courtRepName);
+    // Create Zoom meeting with custom settings
+    const meeting = await zoomService.createTestMeeting(
+      courtRepName,
+      duration,
+      startInMinutes,
+      topic
+    );
 
     // Store meeting in database as external meeting
     const externalMeeting = await prisma.externalMeeting.create({

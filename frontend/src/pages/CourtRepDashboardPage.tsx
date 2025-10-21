@@ -52,6 +52,13 @@ const CourtRepDashboardPage: React.FC = () => {
   const [meetingCreated, setMeetingCreated] = useState<any>(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   
+  // Meeting settings
+  const [meetingSettings, setMeetingSettings] = useState({
+    duration: 30,
+    startInMinutes: 2,
+    topic: '',
+  });
+  
   // Expandable participant rows
   const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
   const [participantMeetings, setParticipantMeetings] = useState<{ [key: string]: any }>({});
@@ -99,7 +106,11 @@ const CourtRepDashboardPage: React.FC = () => {
 
       const response = await axios.post(
         `${API_BASE_URL}/court-rep/create-test-meeting`,
-        {},
+        {
+          duration: meetingSettings.duration,
+          startInMinutes: meetingSettings.startInMinutes,
+          topic: meetingSettings.topic || undefined,
+        },
         { headers }
       );
 
@@ -718,6 +729,7 @@ const CourtRepDashboardPage: React.FC = () => {
         onClose={() => {
           setCreateMeetingOpen(false);
           setMeetingCreated(null);
+          setMeetingSettings({ duration: 30, startInMinutes: 2, topic: '' });
         }}
         maxWidth="md"
         fullWidth
@@ -726,14 +738,46 @@ const CourtRepDashboardPage: React.FC = () => {
         <DialogContent>
           {!meetingCreated ? (
             <>
-              <Typography variant="body1" paragraph>
-                This will create a test Zoom meeting that you can use to test the ProofMeet compliance tracking system.
+              <Typography variant="body1" paragraph sx={{ mt: 2 }}>
+                Customize your test meeting settings:
               </Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
+              
+              <TextField
+                fullWidth
+                label="Meeting Topic (optional)"
+                value={meetingSettings.topic}
+                onChange={(e) => setMeetingSettings({ ...meetingSettings, topic: e.target.value })}
+                margin="normal"
+                helperText="Leave blank to use default topic"
+              />
+              
+              <TextField
+                fullWidth
+                type="number"
+                label="Duration (minutes)"
+                value={meetingSettings.duration}
+                onChange={(e) => setMeetingSettings({ ...meetingSettings, duration: parseInt(e.target.value) || 30 })}
+                margin="normal"
+                inputProps={{ min: 5, max: 120 }}
+                helperText="Between 5 and 120 minutes"
+              />
+              
+              <TextField
+                fullWidth
+                type="number"
+                label="Start in (minutes)"
+                value={meetingSettings.startInMinutes}
+                onChange={(e) => setMeetingSettings({ ...meetingSettings, startInMinutes: parseInt(e.target.value) || 2 })}
+                margin="normal"
+                inputProps={{ min: 1, max: 60 }}
+                helperText="How many minutes from now should the meeting start?"
+              />
+              
+              <Alert severity="info" sx={{ mt: 2 }}>
                 The meeting will:
                 <ul>
-                  <li>Start in 2 minutes</li>
-                  <li>Last for 30 minutes</li>
+                  <li>Start in {meetingSettings.startInMinutes} minute{meetingSettings.startInMinutes !== 1 ? 's' : ''}</li>
+                  <li>Last for {meetingSettings.duration} minutes</li>
                   <li>Be available for participants to join and track attendance</li>
                   <li>Generate court cards and compliance reports</li>
                 </ul>
@@ -828,6 +872,7 @@ const CourtRepDashboardPage: React.FC = () => {
             <Button onClick={() => {
               setCreateMeetingOpen(false);
               setMeetingCreated(null);
+              setMeetingSettings({ duration: 30, startInMinutes: 2, topic: '' });
               loadDashboard(); // Refresh to show new meeting
             }} variant="contained">
               Done
