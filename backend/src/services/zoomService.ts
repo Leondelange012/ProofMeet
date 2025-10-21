@@ -219,18 +219,28 @@ class ZoomService {
   async createTestMeeting(
     courtRepName: string,
     duration: number = 30,
-    startInMinutes: number = 2,
-    customTopic?: string
+    startInMinutes?: number,
+    customTopic?: string,
+    startDateTime?: string,
+    timezone: string = 'America/Los_Angeles'
   ): Promise<ZoomMeeting> {
-    const now = new Date();
-    const startTime = new Date(now.getTime() + startInMinutes * 60 * 1000);
+    let startTime: Date;
+
+    // Use custom datetime if provided, otherwise use startInMinutes
+    if (startDateTime) {
+      startTime = new Date(startDateTime);
+    } else {
+      const now = new Date();
+      const minutes = startInMinutes || 2;
+      startTime = new Date(now.getTime() + minutes * 60 * 1000);
+    }
 
     return this.createMeeting({
       topic: customTopic || `Test Compliance Meeting - ${courtRepName}`,
       agenda: 'Test meeting for ProofMeet court compliance tracking system',
       duration: duration,
       startTime,
-      timezone: 'America/Los_Angeles',
+      timezone,
       settings: {
         join_before_host: true,
         waiting_room: false,

@@ -57,6 +57,8 @@ const CourtRepDashboardPage: React.FC = () => {
     duration: 30,
     startInMinutes: 2,
     topic: '',
+    startDateTime: '', // Custom date/time in YYYY-MM-DDTHH:MM format
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // User's local timezone
   });
   
   // Expandable participant rows
@@ -108,7 +110,9 @@ const CourtRepDashboardPage: React.FC = () => {
         `${API_BASE_URL}/court-rep/create-test-meeting`,
         {
           duration: meetingSettings.duration,
-          startInMinutes: meetingSettings.startInMinutes,
+          startInMinutes: meetingSettings.startDateTime ? undefined : meetingSettings.startInMinutes,
+          startDateTime: meetingSettings.startDateTime || undefined,
+          timezone: meetingSettings.timezone,
           topic: meetingSettings.topic || undefined,
         },
         { headers }
@@ -729,7 +733,13 @@ const CourtRepDashboardPage: React.FC = () => {
         onClose={() => {
           setCreateMeetingOpen(false);
           setMeetingCreated(null);
-          setMeetingSettings({ duration: 30, startInMinutes: 2, topic: '' });
+          setMeetingSettings({
+            duration: 30,
+            startInMinutes: 2,
+            topic: '',
+            startDateTime: '',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          });
         }}
         maxWidth="md"
         fullWidth
@@ -762,21 +772,68 @@ const CourtRepDashboardPage: React.FC = () => {
                 helperText="Between 5 and 120 minutes"
               />
               
-              <TextField
-                fullWidth
-                type="number"
-                label="Start in (minutes)"
-                value={meetingSettings.startInMinutes}
-                onChange={(e) => setMeetingSettings({ ...meetingSettings, startInMinutes: parseInt(e.target.value) || 2 })}
-                margin="normal"
-                inputProps={{ min: 1, max: 60 }}
-                helperText="How many minutes from now should the meeting start?"
-              />
+              <Box sx={{ mt: 2, mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="subtitle2" gutterBottom fontWeight="bold">
+                  Meeting Start Time
+                </Typography>
+                
+                <TextField
+                  fullWidth
+                  type="datetime-local"
+                  label="Specific Date & Time (Optional)"
+                  value={meetingSettings.startDateTime}
+                  onChange={(e) => setMeetingSettings({ ...meetingSettings, startDateTime: e.target.value })}
+                  margin="normal"
+                  InputLabelProps={{ shrink: true }}
+                  helperText={meetingSettings.startDateTime ? "Using custom date/time" : "Or use quick start below"}
+                />
+                
+                {!meetingSettings.startDateTime && (
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Or Start in (minutes)"
+                    value={meetingSettings.startInMinutes}
+                    onChange={(e) => setMeetingSettings({ ...meetingSettings, startInMinutes: parseInt(e.target.value) || 2 })}
+                    margin="normal"
+                    inputProps={{ min: 1, max: 60 }}
+                    helperText="How many minutes from now should the meeting start?"
+                  />
+                )}
+                
+                <TextField
+                  fullWidth
+                  label="Timezone"
+                  value={meetingSettings.timezone}
+                  onChange={(e) => setMeetingSettings({ ...meetingSettings, timezone: e.target.value })}
+                  margin="normal"
+                  select
+                  SelectProps={{ native: true }}
+                  helperText="Your local timezone is auto-detected"
+                >
+                  <option value={Intl.DateTimeFormat().resolvedOptions().timeZone}>
+                    {Intl.DateTimeFormat().resolvedOptions().timeZone} (Local)
+                  </option>
+                  <option value="America/New_York">America/New_York (EST/EDT)</option>
+                  <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+                  <option value="America/Denver">America/Denver (MST/MDT)</option>
+                  <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+                  <option value="America/Phoenix">America/Phoenix (MST - No DST)</option>
+                  <option value="America/Anchorage">America/Anchorage (AKST/AKDT)</option>
+                  <option value="Pacific/Honolulu">Pacific/Honolulu (HST)</option>
+                  <option value="UTC">UTC</option>
+                </TextField>
+              </Box>
               
               <Alert severity="info" sx={{ mt: 2 }}>
                 The meeting will:
                 <ul>
-                  <li>Start in {meetingSettings.startInMinutes} minute{meetingSettings.startInMinutes !== 1 ? 's' : ''}</li>
+                  <li>
+                    {meetingSettings.startDateTime 
+                      ? `Start at ${new Date(meetingSettings.startDateTime).toLocaleString()}`
+                      : `Start in ${meetingSettings.startInMinutes} minute${meetingSettings.startInMinutes !== 1 ? 's' : ''}`
+                    }
+                  </li>
                   <li>Last for {meetingSettings.duration} minutes</li>
                   <li>Be available for participants to join and track attendance</li>
                   <li>Generate court cards and compliance reports</li>
@@ -872,7 +929,13 @@ const CourtRepDashboardPage: React.FC = () => {
             <Button onClick={() => {
               setCreateMeetingOpen(false);
               setMeetingCreated(null);
-              setMeetingSettings({ duration: 30, startInMinutes: 2, topic: '' });
+              setMeetingSettings({
+                duration: 30,
+                startInMinutes: 2,
+                topic: '',
+                startDateTime: '',
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              });
               loadDashboard(); // Refresh to show new meeting
             }} variant="contained">
               Done

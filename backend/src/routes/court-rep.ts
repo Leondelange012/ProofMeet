@@ -977,7 +977,9 @@ router.post('/create-test-meeting', async (req: Request, res: Response) => {
     
     // Get optional parameters from request body with defaults
     const duration = req.body.duration || 30;
-    const startInMinutes = req.body.startInMinutes || 2;
+    const startInMinutes = req.body.startInMinutes;
+    const startDateTime = req.body.startDateTime; // ISO datetime string
+    const timezone = req.body.timezone || 'America/Los_Angeles';
     const topic = req.body.topic;
 
     // Create Zoom meeting with custom settings
@@ -985,7 +987,9 @@ router.post('/create-test-meeting', async (req: Request, res: Response) => {
       courtRepName,
       duration,
       startInMinutes,
-      topic
+      topic,
+      startDateTime,
+      timezone
     );
 
     // Store meeting in database as external meeting
