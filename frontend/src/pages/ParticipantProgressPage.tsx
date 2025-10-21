@@ -178,7 +178,7 @@ const ParticipantProgressPage: React.FC = () => {
                     {requirements?.meetingsPerWeek || 0}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Number of assigned meetings
+                    Assigned Meetings
                   </Typography>
                 </Box>
               </Grid>
