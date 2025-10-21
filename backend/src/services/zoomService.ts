@@ -223,7 +223,7 @@ class ZoomService {
     return this.createMeeting({
       topic: `Test Compliance Meeting - ${courtRepName}`,
       agenda: 'Test meeting for ProofMeet court compliance tracking system',
-      duration: 60,
+      duration: 30, // 30 minute test meetings
       startTime,
       timezone: 'America/Los_Angeles',
       settings: {

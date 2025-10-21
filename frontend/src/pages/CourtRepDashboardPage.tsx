@@ -733,7 +733,7 @@ const CourtRepDashboardPage: React.FC = () => {
                 The meeting will:
                 <ul>
                   <li>Start in 2 minutes</li>
-                  <li>Last for 60 minutes</li>
+                  <li>Last for 30 minutes</li>
                   <li>Be available for participants to join and track attendance</li>
                   <li>Generate court cards and compliance reports</li>
                 </ul>
