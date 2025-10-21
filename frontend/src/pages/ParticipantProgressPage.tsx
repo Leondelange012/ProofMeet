@@ -52,13 +52,17 @@ const ParticipantProgressPage: React.FC = () => {
       // Load dashboard data (includes progress info)
       const response = await axios.get(`${API_BASE_URL}/participant/dashboard`, { headers });
       
+      console.log('Progress data response:', response.data);
+      
       if (response.data.success) {
         setDashboardData(response.data.data);
       } else {
         setError(response.data.error || 'Failed to load progress data');
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load progress data');
+      console.error('Load progress error:', err);
+      console.error('Error response:', err.response?.data);
+      setError(err.response?.data?.error || err.message || 'Failed to load progress data');
     } finally {
       setLoading(false);
     }

@@ -76,14 +76,19 @@ const CourtRepDashboardPage: React.FC = () => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
+      let dashSuccess = false;
+      let partSuccess = false;
+
       // Load dashboard overview
       try {
         const dashboardRes = await axios.get(`${API_BASE_URL}/court-rep/dashboard`, { headers });
         if (dashboardRes.data.success) {
           setDashboardData(dashboardRes.data.data);
+          dashSuccess = true;
         }
       } catch (dashError: any) {
         console.error('Dashboard overview error:', dashError);
+        console.error('Dashboard error details:', dashError.response?.data);
         // Continue to load participants even if dashboard fails
       }
 
@@ -95,14 +100,16 @@ const CourtRepDashboardPage: React.FC = () => {
         });
         if (participantsRes.data.success) {
           setParticipants(participantsRes.data.data);
+          partSuccess = true;
         }
       } catch (partError: any) {
         console.error('Participants error:', partError);
+        console.error('Participants error details:', partError.response?.data);
       }
 
       // If both failed, show error
-      if (!dashboardData && participants.length === 0) {
-        setError('Unable to load data. Please refresh the page.');
+      if (!dashSuccess && !partSuccess) {
+        setError('Unable to load data. Please check the console and refresh the page.');
       }
     } catch (err: any) {
       console.error('Load dashboard error:', err);
