@@ -20,6 +20,9 @@ import { authenticate, requireParticipant } from '../middleware/auth';
 import { generateCourtCard, getCourtCard, verifyCourtCard } from '../services/courtCardService';
 import { queueDailyDigest, sendAttendanceConfirmation } from '../services/emailService';
 import { generateCourtCardHTML } from '../services/pdfGenerator';
+import { runFraudDetection, shouldAutoReject, needsManualReview } from '../services/fraudDetection';
+import { analyzeAttendanceEngagement } from '../services/engagementDetection';
+import { createAttendanceBlock } from '../services/attendanceLedger';
 
 const router = Router();
 
@@ -576,28 +579,134 @@ router.post(
       const expectedDuration = attendance.externalMeeting?.durationMinutes || 60;
       const attendancePercent = Math.min((durationMinutes / expectedDuration) * 100, 100);
 
-      // Update attendance record
+      // === TIER 2: RUN ENGAGEMENT ANALYSIS ===
+      const engagementAnalysis = await analyzeAttendanceEngagement(attendanceId, attendance);
+      
+      // Update attendance record with engagement data
       const updated = await prisma.attendanceRecord.update({
         where: { id: attendanceId },
         data: {
           leaveTime,
           totalDurationMin: durationMinutes,
-          activeDurationMin: durationMinutes, // TODO: Calculate based on activity tracking
+          activeDurationMin: durationMinutes, // Will be refined by engagement analysis
           idleDurationMin: 0,
           attendancePercent,
           status: 'COMPLETED',
           verificationMethod: 'SCREEN_ACTIVITY',
+          // Store engagement data in metadata
+          metadata: {
+            engagementScore: engagementAnalysis.score,
+            engagementLevel: engagementAnalysis.level,
+            engagementFlags: engagementAnalysis.flags,
+          },
         },
       });
 
-      // Generate Court Card automatically
-      let courtCard = null;
+      // === TIER 2: RUN FRAUD DETECTION ===
+      const fraudResult = await runFraudDetection(updated, { externalMeeting: attendance.externalMeeting });
+      
+      logger.info(`Fraud detection complete for ${attendanceId}:`, {
+        riskScore: fraudResult.riskScore,
+        recommendation: fraudResult.recommendation,
+        violations: fraudResult.violations.length,
+      });
+
+      // === TIER 2: CREATE IMMUTABLE LEDGER BLOCK ===
+      let ledgerBlock;
       try {
-        courtCard = await generateCourtCard(attendanceId);
-        logger.info(`Court Card generated: ${courtCard.cardNumber} for participant ${participantId}`);
+        // Get previous block hash (for chain linkage)
+        const previousBlocks = await prisma.attendanceRecord.findMany({
+          where: {
+            participantId,
+            status: 'COMPLETED',
+            id: { not: attendanceId },
+          },
+          orderBy: { meetingDate: 'desc' },
+          take: 1,
+          select: { metadata: true },
+        });
+        
+        const previousHash = previousBlocks[0]?.metadata?.['blockHash'] || '0';
+        ledgerBlock = createAttendanceBlock(updated, previousHash);
+        
+        // Store block hash in metadata
+        await prisma.attendanceRecord.update({
+          where: { id: attendanceId },
+          data: {
+            metadata: {
+              ...updated.metadata,
+              blockHash: ledgerBlock.hash,
+              blockSignature: ledgerBlock.signature,
+              fraudRiskScore: fraudResult.riskScore,
+              fraudRecommendation: fraudResult.recommendation,
+            },
+          },
+        });
+        
+        logger.info(`Immutable ledger block created: ${ledgerBlock.hash.substring(0, 16)}...`);
       } catch (error: any) {
-        logger.error(`Failed to generate Court Card: ${error.message}`);
-        // Don't fail the request, just log the error
+        logger.error(`Failed to create ledger block: ${error.message}`);
+      }
+
+      // === HANDLE FRAUD DETECTION RESULTS ===
+      let courtCardGenerated = false;
+      let courtCard = null;
+
+      if (shouldAutoReject(fraudResult)) {
+        // Auto-reject fraudulent attendance
+        await prisma.attendanceRecord.update({
+          where: { id: attendanceId },
+          data: {
+            isValid: false,
+            metadata: {
+              ...updated.metadata,
+              rejectionReason: fraudResult.reasons.join('; '),
+              autoRejected: true,
+            },
+          },
+        });
+        
+        logger.warn(`Attendance ${attendanceId} auto-rejected due to fraud detection`, {
+          riskScore: fraudResult.riskScore,
+          reasons: fraudResult.reasons,
+        });
+        
+      } else if (needsManualReview(fraudResult)) {
+        // Flag for manual review
+        await prisma.attendanceRecord.update({
+          where: { id: attendanceId },
+          data: {
+            metadata: {
+              ...updated.metadata,
+              flaggedForReview: true,
+              flaggedReason: fraudResult.reasons.join('; '),
+            },
+          },
+        });
+        
+        logger.info(`Attendance ${attendanceId} flagged for manual review`, {
+          riskScore: fraudResult.riskScore,
+          violations: fraudResult.violations.length,
+        });
+        
+        // Still generate court card but mark as pending review
+        try {
+          courtCard = await generateCourtCard(attendanceId);
+          courtCardGenerated = true;
+          logger.info(`Court Card generated (PENDING REVIEW): ${courtCard.cardNumber}`);
+        } catch (error: any) {
+          logger.error(`Failed to generate Court Card: ${error.message}`);
+        }
+        
+      } else {
+        // Attendance approved - generate court card
+        try {
+          courtCard = await generateCourtCard(attendanceId);
+          courtCardGenerated = true;
+          logger.info(`Court Card generated: ${courtCard.cardNumber}`);
+        } catch (error: any) {
+          logger.error(`Failed to generate Court Card: ${error.message}`);
+        }
       }
 
       // Queue daily digest for Court Rep
@@ -630,15 +739,26 @@ router.post(
 
       res.json({
         success: true,
-        message: 'Meeting attendance recorded successfully',
+        message: shouldAutoReject(fraudResult) 
+          ? 'Attendance recorded but did not meet verification requirements'
+          : needsManualReview(fraudResult)
+          ? 'Attendance recorded and pending review'
+          : 'Meeting attendance recorded successfully',
         data: {
           attendanceId: updated.id,
           duration: durationMinutes,
           attendancePercentage: attendancePercent,
-          courtCardGenerated: !!courtCard,
+          courtCardGenerated,
           courtCardId: courtCard?.id,
           courtCardNumber: courtCard?.cardNumber,
-          sentToCourtRep: true,
+          sentToCourtRep: courtCardGenerated,
+          // Enhanced security data (Tier 2)
+          engagementScore: engagementAnalysis.score,
+          engagementLevel: engagementAnalysis.level,
+          fraudRiskScore: fraudResult.riskScore,
+          status: shouldAutoReject(fraudResult) ? 'REJECTED' : needsManualReview(fraudResult) ? 'PENDING_REVIEW' : 'APPROVED',
+          blockchainVerified: !!ledgerBlock,
+          flags: [...engagementAnalysis.flags, ...fraudResult.reasons],
         },
       });
     } catch (error: any) {
@@ -846,10 +966,15 @@ router.get('/my-court-card-pdf', async (req: Request, res: Response) => {
 /**
  * POST /api/participant/activity-heartbeat
  * Receive activity heartbeat from frontend to track presence
+ * Enhanced for Tier 2 with detailed engagement tracking
  */
 router.post(
   '/activity-heartbeat',
-  [body('attendanceId').isString(), body('activityType').isIn(['ACTIVE', 'IDLE'])],
+  [
+    body('attendanceId').isString(),
+    body('activityType').isIn(['ACTIVE', 'IDLE']),
+    body('metadata').optional().isObject(),
+  ],
   async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -884,12 +1009,21 @@ router.post(
       const existingTimeline = (attendance.activityTimeline as any) || { events: [] };
       const events = existingTimeline.events || [];
 
-      // Add activity event
+      // Add activity event with enhanced metadata (Tier 2)
       const activityEvent = {
         type: activityType,
         timestamp: new Date().toISOString(),
         source: 'FRONTEND_MONITOR',
-        data: metadata || {},
+        data: {
+          ...metadata,
+          // Enhanced tracking
+          tabFocused: metadata?.tabFocused || false,
+          mouseMovement: metadata?.mouseMovement || false,
+          keyboardActivity: metadata?.keyboardActivity || false,
+          audioActive: metadata?.audioActive || false,
+          videoActive: metadata?.videoActive || false,
+          deviceId: metadata?.deviceId,
+        },
       };
 
       events.push(activityEvent);
