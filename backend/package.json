@@ -16,6 +16,7 @@
     "db:generate": "npx prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "npx prisma studio",
+    "db:clear-attendance": "tsx scripts/clear-attendance-data.ts",
     "migrate:v2": "tsx scripts/migrate-to-v2.ts",
     "seed": "npm run db:seed",
     "test": "jest",

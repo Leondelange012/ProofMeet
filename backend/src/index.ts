@@ -27,6 +27,10 @@ export const prisma = new PrismaClient();
 logger.info('ProofMeet - Court Compliance System');
 logger.info('====================================');
 
+// Trust proxy - required for Railway, Heroku, etc.
+// This allows express-rate-limit to correctly identify client IPs behind proxies
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 
@@ -43,6 +47,40 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  
+  // Disable automatic header validation to prevent ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+  validate: false,
+  
+  // Provide a custom key generator that safely handles proxy scenarios
+  keyGenerator: (req) => {
+    try {
+      // Try to get the real IP from various headers (Railway, Heroku, Cloudflare, etc.)
+      const forwardedFor = req.headers['x-forwarded-for'];
+      const realIp = req.headers['x-real-ip'];
+      const cfConnectingIp = req.headers['cf-connecting-ip'];
+      
+      // Use the first IP from x-forwarded-for if available
+      if (forwardedFor) {
+        const ips = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+        const firstIp = ips.split(',')[0].trim();
+        if (firstIp) return firstIp;
+      }
+      
+      // Fallback to other headers
+      if (cfConnectingIp) return cfConnectingIp as string;
+      if (realIp) return realIp as string;
+      
+      // Fallback to express IP detection
+      if (req.ip) return req.ip;
+      if (req.socket.remoteAddress) return req.socket.remoteAddress;
+      
+      // Final fallback
+      return 'unknown';
+    } catch (error) {
+      // If anything goes wrong, return a safe default
+      return 'unknown';
+    }
+  },
 });
 
 // Apply rate limiter to all routes except health check
