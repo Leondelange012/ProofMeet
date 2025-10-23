@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "is_host" BOOLEAN NOT NULL DEFAULT false;
+
