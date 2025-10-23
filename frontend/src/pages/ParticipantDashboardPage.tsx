@@ -112,7 +112,6 @@ const ParticipantDashboardPage: React.FC = () => {
   }
 
   const progress = dashboardData?.progress?.thisWeek;
-  const participant = dashboardData?.participant;
   const requirements = dashboardData?.requirements;
   const recentAttendance = dashboardData?.recentMeetings || [];
   const progressPercentage = requirements?.meetingsPerWeek 

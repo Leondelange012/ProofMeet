@@ -3,7 +3,7 @@
  * No authentication required - anyone can verify court cards
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -38,7 +38,7 @@ import {
   Security as SecurityIcon,
 } from '@mui/icons-material';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
 
 interface VerificationData {
   isValid: boolean;
