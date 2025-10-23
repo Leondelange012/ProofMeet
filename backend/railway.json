@@ -5,7 +5,7 @@
     "buildCommand": "rm -f package-lock.json && npm install --legacy-peer-deps && npx prisma generate && npm run build"
   },
   "deploy": {
-    "startCommand": "npx prisma migrate deploy && npm start",
+    "startCommand": "npm start",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
