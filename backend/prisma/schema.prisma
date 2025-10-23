@@ -70,6 +70,7 @@ model User {
   // Participant specific fields
   caseNumber        String?   @map("case_number")
   courtRepId        String?   @map("court_rep_id")
+  isHost            Boolean   @default(false) @map("is_host") // Whether participant can host Zoom meetings
   
   // Common profile fields
   firstName         String    @map("first_name")

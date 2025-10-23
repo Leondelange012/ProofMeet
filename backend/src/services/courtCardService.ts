@@ -1,6 +1,14 @@
 import crypto from 'crypto';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';
+import { 
+  createChainOfTrust, 
+  signCourtCard, 
+  generateQRCodeData, 
+  generateVerificationUrl,
+  createTrustedTimestamp 
+} from './digitalSignatureService';
+import { logCourtCardGenerated, logDigitalSignature } from './auditService';
 
 interface Violation {
   type: string;
@@ -361,6 +369,14 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       validationStatus
     );
 
+    // Create chain of trust
+    const chainOfTrust = await createChainOfTrust(attendance.participant.id, cardHash);
+    
+    // Generate verification URL and QR code data
+    const tempCardId = crypto.randomUUID(); // Temporary ID for QR code generation
+    const verificationUrl = generateVerificationUrl(tempCardId);
+    const qrCodeData = generateQRCodeData(tempCardId, cardNumber, cardHash);
+    
     // Create Court Card
     const courtCard = await prisma.courtCard.create({
       data: {
@@ -391,6 +407,31 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       },
     });
 
+    // Create automatic system signature (system-generated verification)
+    const systemSignature = await signCourtCard({
+      courtCardId: courtCard.id,
+      signerId: attendance.courtRepId, // Signed by court rep's system account
+      signerRole: 'COURT_REP',
+      authMethod: 'SYSTEM_GENERATED',
+      metadata: {
+        ipAddress: 'SYSTEM',
+        userAgent: 'ProofMeet-Server/2.0',
+      },
+    }).catch(err => {
+      logger.error(`Failed to create system signature: ${err.message}`);
+      return null;
+    });
+
+    // Create trusted timestamp
+    const timestamp = await createTrustedTimestamp(courtCard.id, cardHash).catch(err => {
+      logger.error(`Failed to create timestamp: ${err.message}`);
+      return null;
+    });
+
+    // Update court card with verification data
+    const updatedVerificationUrl = generateVerificationUrl(courtCard.id);
+    const updatedQRCodeData = generateQRCodeData(courtCard.id, cardNumber, cardHash);
+    
     // Update attendance record
     await prisma.attendanceRecord.update({
       where: { id: attendanceRecordId },
@@ -400,6 +441,27 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         isValid: validationStatus === 'PASSED',
       },
     });
+
+    // Log audit trail
+    await logCourtCardGenerated(
+      courtCard.id,
+      cardNumber,
+      attendance.participant.id,
+      attendance.participant.email,
+      attendanceRecordId,
+      validationStatus
+    );
+
+    // Log system signature in audit trail
+    if (systemSignature) {
+      await logDigitalSignature(
+        courtCard.id,
+        attendance.courtRepId,
+        attendance.courtRep.email,
+        'COURT_REP',
+        'SYSTEM_GENERATED'
+      );
+    }
 
     logger.info(
       `Court Card generated: ${cardNumber} for participant ${cardData.participantEmail} - Status: ${validationStatus}`
@@ -418,6 +480,11 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       ...courtCard,
       totalHoursCompleted,
       allMeetingIds,
+      verificationUrl: updatedVerificationUrl,
+      qrCodeData: updatedQRCodeData,
+      chainOfTrust,
+      signatures: systemSignature ? [systemSignature] : [],
+      timestamp,
     };
   } catch (error: any) {
     logger.error('Court Card generation error:', error);

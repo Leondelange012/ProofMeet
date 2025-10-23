@@ -52,6 +52,7 @@ export interface ParticipantRegisterRequest {
   caseNumber: string;
   courtRepEmail: string;
   phoneNumber?: string;
+  isHost?: boolean;
 }
 
 export interface LoginResponse {

@@ -182,6 +182,7 @@ router.post(
     body('caseNumber').trim().notEmpty(),
     body('courtRepEmail').isEmail().normalizeEmail(),
     body('phoneNumber').optional().trim(),
+    body('isHost').optional().isBoolean(),
   ],
   async (req: Request, res: Response) => {
     try {
@@ -194,7 +195,7 @@ router.post(
         });
       }
 
-      const { email, password, firstName, lastName, caseNumber, courtRepEmail, phoneNumber } = req.body;
+      const { email, password, firstName, lastName, caseNumber, courtRepEmail, phoneNumber, isHost } = req.body;
 
       // Check if participant email already exists
       const existingUser = await prisma.user.findUnique({
@@ -245,6 +246,7 @@ router.post(
           caseNumber,
           courtRepId: courtRep.id,
           phoneNumber,
+          isHost: isHost || false, // Store host status for Zoom meeting settings
           verificationToken,
           verificationTokenExpiry,
           isEmailVerified: true, // Auto-verify for testing

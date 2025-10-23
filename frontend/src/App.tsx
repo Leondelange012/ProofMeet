@@ -15,6 +15,8 @@ import ParticipantProgressPage from './pages/ParticipantProgressPage';
 import MeetingPage from './pages/MeetingPage';
 import CompliancePage from './pages/CompliancePage';
 import ActiveMeetingPage from './pages/ActiveMeetingPage';
+import VerificationPage from './pages/VerificationPage';
+import PublicVerificationSearchPage from './pages/PublicVerificationSearchPage';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -302,6 +304,10 @@ function App() {
           <div className="App">
             <Toaster position="top-right" />
             <Routes>
+              {/* Public Verification Routes - No Auth Required */}
+              <Route path="/verify/search" element={<PublicVerificationSearchPage />} />
+              <Route path="/verify/:courtCardId" element={<VerificationPage />} />
+              
               {/* Public routes */}
               <Route 
                 path="/login" 

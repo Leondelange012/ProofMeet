@@ -14,6 +14,7 @@ import { courtRepRoutes } from './routes/court-rep';
 import { participantRoutes } from './routes/participant';
 import { adminRoutes } from './routes/admin';
 import { zoomWebhookRoutes } from './routes/zoom-webhooks';
+import { verificationRoutes } from './routes/verification';
 
 // Load environment variables
 dotenv.config();
@@ -125,6 +126,7 @@ app.use('/api/v2/court-rep', courtRepRoutes);
 app.use('/api/v2/participant', participantRoutes);
 app.use('/api/v2/admin', adminRoutes);
 app.use('/api/v2/webhooks', zoomWebhookRoutes);
+app.use('/api/v2/verify', verificationRoutes); // Public verification - no auth required
 
 // Default routes (no version prefix)
 app.use('/api/auth', authV2Routes);
@@ -132,6 +134,7 @@ app.use('/api/court-rep', courtRepRoutes);
 app.use('/api/participant', participantRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/webhooks', zoomWebhookRoutes);
+app.use('/api/verify', verificationRoutes); // Public verification - no auth required
 
 // Error handling middleware
 app.use(errorHandler);
