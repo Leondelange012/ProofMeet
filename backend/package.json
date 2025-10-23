@@ -4,7 +4,7 @@
   "description": "ProofMeet Version 2.0 - Court Compliance System",
   "main": "dist/index.js",
   "scripts": {
-    "start": "npx prisma migrate deploy && npx prisma generate && node dist/index.js",
+    "start": "npx prisma migrate deploy && npx prisma generate && node --trace-warnings dist/index.js 2>&1",
     "start:testing": "npx prisma generate && npx prisma db push --force-reset --accept-data-loss && node dist/index.js",
     "start:old": "npx prisma migrate deploy && npx prisma generate && node server-with-db.js",
     "build": "npx prisma generate && tsc",
