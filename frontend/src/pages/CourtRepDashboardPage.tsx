@@ -68,6 +68,7 @@ const CourtRepDashboardPage: React.FC = () => {
   // Test meetings management
   const [testMeetings, setTestMeetings] = useState<any[]>([]);
   const [showTestMeetings, setShowTestMeetings] = useState(false);
+  const [fixingStale, setFixingStale] = useState(false);
 
   const loadDashboard = async () => {
     try {
@@ -267,6 +268,35 @@ const CourtRepDashboardPage: React.FC = () => {
     }
   };
 
+  const fixStaleMeetings = async () => {
+    if (!confirm('This will fix any meetings stuck in IN_PROGRESS status. Continue?')) {
+      return;
+    }
+
+    try {
+      setFixingStale(true);
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.post(`${API_BASE_URL}/court-rep/admin/fix-stale-meetings`, {}, { headers });
+      
+      if (response.data.success) {
+        setSnackbar({
+          open: true,
+          message: `Fixed ${response.data.data.fixed} stale meetings`,
+          severity: 'success',
+        });
+        loadDashboard(); // Reload to show updated data
+      }
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to fix stale meetings',
+        severity: 'error',
+      });
+    } finally {
+      setFixingStale(false);
+    }
+  };
+
   if (loading) {
     return (
       <Container>
@@ -312,6 +342,14 @@ const CourtRepDashboardPage: React.FC = () => {
             }}
           >
             {showTestMeetings ? 'Hide' : 'Manage'} Test Meetings
+          </Button>
+          <Button
+            variant="outlined"
+            color="warning"
+            onClick={fixStaleMeetings}
+            disabled={fixingStale}
+          >
+            {fixingStale ? 'Fixing...' : 'Fix Stale Meetings'}
           </Button>
           <Button
             variant="outlined"
