@@ -53,8 +53,6 @@ export async function generateCourtCardHTML(data: CourtCardPDFData): Promise<str
     try {
       qrCodeImage = await QRCode.toDataURL(data.qrCodeData, {
         errorCorrectionLevel: 'H',
-        type: 'image/png',
-        quality: 0.95,
         margin: 2,
         width: 256
       });
