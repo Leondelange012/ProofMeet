@@ -41,55 +41,30 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting - more lenient for development/testing
-const limiter = rateLimit({
-  windowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '900000'), // 15 minutes
-  max: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '500'), // Increased from 100 to 500
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  
-  // Disable automatic header validation to prevent ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+// Rate limiting - strict for auth endpoints only
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 login attempts per 15 minutes
+  message: 'Too many login attempts, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
   validate: false,
-  
-  // Provide a custom key generator that safely handles proxy scenarios
-  keyGenerator: (req) => {
-    try {
-      // Try to get the real IP from various headers (Railway, Heroku, Cloudflare, etc.)
-      const forwardedFor = req.headers['x-forwarded-for'];
-      const realIp = req.headers['x-real-ip'];
-      const cfConnectingIp = req.headers['cf-connecting-ip'];
-      
-      // Use the first IP from x-forwarded-for if available
-      if (forwardedFor) {
-        const ips = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
-        const firstIp = ips.split(',')[0].trim();
-        if (firstIp) return firstIp;
-      }
-      
-      // Fallback to other headers
-      if (cfConnectingIp) return cfConnectingIp as string;
-      if (realIp) return realIp as string;
-      
-      // Fallback to express IP detection
-      if (req.ip) return req.ip;
-      if (req.socket.remoteAddress) return req.socket.remoteAddress;
-      
-      // Final fallback
-      return 'unknown';
-    } catch (error) {
-      // If anything goes wrong, return a safe default
-      return 'unknown';
-    }
-  },
+  skipSuccessfulRequests: true, // Don't count successful requests
 });
 
-// Apply rate limiter to all routes except health check
-app.use((req, res, next) => {
-  if (req.path === '/health') {
-    return next();
-  }
-  return limiter(req, res, next);
+// Lenient rate limiter for authenticated API routes
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5000, // Very high limit - 5000 requests per 15 minutes
+  message: 'Too many requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  skip: (req) => {
+    // Skip rate limiting for authenticated users (they have a valid JWT)
+    const authHeader = req.headers.authorization;
+    return !!authHeader && authHeader.startsWith('Bearer ');
+  },
 });
 
 // Body parsing middleware
@@ -97,44 +72,47 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-  // Health check endpoint with database test
-  app.get('/health', async (_req, res) => {
-    try {
-      await prisma.$connect();
-      const userCount = await prisma.user.count();
-      
-      res.status(200).json({ 
-        status: 'OK', 
-        timestamp: new Date().toISOString(),
-        version: '2.0.5',
-        system: 'Court Compliance',
-        database: 'Connected',
-        userCount
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        status: 'ERROR',
-        error: error.message,
-        database: 'Disconnected'
-      });
-    }
-  });
+// Health check endpoint with database test (no rate limiting)
+app.get('/health', async (_req, res) => {
+  try {
+    await prisma.$connect();
+    const userCount = await prisma.user.count();
+    
+    res.status(200).json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      version: '2.0.6',
+      system: 'Court Compliance',
+      database: 'Connected',
+      userCount
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      status: 'ERROR',
+      error: error.message,
+      database: 'Disconnected'
+    });
+  }
+});
 
-// API routes
-app.use('/api/v2/auth', authV2Routes);
-app.use('/api/v2/court-rep', courtRepRoutes);
-app.use('/api/v2/participant', participantRoutes);
-app.use('/api/v2/admin', adminRoutes);
-app.use('/api/v2/webhooks', zoomWebhookRoutes);
-app.use('/api/v2/verify', verificationRoutes); // Public verification - no auth required
+// API routes with appropriate rate limiting
+// Auth routes - strict rate limiting (20 attempts per 15 min)
+app.use('/api/v2/auth', authLimiter, authV2Routes);
+app.use('/api/auth', authLimiter, authV2Routes);
+
+// Authenticated routes - lenient rate limiting (skipped for JWT users)
+app.use('/api/v2/court-rep', apiLimiter, courtRepRoutes);
+app.use('/api/v2/participant', apiLimiter, participantRoutes);
+app.use('/api/v2/admin', apiLimiter, adminRoutes);
+app.use('/api/v2/webhooks', apiLimiter, zoomWebhookRoutes);
+app.use('/api/v2/verify', apiLimiter, verificationRoutes); // Public verification
 
 // Default routes (no version prefix)
-app.use('/api/auth', authV2Routes);
-app.use('/api/court-rep', courtRepRoutes);
-app.use('/api/participant', participantRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/webhooks', zoomWebhookRoutes);
-app.use('/api/verify', verificationRoutes); // Public verification - no auth required
+app.use('/api/court-rep', apiLimiter, courtRepRoutes);
+app.use('/api/participant', apiLimiter, participantRoutes);
+app.use('/api/admin', apiLimiter, adminRoutes);
+app.use('/api/webhooks', apiLimiter, zoomWebhookRoutes);
+app.use('/api/verify', apiLimiter, verificationRoutes); // Public verification
 
 // Error handling middleware
 app.use(errorHandler);
