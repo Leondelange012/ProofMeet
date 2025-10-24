@@ -859,8 +859,8 @@ router.get('/participant/:participantId/court-card-pdf', async (req: Request, re
       generatedDate: new Date(),
     };
 
-    // Generate HTML (can be converted to PDF client-side or server-side)
-    const html = generateCourtCardHTML(pdfData);
+    // Generate HTML with QR code (can be converted to PDF client-side or server-side)
+    const html = await generateCourtCardHTML(pdfData);
 
     // Set response headers for HTML download
     res.setHeader('Content-Type', 'text/html');

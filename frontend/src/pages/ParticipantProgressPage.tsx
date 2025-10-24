@@ -298,11 +298,15 @@ const ParticipantProgressPage: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={record.status}
+                          label={record.validationStatus || record.status}
                           size="small"
                           color={
-                            record.status === 'COMPLETED'
+                            record.validationStatus === 'PASSED'
                               ? 'success'
+                              : record.validationStatus === 'FAILED'
+                              ? 'error'
+                              : record.status === 'COMPLETED'
+                              ? 'warning'
                               : record.status === 'IN_PROGRESS'
                               ? 'info'
                               : 'default'

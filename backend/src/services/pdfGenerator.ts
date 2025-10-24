@@ -4,6 +4,7 @@
  */
 
 import { logger } from '../utils/logger';
+import QRCode from 'qrcode';
 
 interface MeetingRecord {
   date: Date;
@@ -45,7 +46,23 @@ interface CourtCardPDFData {
  * Generate HTML content for Court Card PDF
  * This will be used with a PDF generation library (puppeteer, pdfkit, etc.)
  */
-export function generateCourtCardHTML(data: CourtCardPDFData): string {
+export async function generateCourtCardHTML(data: CourtCardPDFData): Promise<string> {
+  // Generate QR code image as base64 data URL
+  let qrCodeImage = '';
+  if (data.qrCodeData) {
+    try {
+      qrCodeImage = await QRCode.toDataURL(data.qrCodeData, {
+        errorCorrectionLevel: 'H',
+        type: 'image/png',
+        quality: 0.95,
+        margin: 2,
+        width: 256
+      });
+    } catch (error) {
+      logger.error('Error generating QR code:', error);
+      qrCodeImage = ''; // Fallback to no image
+    }
+  }
   const meetingTypesSummary = Object.entries(data.meetingsByType)
     .map(([type, count]) => `<li>${type}: ${count} meeting${count > 1 ? 's' : ''}</li>`)
     .join('');
@@ -361,9 +378,13 @@ export function generateCourtCardHTML(data: CourtCardPDFData): string {
       <div style="text-align: center;">
         <div style="background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
           <p style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">Scan to Verify</p>
-          <div style="width: 150px; height: 150px; background-color: #f5f5f5; border: 2px solid #ddd; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
+          ${qrCodeImage ? `
+          <img src="${qrCodeImage}" alt="QR Code" style="width: 200px; height: 200px; margin: 0 auto; display: block;" />
+          ` : `
+          <div style="width: 200px; height: 200px; background-color: #f5f5f5; border: 2px solid #ddd; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
             <p style="font-size: 12px; color: #999;">QR Code</p>
           </div>
+          `}
           <p style="margin-top: 10px; font-size: 11px; color: #666;">
             Or visit verification URL above
           </p>
@@ -406,8 +427,8 @@ export async function generateCourtCardPDF(data: CourtCardPDFData): Promise<stri
   try {
     logger.info(`Generating Court Card PDF for participant: ${data.participantEmail}`);
 
-    // Generate HTML
-    const html = generateCourtCardHTML(data);
+    // Generate HTML with QR code
+    const html = await generateCourtCardHTML(data);
 
     // TODO: In production, use puppeteer to convert HTML to PDF
     // For now, return HTML that can be rendered or converted client-side

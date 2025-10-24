@@ -125,11 +125,21 @@ router.get('/dashboard', async (req: Request, res: Response) => {
       }
     }
 
-    // Get recent meetings
+    // Get recent meetings with court card info
     const recentMeetings = await prisma.attendanceRecord.findMany({
       where: { participantId },
       orderBy: { meetingDate: 'desc' },
       take: 10,
+      include: {
+        courtCard: {
+          select: {
+            id: true,
+            cardNumber: true,
+            validationStatus: true as any,
+            violations: true as any,
+          },
+        },
+      },
     });
 
     res.json({
@@ -169,6 +179,13 @@ router.get('/dashboard', async (req: Request, res: Response) => {
           duration: record.totalDurationMin,
           attendancePercentage: record.attendancePercent,
           status: record.status,
+          courtCard: record.courtCard ? {
+            id: record.courtCard.id,
+            cardNumber: record.courtCard.cardNumber,
+            validationStatus: record.courtCard.validationStatus,
+            violations: record.courtCard.violations,
+          } : null,
+          validationStatus: record.courtCard ? record.courtCard.validationStatus : 'PENDING',
         })),
       },
     });
@@ -974,8 +991,8 @@ router.get('/my-court-card-pdf', async (req: Request, res: Response) => {
       generatedDate: new Date(),
     };
 
-    // Generate HTML (can be converted to PDF client-side or server-side)
-    const html = generateCourtCardHTML(pdfData);
+    // Generate HTML with QR code (can be converted to PDF client-side or server-side)
+    const html = await generateCourtCardHTML(pdfData);
 
     // Set response headers for HTML download
     res.setHeader('Content-Type', 'text/html');
