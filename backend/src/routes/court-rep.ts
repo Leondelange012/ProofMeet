@@ -13,7 +13,7 @@ import { body, validationResult } from 'express-validator';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';
 import { authenticate, requireCourtRep } from '../middleware/auth';
-import { getCourtCard } from '../services/courtCardService';
+import { getCourtCard, generateCourtCard } from '../services/courtCardService';
 import { zoomService } from '../services/zoomService';
 import { generateCourtCardHTML } from '../services/pdfGenerator';
 
@@ -1252,6 +1252,87 @@ router.get('/participants/:participantId/meetings', async (req: Request, res: Re
     });
   } catch (error: any) {
     logger.error('Get participant meetings error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * POST /api/court-rep/admin/regenerate-court-cards
+ * Regenerate court cards for completed meetings that don't have them
+ * ADMIN ONLY - for fixing missing court cards
+ */
+router.post('/admin/regenerate-court-cards', async (req: Request, res: Response) => {
+  try {
+    logger.info(`Regenerating court cards for ${req.user!.email}`);
+
+    // Find all COMPLETED attendance records without court cards
+    const attendanceRecords = await prisma.attendanceRecord.findMany({
+      where: {
+        status: 'COMPLETED',
+        courtCard: null, // No court card exists
+      },
+      include: {
+        participant: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        externalMeeting: {
+          select: {
+            name: true,
+            durationMinutes: true,
+          },
+        },
+      },
+    });
+
+    logger.info(`Found ${attendanceRecords.length} meetings without court cards`);
+
+    if (attendanceRecords.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No meetings need court cards',
+        data: {
+          generated: 0,
+          meetings: [],
+        },
+      });
+    }
+
+    const generatedCards: any[] = [];
+
+    for (const record of attendanceRecords) {
+      try {
+        const courtCard = await generateCourtCard(record.id);
+        generatedCards.push({
+          participantName: `${record.participant.firstName} ${record.participant.lastName}`,
+          meetingName: record.externalMeeting?.name || record.meetingName,
+          cardNumber: courtCard.cardNumber,
+          validationStatus: courtCard.validationStatus,
+        });
+        logger.info(`Generated court card: ${courtCard.cardNumber}`);
+      } catch (error: any) {
+        logger.error(`Failed to generate court card for ${record.id}: ${error.message}`);
+      }
+    }
+
+    logger.info(`Generated ${generatedCards.length} court cards`);
+
+    res.json({
+      success: true,
+      message: `Generated ${generatedCards.length} court cards`,
+      data: {
+        generated: generatedCards.length,
+        meetings: generatedCards,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Regenerate court cards error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

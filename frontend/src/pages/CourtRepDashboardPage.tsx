@@ -69,6 +69,7 @@ const CourtRepDashboardPage: React.FC = () => {
   const [testMeetings, setTestMeetings] = useState<any[]>([]);
   const [showTestMeetings, setShowTestMeetings] = useState(false);
   const [fixingStale, setFixingStale] = useState(false);
+  const [regeneratingCards, setRegeneratingCards] = useState(false);
 
   const loadDashboard = async () => {
     try {
@@ -297,6 +298,35 @@ const CourtRepDashboardPage: React.FC = () => {
     }
   };
 
+  const regenerateCourtCards = async () => {
+    if (!confirm('This will generate court cards for any completed meetings that are missing them. Continue?')) {
+      return;
+    }
+
+    try {
+      setRegeneratingCards(true);
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.post(`${API_BASE_URL}/court-rep/admin/regenerate-court-cards`, {}, { headers });
+      
+      if (response.data.success) {
+        setSnackbar({
+          open: true,
+          message: `Generated ${response.data.data.generated} court cards`,
+          severity: 'success',
+        });
+        loadDashboard(); // Reload to show updated data
+      }
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to regenerate court cards',
+        severity: 'error',
+      });
+    } finally {
+      setRegeneratingCards(false);
+    }
+  };
+
   if (loading) {
     return (
       <Container>
@@ -342,6 +372,14 @@ const CourtRepDashboardPage: React.FC = () => {
             }}
           >
             {showTestMeetings ? 'Hide' : 'Manage'} Test Meetings
+          </Button>
+          <Button
+            variant="outlined"
+            color="success"
+            onClick={regenerateCourtCards}
+            disabled={regeneratingCards}
+          >
+            {regeneratingCards ? 'Generating...' : 'Generate Court Cards'}
           </Button>
           <Button
             variant="outlined"
