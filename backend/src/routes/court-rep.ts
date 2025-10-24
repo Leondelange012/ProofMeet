@@ -812,7 +812,7 @@ router.get('/participant/:participantId/court-card-pdf', async (req: Request, re
       });
     }
 
-    // Get all completed meetings
+    // Get all completed meetings with full court card data
     const meetings = await prisma.attendanceRecord.findMany({
       where: {
         participantId,
@@ -820,11 +820,7 @@ router.get('/participant/:participantId/court-card-pdf', async (req: Request, re
       },
       orderBy: { meetingDate: 'desc' },
       include: {
-        courtCard: {
-          select: {
-            validationStatus: true as any,
-          },
-        },
+        courtCard: true, // Include ALL court card fields
       },
     });
 
@@ -837,6 +833,9 @@ router.get('/participant/:participantId/court-card-pdf', async (req: Request, re
     meetings.forEach(m => {
       meetingsByType[m.meetingProgram] = (meetingsByType[m.meetingProgram] || 0) + 1;
     });
+
+    // Get the most recent court card for QR code and verification
+    const mostRecentCourtCard = meetings.find(m => m.courtCard)?.courtCard;
 
     // Prepare PDF data
     const pdfData = {
@@ -856,6 +855,14 @@ router.get('/participant/:participantId/court-card-pdf', async (req: Request, re
         attendancePercent: Number(m.attendancePercent || 0),
         validationStatus: (m.courtCard as any)?.validationStatus || 'PENDING',
       })),
+      // Include court card data for QR code and verification
+      cardNumber: (mostRecentCourtCard as any)?.cardNumber,
+      verificationUrl: mostRecentCourtCard ? 
+        `${process.env.FRONTEND_URL || 'https://proof-meet-frontend.vercel.app'}/verify/${mostRecentCourtCard.id}` : 
+        undefined,
+      qrCodeData: (mostRecentCourtCard as any)?.qrCodeData,
+      cardHash: (mostRecentCourtCard as any)?.cardHash,
+      signatures: (mostRecentCourtCard as any)?.signatures,
       generatedDate: new Date(),
     };
 
