@@ -71,6 +71,7 @@ const CourtRepDashboardPage: React.FC = () => {
   const [fixingStale, setFixingStale] = useState(false);
   const [regeneratingCards, setRegeneratingCards] = useState(false);
   const [updatingQRCodes, setUpdatingQRCodes] = useState(false);
+  const [regeneratingSignatures, setRegeneratingSignatures] = useState(false);
 
   const loadDashboard = async () => {
     try {
@@ -357,6 +358,35 @@ const CourtRepDashboardPage: React.FC = () => {
     }
   };
 
+  const regenerateSignatures = async () => {
+    if (!confirm('This will add digital signatures to court cards that are missing them. Continue?')) {
+      return;
+    }
+
+    try {
+      setRegeneratingSignatures(true);
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.post(`${API_BASE_URL}/court-rep/admin/regenerate-signatures`, {}, { headers });
+      
+      if (response.data.success) {
+        setSnackbar({
+          open: true,
+          message: `Added signatures to ${response.data.data.signed} court cards`,
+          severity: 'success',
+        });
+        loadDashboard(); // Reload to show updated data
+      }
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to regenerate signatures',
+        severity: 'error',
+      });
+    } finally {
+      setRegeneratingSignatures(false);
+    }
+  };
+
   if (loading) {
     return (
       <Container>
@@ -418,6 +448,14 @@ const CourtRepDashboardPage: React.FC = () => {
             disabled={updatingQRCodes}
           >
             {updatingQRCodes ? 'Updating...' : 'Update QR Codes'}
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={regenerateSignatures}
+            disabled={regeneratingSignatures}
+          >
+            {regeneratingSignatures ? 'Signing...' : 'Add Signatures'}
           </Button>
           <Button
             variant="outlined"

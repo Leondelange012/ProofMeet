@@ -302,6 +302,9 @@ model CourtCard {
   verificationUrl       String?          @map("verification_url") @db.Text
   qrCodeData            String?          @map("qr_code_data") @db.Text
   
+  // Digital Signatures
+  signatures            Json             @default("[]") @map("signatures") // Array of digital signature objects
+  
   // Export
   pdfUrl                String?          @map("pdf_url") @db.Text
   pdfGeneratedAt        DateTime?        @map("pdf_generated_at")

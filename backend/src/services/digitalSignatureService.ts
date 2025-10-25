@@ -352,6 +352,15 @@ export async function signCourtCard(request: SignatureRequest): Promise<DigitalS
     signatureMethod: authMethod,
   };
 
+  // Store signature in court card
+  const existingSignatures = (courtCard as any).signatures || [];
+  await prisma.courtCard.update({
+    where: { id: courtCardId },
+    data: {
+      signatures: [...existingSignatures, digitalSignature] as any,
+    },
+  });
+
   logger.info(`Digital signature created: ${signerRole} signed card ${courtCard.cardNumber}`);
 
   return digitalSignature;

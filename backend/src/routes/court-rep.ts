@@ -1435,6 +1435,99 @@ router.post('/admin/update-qr-codes', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/court-rep/admin/regenerate-signatures
+ * Add digital signatures to court cards that are missing them
+ * ADMIN ONLY - for backfilling signatures
+ */
+router.post('/admin/regenerate-signatures', async (req: Request, res: Response) => {
+  try {
+    logger.info(`Regenerating signatures for ${req.user!.email}`);
+
+    // Import signature function
+    const { signCourtCard } = await import('../services/digitalSignatureService');
+
+    // Find all court cards without signatures (or with empty signatures array)
+    const courtCards = await prisma.courtCard.findMany({
+      where: {
+        OR: [
+          { signatures: { equals: [] } },
+          { signatures: { equals: null } },
+        ],
+      },
+      select: {
+        id: true,
+        cardNumber: true,
+        courtRepEmail: true,
+        attendanceRecord: {
+          select: {
+            courtRepId: true,
+          },
+        },
+      },
+    });
+
+    logger.info(`Found ${courtCards.length} court cards without signatures`);
+
+    if (courtCards.length === 0) {
+      return res.json({
+        success: true,
+        message: 'All court cards already have signatures',
+        data: {
+          signed: 0,
+          cards: [],
+        },
+      });
+    }
+
+    const signedCards: any[] = [];
+    let failed = 0;
+
+    for (const courtCard of courtCards) {
+      try {
+        // Create system signature
+        await signCourtCard({
+          courtCardId: courtCard.id,
+          signerId: courtCard.attendanceRecord.courtRepId,
+          signerRole: 'COURT_REP',
+          authMethod: 'SYSTEM_GENERATED',
+          metadata: {
+            ipAddress: 'SYSTEM',
+            userAgent: 'ProofMeet-SignatureBackfill/2.0',
+          },
+        });
+
+        signedCards.push({
+          cardNumber: courtCard.cardNumber,
+        });
+
+        logger.info(`Added signature to: ${courtCard.cardNumber}`);
+      } catch (error: any) {
+        logger.error(`Failed to sign ${courtCard.cardNumber}: ${error.message}`);
+        failed++;
+      }
+    }
+
+    logger.info(`Signed ${signedCards.length} court cards (${failed} failed)`);
+
+    res.json({
+      success: true,
+      message: `Added signatures to ${signedCards.length} court cards`,
+      data: {
+        signed: signedCards.length,
+        failed,
+        cards: signedCards,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Regenerate signatures error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
  * POST /api/court-rep/admin/fix-stale-meetings
  * Fix attendance records stuck in IN_PROGRESS status
  * ADMIN ONLY - for fixing stale meetings that never completed
