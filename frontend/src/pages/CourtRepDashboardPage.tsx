@@ -70,6 +70,7 @@ const CourtRepDashboardPage: React.FC = () => {
   const [showTestMeetings, setShowTestMeetings] = useState(false);
   const [fixingStale, setFixingStale] = useState(false);
   const [regeneratingCards, setRegeneratingCards] = useState(false);
+  const [updatingQRCodes, setUpdatingQRCodes] = useState(false);
 
   const loadDashboard = async () => {
     try {
@@ -327,6 +328,35 @@ const CourtRepDashboardPage: React.FC = () => {
     }
   };
 
+  const updateQRCodes = async () => {
+    if (!confirm('This will update existing court cards with QR codes and verification URLs. Continue?')) {
+      return;
+    }
+
+    try {
+      setUpdatingQRCodes(true);
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.post(`${API_BASE_URL}/court-rep/admin/update-qr-codes`, {}, { headers });
+      
+      if (response.data.success) {
+        setSnackbar({
+          open: true,
+          message: `Updated ${response.data.data.updated} court cards with QR codes`,
+          severity: 'success',
+        });
+        loadDashboard(); // Reload to show updated data
+      }
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to update QR codes',
+        severity: 'error',
+      });
+    } finally {
+      setUpdatingQRCodes(false);
+    }
+  };
+
   if (loading) {
     return (
       <Container>
@@ -380,6 +410,14 @@ const CourtRepDashboardPage: React.FC = () => {
             disabled={regeneratingCards}
           >
             {regeneratingCards ? 'Generating...' : 'Generate Court Cards'}
+          </Button>
+          <Button
+            variant="outlined"
+            color="info"
+            onClick={updateQRCodes}
+            disabled={updatingQRCodes}
+          >
+            {updatingQRCodes ? 'Updating...' : 'Update QR Codes'}
           </Button>
           <Button
             variant="outlined"

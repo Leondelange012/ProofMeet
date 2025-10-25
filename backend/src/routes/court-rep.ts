@@ -1345,6 +1345,96 @@ router.post('/admin/regenerate-court-cards', async (req: Request, res: Response)
 });
 
 /**
+ * POST /api/court-rep/admin/update-qr-codes
+ * Update existing court cards with QR codes and verification URLs
+ * ADMIN ONLY - for backfilling old court cards
+ */
+router.post('/admin/update-qr-codes', async (req: Request, res: Response) => {
+  try {
+    logger.info(`Updating court card QR codes for ${req.user!.email}`);
+
+    // Import the functions we need
+    const { generateVerificationUrl, generateQRCodeData } = await import('../services/digitalSignatureService');
+
+    // Find all court cards without verification URLs
+    const courtCardsNeedingUpdate = await prisma.courtCard.findMany({
+      where: {
+        OR: [
+          { verificationUrl: null },
+          { qrCodeData: null },
+        ],
+      },
+      select: {
+        id: true,
+        cardNumber: true,
+        cardHash: true,
+      },
+    });
+
+    logger.info(`Found ${courtCardsNeedingUpdate.length} court cards needing QR code data`);
+
+    if (courtCardsNeedingUpdate.length === 0) {
+      return res.json({
+        success: true,
+        message: 'All court cards already have QR codes',
+        data: {
+          updated: 0,
+          cards: [],
+        },
+      });
+    }
+
+    const updatedCards: any[] = [];
+    let failed = 0;
+
+    for (const courtCard of courtCardsNeedingUpdate) {
+      try {
+        // Generate verification URL and QR code data
+        const verificationUrl = generateVerificationUrl(courtCard.id);
+        const qrCodeData = generateQRCodeData(courtCard.id, courtCard.cardNumber, courtCard.cardHash);
+
+        // Update court card
+        await prisma.courtCard.update({
+          where: { id: courtCard.id },
+          data: {
+            verificationUrl,
+            qrCodeData,
+          },
+        });
+
+        updatedCards.push({
+          cardNumber: courtCard.cardNumber,
+          verificationUrl,
+        });
+
+        logger.info(`Updated QR code for: ${courtCard.cardNumber}`);
+      } catch (error: any) {
+        logger.error(`Failed to update QR code for ${courtCard.cardNumber}: ${error.message}`);
+        failed++;
+      }
+    }
+
+    logger.info(`Updated ${updatedCards.length} court cards with QR codes (${failed} failed)`);
+
+    res.json({
+      success: true,
+      message: `Updated ${updatedCards.length} court cards with QR codes`,
+      data: {
+        updated: updatedCards.length,
+        failed,
+        cards: updatedCards,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Update QR codes error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
  * POST /api/court-rep/admin/fix-stale-meetings
  * Fix attendance records stuck in IN_PROGRESS status
  * ADMIN ONLY - for fixing stale meetings that never completed

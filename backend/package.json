@@ -19,6 +19,7 @@
     "db:clear-attendance": "tsx scripts/clear-attendance-data.ts",
     "fix-stale-meetings": "tsx scripts/fix-stale-meetings.ts",
     "force-refresh-db": "tsx scripts/force-refresh-db.ts",
+    "update-qr-codes": "tsx scripts/update-court-card-qr-codes.ts",
     "redeploy": "bash scripts/trigger-redeploy.sh",
     "migrate:v2": "tsx scripts/migrate-to-v2.ts",
     "seed": "npm run db:seed",
