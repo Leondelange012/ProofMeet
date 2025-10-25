@@ -298,6 +298,10 @@ model CourtCard {
   cardHash              String           @unique @map("card_hash") // SHA-256 for integrity
   isTampered            Boolean          @default(false) @map("is_tampered")
   
+  // Verification
+  verificationUrl       String?          @map("verification_url") @db.Text
+  qrCodeData            String?          @map("qr_code_data") @db.Text
+  
   // Export
   pdfUrl                String?          @map("pdf_url") @db.Text
   pdfGeneratedAt        DateTime?        @map("pdf_generated_at")

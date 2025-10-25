@@ -431,6 +431,18 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         cardHash,
       },
     });
+    
+    // Update court card with verification URL and QR code data (now that we have the real ID)
+    const updatedVerificationUrl = generateVerificationUrl(courtCard.id);
+    const updatedQRCodeData = generateQRCodeData(courtCard.id, cardNumber, cardHash);
+    
+    await prisma.courtCard.update({
+      where: { id: courtCard.id },
+      data: {
+        verificationUrl: updatedVerificationUrl,
+        qrCodeData: updatedQRCodeData,
+      },
+    });
 
     // Create automatic system signature (system-generated verification)
     const systemSignature = await signCourtCard({
@@ -453,10 +465,6 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       return null;
     });
 
-    // Update court card with verification data
-    const updatedVerificationUrl = generateVerificationUrl(courtCard.id);
-    const updatedQRCodeData = generateQRCodeData(courtCard.id, cardNumber, cardHash);
-    
     // Update attendance record
     await prisma.attendanceRecord.update({
       where: { id: attendanceRecordId },
@@ -513,12 +521,15 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       },
     });
 
+    // Fetch the updated court card with verification data
+    const finalCourtCard = await prisma.courtCard.findUnique({
+      where: { id: courtCard.id },
+    });
+    
     return {
-      ...courtCard,
+      ...finalCourtCard,
       totalHoursCompleted,
       allMeetingIds,
-      verificationUrl: updatedVerificationUrl,
-      qrCodeData: updatedQRCodeData,
       chainOfTrust,
       signatures: systemSignature ? [systemSignature] : [],
       timestamp,

@@ -988,13 +988,10 @@ router.get('/my-court-card-pdf', async (req: Request, res: Response) => {
         validationStatus: (m.courtCard as any)?.validationStatus || 'PENDING',
       })),
       // Include court card data for QR code and verification
-      cardNumber: (mostRecentCourtCard as any)?.cardNumber,
-      verificationUrl: mostRecentCourtCard ? 
-        `${process.env.FRONTEND_URL || 'https://proof-meet-frontend.vercel.app'}/verify/${mostRecentCourtCard.id}` : 
-        undefined,
-      qrCodeData: (mostRecentCourtCard as any)?.qrCodeData,
-      cardHash: (mostRecentCourtCard as any)?.cardHash,
-      signatures: (mostRecentCourtCard as any)?.signatures,
+      cardNumber: mostRecentCourtCard?.cardNumber,
+      verificationUrl: mostRecentCourtCard?.verificationUrl,
+      qrCodeData: mostRecentCourtCard?.qrCodeData,
+      cardHash: mostRecentCourtCard?.cardHash,
       generatedDate: new Date(),
     };
 
