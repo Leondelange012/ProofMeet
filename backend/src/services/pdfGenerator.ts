@@ -22,6 +22,32 @@ interface DigitalSignatureInfo {
   signatureMethod: string;
 }
 
+interface WebcamSnapshot {
+  id: string;
+  photoUrl: string;
+  capturedAt: Date;
+  minuteIntoMeeting: number;
+  faceDetected?: boolean;
+  faceMatchScore?: number;
+}
+
+interface HostSignature {
+  hostName: string;
+  hostEmail: string;
+  hostRole: string;
+  signatureData: string; // Base64 image
+  confirmedAt: Date;
+  attestationText: string;
+  meetingLocation?: string;
+}
+
+interface ParticipantIDPhoto {
+  photoUrl: string;
+  isVerified: boolean;
+  verifiedAt?: Date;
+  idType?: string;
+}
+
 interface CourtCardPDFData {
   participantName: string;
   participantEmail: string;
@@ -40,6 +66,10 @@ interface CourtCardPDFData {
   signatures?: DigitalSignatureInfo[];
   cardHash?: string;
   chainPosition?: number;
+  // Photo verification fields
+  webcamSnapshots?: WebcamSnapshot[];
+  hostSignature?: HostSignature;
+  participantIDPhoto?: ParticipantIDPhoto;
 }
 
 /**
@@ -400,6 +430,110 @@ export async function generateCourtCardHTML(data: CourtCardPDFData): Promise<str
       </ol>
     </div>
   </div>
+
+  ${data.participantIDPhoto ? `
+  <!-- Participant ID Photo Section -->
+  <div style="background-color: #e8f5e9; padding: 20px; border-radius: 8px; border-left: 5px solid #4caf50; margin-top: 30px;">
+    <h2 style="color: #2e7d32; font-size: 18px; margin-bottom: 15px;">
+      🆔 Identity Verification
+    </h2>
+    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px; align-items: center;">
+      <div style="text-align: center;">
+        <img src="${data.participantIDPhoto.photoUrl}" alt="Participant ID Photo" style="max-width: 200px; max-height: 250px; border: 2px solid #4caf50; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />
+      </div>
+      <div>
+        <p style="margin-bottom: 10px;"><strong>Participant:</strong> ${data.participantName}</p>
+        ${data.participantIDPhoto.idType ? `<p style="margin-bottom: 10px;"><strong>ID Type:</strong> ${data.participantIDPhoto.idType}</p>` : ''}
+        <p style="margin-bottom: 10px;">
+          <strong>Verification Status:</strong>
+          <span style="color: ${data.participantIDPhoto.isVerified ? 'green' : 'orange'}; font-weight: bold;">
+            ${data.participantIDPhoto.isVerified ? '✓ Verified' : 'Pending Verification'}
+          </span>
+        </p>
+        ${data.participantIDPhoto.isVerified && data.participantIDPhoto.verifiedAt ? `
+        <p style="margin-bottom: 10px; font-size: 12px; color: #666;">
+          Verified on: ${new Date(data.participantIDPhoto.verifiedAt).toLocaleDateString()}
+        </p>
+        ` : ''}
+        <p style="margin-top: 15px; font-size: 12px; color: #555; padding: 10px; background-color: white; border-radius: 5px;">
+          ℹ️ This photo was submitted by the participant and compared against meeting attendance photos to ensure identity consistency.
+        </p>
+      </div>
+    </div>
+  </div>
+  ` : ''}
+
+  ${data.webcamSnapshots && data.webcamSnapshots.length > 0 ? `
+  <!-- Webcam Snapshots Section -->
+  <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; border-left: 5px solid #2196f3; margin-top: 30px;">
+    <h2 style="color: #1565c0; font-size: 18px; margin-bottom: 15px;">
+      📸 Meeting Attendance Photos (${data.webcamSnapshots.length} captured)
+    </h2>
+    <p style="margin-bottom: 15px; font-size: 13px; color: #555;">
+      Photos were automatically captured during the meeting to verify attendance and identity.
+    </p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px;">
+      ${data.webcamSnapshots.slice(0, 6).map(snapshot => `
+        <div style="background-color: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+          <img src="${snapshot.photoUrl}" alt="Webcam snapshot" style="width: 100%; height: 150px; object-fit: cover; border-radius: 5px; margin-bottom: 8px;" />
+          <p style="font-size: 11px; color: #666; margin-bottom: 3px;">
+            ${new Date(snapshot.capturedAt).toLocaleTimeString()}
+          </p>
+          <p style="font-size: 10px; color: #999;">
+            ${snapshot.minuteIntoMeeting} min into meeting
+          </p>
+          ${snapshot.faceDetected ? `
+          <p style="font-size: 10px; color: green; margin-top: 5px;">
+            ✓ Face detected
+            ${snapshot.faceMatchScore ? ` (${snapshot.faceMatchScore}% match)` : ''}
+          </p>
+          ` : ''}
+        </div>
+      `).join('')}
+    </div>
+    ${data.webcamSnapshots.length > 6 ? `
+    <p style="margin-top: 15px; font-size: 12px; color: #666; text-align: center;">
+      + ${data.webcamSnapshots.length - 6} more photo(s) available in online verification
+    </p>
+    ` : ''}
+  </div>
+  ` : ''}
+
+  ${data.hostSignature ? `
+  <!-- Meeting Host Signature Section -->
+  <div style="background-color: #f3e5f5; padding: 20px; border-radius: 8px; border-left: 5px solid #9c27b0; margin-top: 30px;">
+    <h2 style="color: #6a1b9a; font-size: 18px; margin-bottom: 15px;">
+      ✍️ Meeting Host Confirmation
+    </h2>
+    <div style="background-color: white; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+        <div>
+          <p style="margin-bottom: 8px;"><strong>Host Name:</strong> ${data.hostSignature.hostName}</p>
+          <p style="margin-bottom: 8px;"><strong>Email:</strong> ${data.hostSignature.hostEmail}</p>
+          <p style="margin-bottom: 8px;"><strong>Role:</strong> ${data.hostSignature.hostRole.replace(/_/g, ' ')}</p>
+        </div>
+        <div>
+          <p style="margin-bottom: 8px;"><strong>Confirmed:</strong> ${new Date(data.hostSignature.confirmedAt).toLocaleString()}</p>
+          ${data.hostSignature.meetingLocation ? `<p style="margin-bottom: 8px;"><strong>Location:</strong> ${data.hostSignature.meetingLocation}</p>` : ''}
+        </div>
+      </div>
+      <div style="border-top: 1px solid #e0e0e0; padding-top: 15px; margin-bottom: 15px;">
+        <p style="font-size: 12px; color: #555; font-style: italic; line-height: 1.5;">
+          "${data.hostSignature.attestationText}"
+        </p>
+      </div>
+      <div style="text-align: center; padding: 20px; background-color: #fafafa; border-radius: 5px;">
+        <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Digital Signature:</p>
+        <img src="${data.hostSignature.signatureData}" alt="Host Signature" style="max-width: 300px; max-height: 100px; border: 1px solid #ddd; padding: 10px; background-color: white;" />
+      </div>
+    </div>
+    <div style="padding: 12px; background-color: white; border-radius: 5px; border: 1px solid #9c27b0;">
+      <p style="font-size: 11px; color: #555;">
+        <strong>Note:</strong> This meeting host digitally confirmed the participant's attendance. The signature is legally binding and verifiable through the verification URL above.
+      </p>
+    </div>
+  </div>
+  ` : ''}
 
   <!-- Footer -->
   <div class="footer">

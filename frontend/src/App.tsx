@@ -17,6 +17,7 @@ import CompliancePage from './pages/CompliancePage';
 import ActiveMeetingPage from './pages/ActiveMeetingPage';
 import VerificationPage from './pages/VerificationPage';
 import PublicVerificationSearchPage from './pages/PublicVerificationSearchPage';
+import HostSignaturePage from './pages/HostSignaturePage';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -307,6 +308,7 @@ function App() {
               {/* Public Verification Routes - No Auth Required */}
               <Route path="/verify/search" element={<PublicVerificationSearchPage />} />
               <Route path="/verify/:courtCardId" element={<VerificationPage />} />
+              <Route path="/host-signature/:attendanceRecordId" element={<HostSignaturePage />} />
               
               {/* Public routes */}
               <Route 

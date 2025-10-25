@@ -266,7 +266,7 @@ async function getAllMeetingIds(participantId: string): Promise<string[]> {
  */
 export async function generateCourtCard(attendanceRecordId: string): Promise<any> {
   try {
-    // Get attendance record with all related data
+    // Get attendance record with all related data including photos and signatures
     const attendance = await prisma.attendanceRecord.findUnique({
       where: { id: attendanceRecordId },
       include: {
@@ -290,6 +290,31 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
           select: {
             id: true,
             durationMinutes: true,
+          },
+        },
+        webcamSnapshots: {
+          select: {
+            id: true,
+            photoUrl: true,
+            capturedAt: true,
+            minuteIntoMeeting: true,
+            faceDetected: true,
+            faceMatchScore: true,
+          },
+          orderBy: {
+            capturedAt: 'asc',
+          },
+        },
+        hostSignature: {
+          select: {
+            id: true,
+            hostName: true,
+            hostEmail: true,
+            hostRole: true,
+            signatureData: true,
+            confirmedAt: true,
+            attestationText: true,
+            meetingLocation: true,
           },
         },
       },
@@ -476,6 +501,18 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       );
     }
 
+    // Get participant ID photo if available
+    const idPhoto = await prisma.participantIDPhoto.findUnique({
+      where: { participantId: attendance.participant.id },
+      select: {
+        id: true,
+        photoUrl: true,
+        isVerified: true,
+        verifiedAt: true,
+        idType: true,
+      },
+    });
+
     return {
       ...courtCard,
       totalHoursCompleted,
@@ -485,6 +522,10 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       chainOfTrust,
       signatures: systemSignature ? [systemSignature] : [],
       timestamp,
+      // Include verification photos and signatures
+      webcamSnapshots: attendance.webcamSnapshots || [],
+      hostSignature: attendance.hostSignature || null,
+      participantIDPhoto: idPhoto || null,
     };
   } catch (error: any) {
     logger.error('Court Card generation error:', error);
@@ -561,6 +602,33 @@ export async function getCourtCard(attendanceRecordId: string): Promise<any> {
         select: {
           participantId: true,
         },
+        include: {
+          webcamSnapshots: {
+            select: {
+              id: true,
+              photoUrl: true,
+              capturedAt: true,
+              minuteIntoMeeting: true,
+              faceDetected: true,
+              faceMatchScore: true,
+            },
+            orderBy: {
+              capturedAt: 'asc',
+            },
+          },
+          hostSignature: {
+            select: {
+              id: true,
+              hostName: true,
+              hostEmail: true,
+              hostRole: true,
+              signatureData: true,
+              confirmedAt: true,
+              attestationText: true,
+              meetingLocation: true,
+            },
+          },
+        },
       },
     },
   });
@@ -576,11 +644,26 @@ export async function getCourtCard(attendanceRecordId: string): Promise<any> {
   const totalHoursCompleted = await calculateTotalHours(courtCard.attendanceRecord.participantId);
   const allMeetingIds = await getAllMeetingIds(courtCard.attendanceRecord.participantId);
 
+  // Get participant ID photo
+  const idPhoto = await prisma.participantIDPhoto.findUnique({
+    where: { participantId: courtCard.attendanceRecord.participantId },
+    select: {
+      id: true,
+      photoUrl: true,
+      isVerified: true,
+      verifiedAt: true,
+      idType: true,
+    },
+  });
+
   return {
     ...courtCard,
     isValid,
     totalHoursCompleted,
     allMeetingIds,
+    webcamSnapshots: (courtCard as any).attendanceRecord?.webcamSnapshots || [],
+    hostSignature: (courtCard as any).attendanceRecord?.hostSignature || null,
+    participantIDPhoto: idPhoto || null,
   };
 }
 
