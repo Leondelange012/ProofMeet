@@ -139,7 +139,7 @@ export function generateQRCodeData(
   cardNumber: string,
   verificationHash: string
 ): string {
-  const baseUrl = process.env.FRONTEND_URL || 'https://proofmeet.vercel.app';
+  const baseUrl = process.env.FRONTEND_URL || 'https://proof-meet-frontend.vercel.app';
   const verificationUrl = `${baseUrl}/verify/${courtCardId}`;
   
   // QR code contains URL and verification hash for offline validation
@@ -156,7 +156,7 @@ export function generateQRCodeData(
  * Generate verification URL for court card
  */
 export function generateVerificationUrl(courtCardId: string): string {
-  const baseUrl = process.env.FRONTEND_URL || 'https://proofmeet.vercel.app';
+  const baseUrl = process.env.FRONTEND_URL || 'https://proof-meet-frontend.vercel.app';
   return `${baseUrl}/verify/${courtCardId}`;
 }
 
