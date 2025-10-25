@@ -18,6 +18,8 @@
     "db:studio": "npx prisma studio",
     "db:clear-attendance": "tsx scripts/clear-attendance-data.ts",
     "fix-stale-meetings": "tsx scripts/fix-stale-meetings.ts",
+    "force-refresh-db": "tsx scripts/force-refresh-db.ts",
+    "redeploy": "bash scripts/trigger-redeploy.sh",
     "migrate:v2": "tsx scripts/migrate-to-v2.ts",
     "seed": "npm run db:seed",
     "test": "jest",
