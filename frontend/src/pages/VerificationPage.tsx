@@ -38,7 +38,7 @@ import {
   Security as SecurityIcon,
 } from '@mui/icons-material';
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+const API_URL = (import.meta as any).env?.VITE_API_BASE_URL?.replace('/api', '') || 'https://proofmeet-backend-production.up.railway.app';
 
 interface VerificationData {
   isValid: boolean;
