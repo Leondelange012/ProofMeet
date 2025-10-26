@@ -531,7 +531,7 @@ You'll receive from the **Court Rep:**
 5. Note the time it happened
 
 **Contact Information:**
-- Email: [Your support email]
+- Email: leondelange001@gmail.com | Kevinrichardson.za@gmail.com
 - Include: Screenshots, error messages, steps to reproduce
 
 ### Expected Response Times:
