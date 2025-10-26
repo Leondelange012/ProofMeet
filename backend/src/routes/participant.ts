@@ -1014,6 +1014,137 @@ router.get('/my-court-card-pdf', async (req: Request, res: Response) => {
 });
 
 // ============================================
+// COURT CARD SIGNING
+// ============================================
+
+/**
+ * POST /api/participant/sign-court-card/:courtCardId
+ * Participant manually signs their court card
+ * Requires password confirmation for authenticity
+ */
+router.post(
+  '/sign-court-card/:courtCardId',
+  [
+    body('password').isString().notEmpty(),
+    body('confirmText').optional().isString(),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      const participantId = req.user!.id;
+      const { courtCardId } = req.params;
+      const { password, confirmText } = req.body;
+
+      // Get court card
+      const courtCard = await prisma.courtCard.findUnique({
+        where: { id: courtCardId },
+        include: {
+          attendanceRecord: {
+            select: {
+              participantId: true,
+            },
+          },
+        },
+      });
+
+      if (!courtCard) {
+        return res.status(404).json({
+          success: false,
+          error: 'Court card not found',
+        });
+      }
+
+      // Verify court card belongs to this participant
+      if (courtCard.attendanceRecord.participantId !== participantId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Unauthorized to sign this court card',
+        });
+      }
+
+      // Verify password
+      const bcrypt = await import('bcryptjs');
+      const participant = await prisma.user.findUnique({
+        where: { id: participantId },
+        select: { password: true, firstName: true, lastName: true },
+      });
+
+      if (!participant) {
+        return res.status(404).json({
+          success: false,
+          error: 'Participant not found',
+        });
+      }
+
+      const passwordValid = await bcrypt.compare(password, participant.password);
+      if (!passwordValid) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid password',
+        });
+      }
+
+      // Check if already signed by participant
+      const existingSignatures = (courtCard.signatures || []) as any[];
+      const alreadySigned = existingSignatures.some((sig: any) => 
+        sig.signerId === participantId && sig.signerRole === 'PARTICIPANT'
+      );
+
+      if (alreadySigned) {
+        return res.status(400).json({
+          success: false,
+          error: 'You have already signed this court card',
+        });
+      }
+
+      // Import signature function
+      const { signCourtCard } = await import('../services/digitalSignatureService');
+
+      // Create participant signature
+      const signature = await signCourtCard({
+        courtCardId,
+        signerId: participantId,
+        signerRole: 'PARTICIPANT',
+        authMethod: 'PASSWORD',
+        metadata: {
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+        },
+      });
+
+      logger.info(`Participant ${req.user!.email} signed court card ${courtCard.cardNumber}`);
+
+      res.json({
+        success: true,
+        message: 'Court card signed successfully',
+        data: {
+          signature: {
+            signerName: signature.signerName,
+            timestamp: signature.timestamp,
+            method: signature.signatureMethod,
+          },
+          confirmationText: confirmText || `I, ${participant.firstName} ${participant.lastName}, confirm that I attended this meeting and that the attendance record is accurate.`,
+        },
+      });
+    } catch (error: any) {
+      logger.error('Sign court card error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Internal server error',
+      });
+    }
+  }
+);
+
+// ============================================
 // ACTIVITY TRACKING (SCREEN ACTIVITY)
 // ============================================
 

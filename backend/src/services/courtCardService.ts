@@ -444,21 +444,6 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       },
     });
 
-    // Create automatic system signature (system-generated verification)
-    const systemSignature = await signCourtCard({
-      courtCardId: courtCard.id,
-      signerId: attendance.courtRepId, // Signed by court rep's system account
-      signerRole: 'COURT_REP',
-      authMethod: 'SYSTEM_GENERATED',
-      metadata: {
-        ipAddress: 'SYSTEM',
-        userAgent: 'ProofMeet-Server/2.0',
-      },
-    }).catch(err => {
-      logger.error(`Failed to create system signature: ${err.message}`);
-      return null;
-    });
-
     // Create trusted timestamp
     const timestamp = await createTrustedTimestamp(courtCard.id, cardHash).catch(err => {
       logger.error(`Failed to create timestamp: ${err.message}`);
@@ -485,16 +470,9 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       validationStatus
     );
 
-    // Log system signature in audit trail
-    if (systemSignature) {
-      await logDigitalSignature(
-        courtCard.id,
-        attendance.courtRepId,
-        attendance.courtRep.email,
-        'COURT_REP',
-        'SYSTEM_GENERATED'
-      );
-    }
+    logger.info(
+      `Court Card generated without signatures: ${cardNumber} - Participant and host must sign manually`
+    );
 
     logger.info(
       `Court Card generated: ${cardNumber} for participant ${cardData.participantEmail} - Status: ${validationStatus}`
@@ -531,7 +509,7 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       totalHoursCompleted,
       allMeetingIds,
       chainOfTrust,
-      signatures: systemSignature ? [systemSignature] : [],
+      signatures: [], // Empty - participant and host must sign manually
       timestamp,
       // Include verification photos and signatures
       webcamSnapshots: attendance.webcamSnapshots || [],

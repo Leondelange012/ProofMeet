@@ -1528,6 +1528,114 @@ router.post('/admin/regenerate-signatures', async (req: Request, res: Response) 
 });
 
 /**
+ * POST /api/court-rep/approve-court-card/:courtCardId
+ * Court rep reviews and approves/rejects a court card
+ */
+router.post('/approve-court-card/:courtCardId', [
+  body('approved').isBoolean(),
+  body('notes').optional().isString(),
+], async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+
+    const courtRepId = req.user!.id;
+    const { courtCardId } = req.params;
+    const { approved, notes } = req.body;
+
+    // Get court card
+    const courtCard = await prisma.courtCard.findUnique({
+      where: { id: courtCardId },
+      include: {
+        attendanceRecord: {
+          select: {
+            courtRepId: true,
+            participantId: true,
+          },
+        },
+      },
+    });
+
+    if (!courtCard) {
+      return res.status(404).json({
+        success: false,
+        error: 'Court card not found',
+      });
+    }
+
+    // Verify this is the court card's assigned court rep
+    if (courtCard.attendanceRecord.courtRepId !== courtRepId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized to approve this court card',
+      });
+    }
+
+    // Get current signatures
+    const signatures = (courtCard.signatures || []) as any[];
+    const hasParticipantSignature = signatures.some((sig: any) => sig.signerRole === 'PARTICIPANT');
+    const hasHostSignature = signatures.some((sig: any) => sig.signerRole === 'MEETING_HOST');
+
+    // Warn if signatures are missing
+    const warnings: string[] = [];
+    if (!hasParticipantSignature) {
+      warnings.push('Participant signature is missing');
+    }
+    if (!hasHostSignature) {
+      warnings.push('Meeting host signature is missing');
+    }
+
+    // Update court card with approval status
+    const updatedCard = await prisma.courtCard.update({
+      where: { id: courtCardId },
+      data: {
+        // Store approval metadata in a separate field we'll add to schema
+        // For now, we'll add it to violations as a workaround
+        violations: [
+          ...((courtCard.violations as any) || []),
+          {
+            type: 'COURT_REP_REVIEW',
+            message: approved ? 'Approved by court representative' : 'Needs revision',
+            severity: approved ? 'INFO' : 'WARNING',
+            timestamp: new Date().toISOString(),
+            reviewer: req.user!.email,
+            notes: notes || '',
+            warnings,
+          },
+        ] as any,
+      },
+    });
+
+    logger.info(
+      `Court Rep ${req.user!.email} ${approved ? 'approved' : 'rejected'} court card ${courtCard.cardNumber}`
+    );
+
+    res.json({
+      success: true,
+      message: approved ? 'Court card approved successfully' : 'Court card marked for revision',
+      data: {
+        courtCardId,
+        approved,
+        reviewedAt: new Date(),
+        warnings,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Approve court card error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
  * POST /api/court-rep/admin/fix-stale-meetings
  * Fix attendance records stuck in IN_PROGRESS status
  * ADMIN ONLY - for fixing stale meetings that never completed
