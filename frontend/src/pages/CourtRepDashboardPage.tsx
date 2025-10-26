@@ -68,10 +68,6 @@ const CourtRepDashboardPage: React.FC = () => {
   // Test meetings management
   const [testMeetings, setTestMeetings] = useState<any[]>([]);
   const [showTestMeetings, setShowTestMeetings] = useState(false);
-  const [fixingStale, setFixingStale] = useState(false);
-  const [regeneratingCards, setRegeneratingCards] = useState(false);
-  const [updatingQRCodes, setUpdatingQRCodes] = useState(false);
-  const [regeneratingSignatures, setRegeneratingSignatures] = useState(false);
 
   const loadDashboard = async () => {
     try {
@@ -271,121 +267,6 @@ const CourtRepDashboardPage: React.FC = () => {
     }
   };
 
-  const fixStaleMeetings = async () => {
-    if (!confirm('This will fix any meetings stuck in IN_PROGRESS status. Continue?')) {
-      return;
-    }
-
-    try {
-      setFixingStale(true);
-      const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.post(`${API_BASE_URL}/court-rep/admin/fix-stale-meetings`, {}, { headers });
-      
-      if (response.data.success) {
-        setSnackbar({
-          open: true,
-          message: `Fixed ${response.data.data.fixed} stale meetings`,
-          severity: 'success',
-        });
-        loadDashboard(); // Reload to show updated data
-      }
-    } catch (error: any) {
-      setSnackbar({
-        open: true,
-        message: error.response?.data?.error || 'Failed to fix stale meetings',
-        severity: 'error',
-      });
-    } finally {
-      setFixingStale(false);
-    }
-  };
-
-  const regenerateCourtCards = async () => {
-    if (!confirm('This will generate court cards for any completed meetings that are missing them. Continue?')) {
-      return;
-    }
-
-    try {
-      setRegeneratingCards(true);
-      const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.post(`${API_BASE_URL}/court-rep/admin/regenerate-court-cards`, {}, { headers });
-      
-      if (response.data.success) {
-        setSnackbar({
-          open: true,
-          message: `Generated ${response.data.data.generated} court cards`,
-          severity: 'success',
-        });
-        loadDashboard(); // Reload to show updated data
-      }
-    } catch (error: any) {
-      setSnackbar({
-        open: true,
-        message: error.response?.data?.error || 'Failed to regenerate court cards',
-        severity: 'error',
-      });
-    } finally {
-      setRegeneratingCards(false);
-    }
-  };
-
-  const updateQRCodes = async () => {
-    if (!confirm('This will update existing court cards with QR codes and verification URLs. Continue?')) {
-      return;
-    }
-
-    try {
-      setUpdatingQRCodes(true);
-      const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.post(`${API_BASE_URL}/court-rep/admin/update-qr-codes`, {}, { headers });
-      
-      if (response.data.success) {
-        setSnackbar({
-          open: true,
-          message: `Updated ${response.data.data.updated} court cards with QR codes`,
-          severity: 'success',
-        });
-        loadDashboard(); // Reload to show updated data
-      }
-    } catch (error: any) {
-      setSnackbar({
-        open: true,
-        message: error.response?.data?.error || 'Failed to update QR codes',
-        severity: 'error',
-      });
-    } finally {
-      setUpdatingQRCodes(false);
-    }
-  };
-
-  const regenerateSignatures = async () => {
-    if (!confirm('This will add digital signatures to court cards that are missing them. Continue?')) {
-      return;
-    }
-
-    try {
-      setRegeneratingSignatures(true);
-      const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.post(`${API_BASE_URL}/court-rep/admin/regenerate-signatures`, {}, { headers });
-      
-      if (response.data.success) {
-        setSnackbar({
-          open: true,
-          message: `Added signatures to ${response.data.data.signed} court cards`,
-          severity: 'success',
-        });
-        loadDashboard(); // Reload to show updated data
-      }
-    } catch (error: any) {
-      setSnackbar({
-        open: true,
-        message: error.response?.data?.error || 'Failed to regenerate signatures',
-        severity: 'error',
-      });
-    } finally {
-      setRegeneratingSignatures(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -434,43 +315,12 @@ const CourtRepDashboardPage: React.FC = () => {
             {showTestMeetings ? 'Hide' : 'Manage'} Test Meetings
           </Button>
           <Button
-            variant="outlined"
+            variant="contained"
             color="success"
-            onClick={regenerateCourtCards}
-            disabled={regeneratingCards}
-          >
-            {regeneratingCards ? 'Generating...' : 'Generate Court Cards'}
-          </Button>
-          <Button
-            variant="outlined"
-            color="info"
-            onClick={updateQRCodes}
-            disabled={updatingQRCodes}
-          >
-            {updatingQRCodes ? 'Updating...' : 'Update QR Codes'}
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={regenerateSignatures}
-            disabled={regeneratingSignatures}
-          >
-            {regeneratingSignatures ? 'Signing...' : 'Add Signatures'}
-          </Button>
-          <Button
-            variant="outlined"
-            color="warning"
-            onClick={fixStaleMeetings}
-            disabled={fixingStale}
-          >
-            {fixingStale ? 'Fixing...' : 'Fix Stale Meetings'}
-          </Button>
-          <Button
-            variant="outlined"
             startIcon={<Refresh />}
             onClick={loadDashboard}
           >
-            Refresh
+            Sync Latest Data
           </Button>
         </Box>
       </Box>
