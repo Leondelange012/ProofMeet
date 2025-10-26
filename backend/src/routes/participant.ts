@@ -1074,7 +1074,7 @@ router.post(
       const bcrypt = await import('bcryptjs');
       const participant = await prisma.user.findUnique({
         where: { id: participantId },
-        select: { password: true, firstName: true, lastName: true },
+        select: { passwordHash: true, firstName: true, lastName: true },
       });
 
       if (!participant) {
@@ -1084,7 +1084,7 @@ router.post(
         });
       }
 
-      const passwordValid = await bcrypt.compare(password, participant.password);
+      const passwordValid = await bcrypt.compare(password, participant.passwordHash);
       if (!passwordValid) {
         return res.status(401).json({
           success: false,
