@@ -32,7 +32,6 @@ import {
   Refresh,
   CalendarToday,
   Draw as SignatureIcon,
-  Email as EmailIcon,
   Verified as VerifiedIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -40,7 +39,6 @@ import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import { useWebSocketConnection, useWebSocketEvents } from '../hooks/useWebSocket';
 import axios from 'axios';
 import SignCourtCardDialog from '../components/SignCourtCardDialog';
-import RequestHostSignatureDialog from '../components/RequestHostSignatureDialog';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
@@ -55,7 +53,6 @@ const ParticipantProgressPage: React.FC = () => {
   
   // Signing dialogs
   const [signDialogOpen, setSignDialogOpen] = useState(false);
-  const [requestHostDialogOpen, setRequestHostDialogOpen] = useState(false);
   const [selectedCourtCard, setSelectedCourtCard] = useState<any>(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
@@ -149,35 +146,20 @@ const ParticipantProgressPage: React.FC = () => {
     loadProgress(); // Reload to show updated signature status
   };
 
-  const handleRequestHostSuccess = () => {
-    setSnackbar({
-      open: true,
-      message: 'Host signature request sent successfully!',
-      severity: 'success',
-    });
-    loadProgress();
-  };
-
   const openSignDialog = (courtCard: any) => {
     setSelectedCourtCard(courtCard);
     setSignDialogOpen(true);
   };
 
-  const openRequestHostDialog = (courtCard: any) => {
-    setSelectedCourtCard(courtCard);
-    setRequestHostDialogOpen(true);
-  };
-
   const getSignatureStatus = (courtCard: any) => {
     if (!courtCard || !courtCard.courtCard) {
-      return { participantSigned: false, hostSigned: false };
+      return { participantSigned: false };
     }
 
     const signatures = courtCard.courtCard.signatures || [];
     const participantSigned = signatures.some((sig: any) => sig.signerRole === 'PARTICIPANT');
-    const hostSigned = signatures.some((sig: any) => sig.signerRole === 'MEETING_HOST');
 
-    return { participantSigned, hostSigned };
+    return { participantSigned };
   };
 
   if (loading) {
@@ -382,7 +364,7 @@ const ParticipantProgressPage: React.FC = () => {
                 </TableHead>
                 <TableBody>
                   {recentAttendance.map((record: any) => {
-                    const { participantSigned, hostSigned } = getSignatureStatus(record);
+                    const { participantSigned } = getSignatureStatus(record);
                     
                     return (
                     <TableRow key={record.id} hover>
@@ -436,49 +418,25 @@ const ParticipantProgressPage: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Box sx={{ display: 'flex', gap: 0.5, flexDirection: 'column' }}>
-                          <Chip
-                            icon={participantSigned ? <VerifiedIcon /> : undefined}
-                            label={participantSigned ? 'You Signed' : 'Not Signed'}
-                            size="small"
-                            color={participantSigned ? 'success' : 'default'}
-                            variant={participantSigned ? 'filled' : 'outlined'}
-                          />
-                          <Chip
-                            icon={hostSigned ? <VerifiedIcon /> : undefined}
-                            label={hostSigned ? 'Host Signed' : 'No Host'}
-                            size="small"
-                            color={hostSigned ? 'success' : 'default'}
-                            variant={hostSigned ? 'filled' : 'outlined'}
-                          />
-                        </Box>
+                        <Chip
+                          icon={participantSigned ? <VerifiedIcon /> : undefined}
+                          label={participantSigned ? 'You Signed' : 'Not Signed'}
+                          size="small"
+                          color={participantSigned ? 'success' : 'default'}
+                          variant={participantSigned ? 'filled' : 'outlined'}
+                        />
                       </TableCell>
                       <TableCell>
-                        {record.status === 'COMPLETED' && record.courtCard && (
-                          <Box sx={{ display: 'flex', gap: 0.5 }}>
-                            {!participantSigned && (
-                              <Tooltip title="Sign this court card">
-                                <IconButton
-                                  size="small"
-                                  color="primary"
-                                  onClick={() => openSignDialog(record)}
-                                >
-                                  <SignatureIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            {!hostSigned && (
-                              <Tooltip title="Request host signature">
-                                <IconButton
-                                  size="small"
-                                  color="secondary"
-                                  onClick={() => openRequestHostDialog(record)}
-                                >
-                                  <EmailIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </Box>
+                        {record.status === 'COMPLETED' && record.courtCard && !participantSigned && (
+                          <Tooltip title="Sign this court card">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => openSignDialog(record)}
+                            >
+                              <SignatureIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         )}
                       </TableCell>
                     </TableRow>
@@ -537,25 +495,14 @@ const ParticipantProgressPage: React.FC = () => {
 
       {/* Signing Dialogs */}
       {selectedCourtCard && (
-        <>
-          <SignCourtCardDialog
-            open={signDialogOpen}
-            courtCardId={selectedCourtCard.courtCard?.id || ''}
-            courtCardNumber={selectedCourtCard.courtCard?.cardNumber || ''}
-            onClose={() => setSignDialogOpen(false)}
-            onSuccess={handleSignSuccess}
-            token={token || ''}
-          />
-
-          <RequestHostSignatureDialog
-            open={requestHostDialogOpen}
-            attendanceRecordId={selectedCourtCard.id}
-            meetingName={selectedCourtCard.meetingName}
-            onClose={() => setRequestHostDialogOpen(false)}
-            onSuccess={handleRequestHostSuccess}
-            token={token || ''}
-          />
-        </>
+        <SignCourtCardDialog
+          open={signDialogOpen}
+          courtCardId={selectedCourtCard.courtCard?.id || ''}
+          courtCardNumber={selectedCourtCard.courtCard?.cardNumber || ''}
+          onClose={() => setSignDialogOpen(false)}
+          onSuccess={handleSignSuccess}
+          token={token || ''}
+        />
       )}
 
       {/* Snackbar for notifications */}

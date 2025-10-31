@@ -120,6 +120,9 @@ const CourtRepDashboardPage: React.FC = () => {
   // Test meetings management
   const [testMeetings, setTestMeetings] = useState<any[]>([]);
   const [showTestMeetings, setShowTestMeetings] = useState(false);
+  
+  // Pending reasons state
+  const [expandedPendingReasons, setExpandedPendingReasons] = useState<string | null>(null);
 
   const loadDashboard = async (isBackgroundRefresh = false) => {
     try {
@@ -297,6 +300,39 @@ const CourtRepDashboardPage: React.FC = () => {
     }
   };
 
+  const regenerateMissingCourtCards = async () => {
+    if (!confirm('This will generate court cards for all completed meetings that are missing them. Continue?')) {
+      return;
+    }
+    
+    try {
+      setRefreshing(true);
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.post(
+        `${API_BASE_URL}/court-rep/admin/regenerate-court-cards`,
+        {},
+        { headers }
+      );
+
+      if (response.data.success) {
+        setSnackbar({
+          open: true,
+          message: `Generated ${response.data.data.generated} court card(s)`,
+          severity: 'success',
+        });
+        await loadDashboard(true); // Reload data
+      }
+    } catch (error: any) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.error || 'Failed to regenerate court cards',
+        severity: 'error',
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const loadTestMeetings = async () => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
@@ -383,6 +419,14 @@ const CourtRepDashboardPage: React.FC = () => {
               }}
             >
               {showTestMeetings ? 'Hide' : 'Manage'} Test Meetings
+            </Button>
+            <Button
+              variant="outlined"
+              color="warning"
+              onClick={regenerateMissingCourtCards}
+              disabled={refreshing}
+            >
+              Generate Missing Court Cards
             </Button>
             <Button
               variant="contained"
@@ -667,7 +711,6 @@ const CourtRepDashboardPage: React.FC = () => {
                                         pendingMeetings.forEach((m: any) => {
                                           const signatures = m.courtCard?.signatures || [];
                                           const hasParticipantSignature = signatures.some((sig: any) => sig.signerRole === 'PARTICIPANT');
-                                          const hasHostSignature = signatures.some((sig: any) => sig.signerRole === 'MEETING_HOST');
                                           
                                           if (m.status === 'IN_PROGRESS') {
                                             allPendingReasons.add('Meeting in progress');
@@ -677,9 +720,6 @@ const CourtRepDashboardPage: React.FC = () => {
                                           } else {
                                             if (!hasParticipantSignature) {
                                               allPendingReasons.add('Missing participant signature');
-                                            }
-                                            if (!hasHostSignature) {
-                                              allPendingReasons.add('Missing host signature');
                                             }
                                             const criticalViolations = (m.courtCard?.violations || []).filter((v: any) => v.severity === 'CRITICAL');
                                             if (criticalViolations.length > 0) {
@@ -728,7 +768,6 @@ const CourtRepDashboardPage: React.FC = () => {
                                       const pendingReasons: string[] = [];
                                       const signatures = meeting.courtCard?.signatures || [];
                                       const hasParticipantSignature = signatures.some((sig: any) => sig.signerRole === 'PARTICIPANT');
-                                      const hasHostSignature = signatures.some((sig: any) => sig.signerRole === 'MEETING_HOST');
                                       
                                       if (validationStatus === 'PENDING') {
                                         if (meeting.status === 'IN_PROGRESS') {
@@ -739,9 +778,6 @@ const CourtRepDashboardPage: React.FC = () => {
                                         } else {
                                           if (!hasParticipantSignature) {
                                             pendingReasons.push('✍️ Missing participant signature');
-                                          }
-                                          if (!hasHostSignature) {
-                                            pendingReasons.push('✍️ Missing host/meeting leader signature');
                                           }
                                           if (criticalViolations.length > 0) {
                                             pendingReasons.push(`⚠️ ${criticalViolations.length} critical violation(s)`);
@@ -789,10 +825,21 @@ const CourtRepDashboardPage: React.FC = () => {
                                                 label={validationStatus}
                                                 color={validationStatus === 'PASSED' ? 'success' : validationStatus === 'FAILED' ? 'error' : 'default'}
                                                 size="small"
+                                                onClick={validationStatus === 'PENDING' && pendingReasons.length > 0 ? () => {
+                                                  setExpandedPendingReasons(
+                                                    expandedPendingReasons === meeting.id ? null : meeting.id
+                                                  );
+                                                } : undefined}
+                                                sx={validationStatus === 'PENDING' && pendingReasons.length > 0 ? {
+                                                  cursor: 'pointer',
+                                                  '&:hover': {
+                                                    bgcolor: 'action.hover',
+                                                  },
+                                                } : {}}
                                               />
                                               
-                                              {/* Pending Reasons */}
-                                              {validationStatus === 'PENDING' && pendingReasons.length > 0 && (
+                                              {/* Pending Reasons - Show on click */}
+                                              {validationStatus === 'PENDING' && pendingReasons.length > 0 && expandedPendingReasons === meeting.id && (
                                                 <Box sx={{ mt: 1, p: 1, bgcolor: 'warning.lighter', borderRadius: 1, border: '1px solid', borderColor: 'warning.main' }}>
                                                   <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'warning.dark', display: 'block', mb: 0.5 }}>
                                                     Why Pending:

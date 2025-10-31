@@ -471,7 +471,7 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
     );
 
     logger.info(
-      `Court Card generated without signatures: ${cardNumber} - Participant and host must sign manually`
+      `Court Card generated without signatures: ${cardNumber} - Participant must sign manually`
     );
 
     logger.info(

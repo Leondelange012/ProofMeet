@@ -17,7 +17,6 @@ import { participantRoutes } from './routes/participant';
 import { adminRoutes } from './routes/admin';
 import { zoomWebhookRoutes } from './routes/zoom-webhooks';
 import { verificationRoutes } from './routes/verification';
-import { verificationPhotoRoutes } from './routes/verification-photos';
 
 // Load environment variables
 dotenv.config();
@@ -109,7 +108,6 @@ app.use('/api/v2/participant', apiLimiter, participantRoutes);
 app.use('/api/v2/admin', apiLimiter, adminRoutes);
 app.use('/api/v2/webhooks', apiLimiter, zoomWebhookRoutes);
 app.use('/api/v2/verify', apiLimiter, verificationRoutes); // Public verification
-app.use('/api/v2/verification', apiLimiter, verificationPhotoRoutes); // Photo verification
 
 // Default routes (no version prefix)
 app.use('/api/court-rep', apiLimiter, courtRepRoutes);
@@ -117,7 +115,6 @@ app.use('/api/participant', apiLimiter, participantRoutes);
 app.use('/api/admin', apiLimiter, adminRoutes);
 app.use('/api/webhooks', apiLimiter, zoomWebhookRoutes);
 app.use('/api/verify', apiLimiter, verificationRoutes); // Public verification
-app.use('/api/verification', apiLimiter, verificationPhotoRoutes); // Photo verification
 
 // Error handling middleware
 app.use(errorHandler);

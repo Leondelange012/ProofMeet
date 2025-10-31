@@ -1594,15 +1594,11 @@ router.post('/approve-court-card/:courtCardId', [
     // Get current signatures
     const signatures = ((courtCard as any).signatures || []) as any[];
     const hasParticipantSignature = signatures.some((sig: any) => sig.signerRole === 'PARTICIPANT');
-    const hasHostSignature = signatures.some((sig: any) => sig.signerRole === 'MEETING_HOST');
 
     // Warn if signatures are missing
     const warnings: string[] = [];
     if (!hasParticipantSignature) {
       warnings.push('Participant signature is missing');
-    }
-    if (!hasHostSignature) {
-      warnings.push('Meeting host signature is missing');
     }
 
     // Update court card with approval status
