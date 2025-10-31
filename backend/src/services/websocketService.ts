@@ -6,7 +6,7 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import { Server } from 'http';
 import jwt from 'jsonwebtoken';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 interface AuthenticatedWebSocket extends WebSocket {
   userId?: string;
