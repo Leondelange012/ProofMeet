@@ -1183,7 +1183,7 @@ router.get('/participants/:participantId/meetings', async (req: Request, res: Re
 
     // Process meetings to calculate accurate durations
     const now = new Date();
-    const processedMeetings = meetings.map(meeting => {
+    const processedMeetings = await Promise.all(meetings.map(async (meeting) => {
       let actualDuration = meeting.totalDurationMin || 0;
       let actualStatus = meeting.status;
       
@@ -1192,10 +1192,29 @@ router.get('/participants/:participantId/meetings', async (req: Request, res: Re
         const elapsedMs = now.getTime() - meeting.joinTime.getTime();
         actualDuration = Math.floor(elapsedMs / (1000 * 60));
         
-        // If meeting has exceeded expected duration + 15 min buffer, mark as stale
+        // If meeting has exceeded expected duration + 15 min buffer, auto-complete it
         const expectedDuration = meeting.externalMeeting?.durationMinutes || 60;
         if (actualDuration > expectedDuration + 15) {
-          actualStatus = 'COMPLETED' as any; // Should be auto-completed
+          logger.warn(`Auto-completing stale meeting: ${meeting.id}, elapsed: ${actualDuration} min`);
+          
+          // Actually update the database to close out the meeting
+          const estimatedLeaveTime = new Date(meeting.joinTime.getTime() + (expectedDuration * 60 * 1000));
+          await prisma.attendanceRecord.update({
+            where: { id: meeting.id },
+            data: {
+              leaveTime: estimatedLeaveTime,
+              totalDurationMin: expectedDuration,
+              activeDurationMin: expectedDuration, // Assume all active since we don't have tracking
+              idleDurationMin: 0,
+              attendancePercent: 100,
+              status: 'COMPLETED',
+            },
+          });
+          
+          actualStatus = 'COMPLETED';
+          actualDuration = expectedDuration;
+          
+          logger.info(`✅ Auto-completed stale meeting: ${meeting.id}`);
         }
       }
       
@@ -1204,7 +1223,7 @@ router.get('/participants/:participantId/meetings', async (req: Request, res: Re
         calculatedDuration: actualDuration,
         calculatedStatus: actualStatus,
       };
-    });
+    }));
 
     // Get summary statistics (only for COMPLETED meetings)
     const completedMeetingsList = processedMeetings.filter(m => m.status === 'COMPLETED');
@@ -1447,17 +1466,8 @@ router.post('/admin/regenerate-signatures', async (req: Request, res: Response) 
     const { signCourtCard } = await import('../services/digitalSignatureService');
 
     // Find all court cards without signatures (or with empty signatures array)
-    const courtCards = await prisma.courtCard.findMany({
-      where: {
-        OR: [
-          { signatures: { equals: [] } },
-          { signatures: { equals: null } },
-        ],
-      },
-      select: {
-        id: true,
-        cardNumber: true,
-        courtRepEmail: true,
+    const allCourtCards = await prisma.courtCard.findMany({
+      include: {
         attendanceRecord: {
           select: {
             courtRepId: true,
@@ -1465,6 +1475,10 @@ router.post('/admin/regenerate-signatures', async (req: Request, res: Response) 
         },
       },
     });
+
+    const courtCards = allCourtCards.filter((card: any) => 
+      !card.signatures || card.signatures.length === 0
+    );
 
     logger.info(`Found ${courtCards.length} court cards without signatures`);
 
@@ -1487,7 +1501,7 @@ router.post('/admin/regenerate-signatures', async (req: Request, res: Response) 
         // Create system signature
         await signCourtCard({
           courtCardId: courtCard.id,
-          signerId: courtCard.attendanceRecord.courtRepId,
+          signerId: (courtCard as any).attendanceRecord.courtRepId,
           signerRole: 'COURT_REP',
           authMethod: 'SYSTEM_GENERATED',
           metadata: {
@@ -1578,7 +1592,7 @@ router.post('/approve-court-card/:courtCardId', [
     }
 
     // Get current signatures
-    const signatures = (courtCard.signatures || []) as any[];
+    const signatures = ((courtCard as any).signatures || []) as any[];
     const hasParticipantSignature = signatures.some((sig: any) => sig.signerRole === 'PARTICIPANT');
     const hasHostSignature = signatures.some((sig: any) => sig.signerRole === 'MEETING_HOST');
 

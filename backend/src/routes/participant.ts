@@ -1093,7 +1093,7 @@ router.post(
       }
 
       // Check if already signed by participant
-      const existingSignatures = (courtCard.signatures || []) as any[];
+      const existingSignatures = ((courtCard as any).signatures || []) as any[];
       const alreadySigned = existingSignatures.some((sig: any) => 
         sig.signerId === participantId && sig.signerRole === 'PARTICIPANT'
       );

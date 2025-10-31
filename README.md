@@ -216,7 +216,7 @@ ProofMeet/
 ### For Developers
 
 #### Prerequisites
-- Node.js 18+
+- Node.js 18+ 
 - PostgreSQL 14+
 - Git
 - Zoom Developer Account (for meeting integration)
