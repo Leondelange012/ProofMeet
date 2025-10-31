@@ -654,6 +654,54 @@ const CourtRepDashboardPage: React.FC = () => {
                                       </CardContent>
                                     </Card>
                                   </Grid>
+                                  
+                                  {/* Pending Items Summary */}
+                                  <Grid item xs={12}>
+                                    {(() => {
+                                      const pendingMeetings = participantMeetings[participant.id].meetings.filter((m: any) => 
+                                        (m.courtCard?.validationStatus || 'PENDING') === 'PENDING'
+                                      );
+                                      
+                                      if (pendingMeetings.length > 0) {
+                                        const allPendingReasons = new Set<string>();
+                                        pendingMeetings.forEach((m: any) => {
+                                          const signatures = m.courtCard?.signatures || [];
+                                          const hasParticipantSignature = signatures.some((sig: any) => sig.signerRole === 'PARTICIPANT');
+                                          const hasHostSignature = signatures.some((sig: any) => sig.signerRole === 'MEETING_HOST');
+                                          
+                                          if (m.status === 'IN_PROGRESS') {
+                                            allPendingReasons.add('Meeting in progress');
+                                          }
+                                          if (!m.courtCard) {
+                                            allPendingReasons.add('Court card generation pending');
+                                          } else {
+                                            if (!hasParticipantSignature) {
+                                              allPendingReasons.add('Missing participant signature');
+                                            }
+                                            if (!hasHostSignature) {
+                                              allPendingReasons.add('Missing host signature');
+                                            }
+                                            const criticalViolations = (m.courtCard?.violations || []).filter((v: any) => v.severity === 'CRITICAL');
+                                            if (criticalViolations.length > 0) {
+                                              allPendingReasons.add('Critical violations present');
+                                            }
+                                          }
+                                        });
+                                        
+                                        return (
+                                          <Alert severity="warning" icon={<Warning />}>
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                                              {pendingMeetings.length} Pending Meeting{pendingMeetings.length > 1 ? 's' : ''}
+                                            </Typography>
+                                            <Typography variant="caption" display="block">
+                                              Action needed: {Array.from(allPendingReasons).join(', ')}
+                                            </Typography>
+                                          </Alert>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
+                                  </Grid>
                                 </Grid>
 
                                 {/* Meeting Details Table */}
@@ -675,6 +723,34 @@ const CourtRepDashboardPage: React.FC = () => {
                                       const criticalViolations = violations.filter((v: any) => v.severity === 'CRITICAL');
                                       const warningViolations = violations.filter((v: any) => v.severity === 'WARNING');
                                       const infoViolations = violations.filter((v: any) => v.severity === 'INFO');
+                                      
+                                      // Calculate pending reasons
+                                      const pendingReasons: string[] = [];
+                                      const signatures = meeting.courtCard?.signatures || [];
+                                      const hasParticipantSignature = signatures.some((sig: any) => sig.signerRole === 'PARTICIPANT');
+                                      const hasHostSignature = signatures.some((sig: any) => sig.signerRole === 'MEETING_HOST');
+                                      
+                                      if (validationStatus === 'PENDING') {
+                                        if (meeting.status === 'IN_PROGRESS') {
+                                          pendingReasons.push('⏳ Meeting still in progress');
+                                        }
+                                        if (!meeting.courtCard) {
+                                          pendingReasons.push('⏳ Awaiting court card generation');
+                                        } else {
+                                          if (!hasParticipantSignature) {
+                                            pendingReasons.push('✍️ Missing participant signature');
+                                          }
+                                          if (!hasHostSignature) {
+                                            pendingReasons.push('✍️ Missing host/meeting leader signature');
+                                          }
+                                          if (criticalViolations.length > 0) {
+                                            pendingReasons.push(`⚠️ ${criticalViolations.length} critical violation(s)`);
+                                          }
+                                          if (pendingReasons.length === 0) {
+                                            pendingReasons.push('⏳ Awaiting Court Rep review');
+                                          }
+                                        }
+                                      }
                                       
                                       return (
                                         <TableRow 
@@ -714,6 +790,20 @@ const CourtRepDashboardPage: React.FC = () => {
                                                 color={validationStatus === 'PASSED' ? 'success' : validationStatus === 'FAILED' ? 'error' : 'default'}
                                                 size="small"
                                               />
+                                              
+                                              {/* Pending Reasons */}
+                                              {validationStatus === 'PENDING' && pendingReasons.length > 0 && (
+                                                <Box sx={{ mt: 1, p: 1, bgcolor: 'warning.lighter', borderRadius: 1, border: '1px solid', borderColor: 'warning.main' }}>
+                                                  <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'warning.dark', display: 'block', mb: 0.5 }}>
+                                                    Why Pending:
+                                                  </Typography>
+                                                  {pendingReasons.map((reason: string, idx: number) => (
+                                                    <Typography key={idx} variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.4 }}>
+                                                      {reason}
+                                                    </Typography>
+                                                  ))}
+                                                </Box>
+                                              )}
                                               
                                               {/* Critical Violations */}
                                               {criticalViolations.length > 0 && (
