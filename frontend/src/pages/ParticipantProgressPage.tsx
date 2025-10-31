@@ -37,6 +37,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
+import { useWebSocketConnection, useWebSocketEvents } from '../hooks/useWebSocket';
 import axios from 'axios';
 import SignCourtCardDialog from '../components/SignCourtCardDialog';
 import RequestHostSignatureDialog from '../components/RequestHostSignatureDialog';
@@ -47,8 +48,10 @@ const ParticipantProgressPage: React.FC = () => {
   const { token } = useAuthStoreV2();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   
   // Signing dialogs
   const [signDialogOpen, setSignDialogOpen] = useState(false);
@@ -56,9 +59,48 @@ const ParticipantProgressPage: React.FC = () => {
   const [selectedCourtCard, setSelectedCourtCard] = useState<any>(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
-  const loadProgress = async () => {
+  // WebSocket connection
+  useWebSocketConnection();
+
+  // WebSocket event listeners for real-time updates
+  useWebSocketEvents([
+    {
+      event: 'meeting-started',
+      callback: (data) => {
+        console.log('🔔 Meeting started:', data);
+        loadProgress(true); // Background refresh
+      },
+    },
+    {
+      event: 'meeting-ended',
+      callback: (data) => {
+        console.log('🔔 Meeting ended:', data);
+        loadProgress(true); // Background refresh
+      },
+    },
+    {
+      event: 'attendance-updated',
+      callback: (data) => {
+        console.log('🔔 Attendance updated:', data);
+        loadProgress(true); // Background refresh
+      },
+    },
+    {
+      event: 'court-card-updated',
+      callback: (data) => {
+        console.log('🔔 Court card updated:', data);
+        loadProgress(true); // Background refresh
+      },
+    },
+  ]);
+
+  const loadProgress = async (isBackgroundRefresh = false) => {
     try {
-      setLoading(true);
+      if (isBackgroundRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError('');
 
       const headers = { Authorization: `Bearer ${token}` };
@@ -70,6 +112,7 @@ const ParticipantProgressPage: React.FC = () => {
       
       if (response.data.success) {
         setDashboardData(response.data.data);
+        setLastUpdated(new Date());
       } else {
         setError(response.data.error || 'Failed to load progress data');
       }
@@ -79,12 +122,23 @@ const ParticipantProgressPage: React.FC = () => {
       setError(err.response?.data?.error || err.message || 'Failed to load progress data');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
+  // Initial load
   useEffect(() => {
     loadProgress();
   }, []);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadProgress(true); // Background refresh
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [token]);
 
   const handleSignSuccess = () => {
     setSnackbar({
@@ -155,13 +209,22 @@ const ParticipantProgressPage: React.FC = () => {
             Track your compliance and meeting history
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={loadProgress}
-        >
-          Refresh
-        </Button>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            startIcon={refreshing ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
+            onClick={() => loadProgress()}
+            disabled={refreshing}
+          >
+            {refreshing ? 'Syncing...' : 'Refresh'}
+          </Button>
+          {lastUpdated && (
+            <Typography variant="caption" color="text.secondary">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+              {refreshing && ' • Refreshing...'}
+            </Typography>
+          )}
+        </Box>
       </Box>
 
       {error && (

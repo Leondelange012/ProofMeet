@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
+import { useWebSocketConnection, useWebSocketEvents } from '../hooks/useWebSocket';
 import axios from 'axios';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
@@ -35,13 +36,54 @@ const ParticipantDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState('');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const loadDashboard = async () => {
+  // WebSocket connection
+  useWebSocketConnection();
+
+  // WebSocket event listeners for real-time updates
+  useWebSocketEvents([
+    {
+      event: 'meeting-started',
+      callback: (data) => {
+        console.log('🔔 Meeting started:', data);
+        loadDashboard(true); // Background refresh
+      },
+    },
+    {
+      event: 'meeting-ended',
+      callback: (data) => {
+        console.log('🔔 Meeting ended:', data);
+        loadDashboard(true); // Background refresh
+      },
+    },
+    {
+      event: 'attendance-updated',
+      callback: (data) => {
+        console.log('🔔 Attendance updated:', data);
+        loadDashboard(true); // Background refresh
+      },
+    },
+    {
+      event: 'court-card-updated',
+      callback: (data) => {
+        console.log('🔔 Court card updated:', data);
+        loadDashboard(true); // Background refresh
+      },
+    },
+  ]);
+
+  const loadDashboard = async (isBackgroundRefresh = false) => {
     try {
-      setLoading(true);
+      if (isBackgroundRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError('');
 
       const headers = { Authorization: `Bearer ${token}` };
@@ -53,6 +95,7 @@ const ParticipantDashboardPage: React.FC = () => {
       
       if (response.data.success) {
         setDashboardData(response.data.data);
+        setLastUpdated(new Date());
       } else {
         setError(response.data.error || 'Failed to load dashboard');
       }
@@ -62,6 +105,7 @@ const ParticipantDashboardPage: React.FC = () => {
       setError(err.response?.data?.error || err.message || 'Failed to load dashboard');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -90,6 +134,7 @@ const ParticipantDashboardPage: React.FC = () => {
     }
   };
 
+  // Initial load
   useEffect(() => {
     loadDashboard();
 
@@ -100,6 +145,15 @@ const ParticipantDashboardPage: React.FC = () => {
       window.history.replaceState({}, document.title);
     }
   }, []);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadDashboard(true); // Background refresh
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [token]);
 
   if (loading) {
     return (
@@ -135,13 +189,22 @@ const ParticipantDashboardPage: React.FC = () => {
             </Typography>
           )}
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={loadDashboard}
-        >
-          Refresh
-        </Button>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            startIcon={refreshing ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
+            onClick={() => loadDashboard()}
+            disabled={refreshing}
+          >
+            {refreshing ? 'Syncing...' : 'Refresh'}
+          </Button>
+          {lastUpdated && (
+            <Typography variant="caption" color="text.secondary">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+              {refreshing && ' • Refreshing...'}
+            </Typography>
+          )}
+        </Box>
       </Box>
 
       {successMessage && (

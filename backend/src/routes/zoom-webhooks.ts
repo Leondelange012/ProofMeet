@@ -9,6 +9,7 @@ import { prisma } from '../index';
 import { logger } from '../utils/logger';
 import { generateCourtCard } from '../services/courtCardService';
 import { sendAttendanceConfirmation, queueDailyDigest } from '../services/emailService';
+import { websocketService } from '../services/websocketService';
 
 const router = Router();
 
@@ -247,7 +248,15 @@ async function handleParticipantJoined(event: any) {
       });
       
       logger.info(`✅ Created attendance record from Zoom join: ${attendanceRecord.id}`);
+      
+      // Send WebSocket notification
+      websocketService.notifyParticipantJoined(meetingId, user.id, user.courtRepId);
     }
+  }
+  
+  // Send WebSocket notification if attendance record exists
+  if (attendanceRecord && user.courtRepId) {
+    websocketService.notifyParticipantJoined(meetingId, user.id, user.courtRepId);
   }
 }
 
@@ -368,6 +377,22 @@ async function handleParticipantLeft(event: any) {
         logger.info(`📧 Confirmation email sent to ${user.email}`);
       } catch (emailError: any) {
         logger.error(`Failed to send confirmation email: ${emailError.message}`);
+      }
+      
+      // Send WebSocket notifications
+      if (user.courtRepId) {
+        websocketService.notifyParticipantLeft(meetingId, user.id, user.courtRepId, duration);
+        websocketService.notifyAttendanceUpdated(user.id, user.courtRepId, {
+          attendanceRecordId: updatedRecord.id,
+          status: 'COMPLETED',
+          duration,
+          attendancePercent,
+        });
+        websocketService.notifyCourtCardUpdated(user.id, user.courtRepId, {
+          courtCardId: courtCard.id,
+          cardNumber: courtCard.cardNumber,
+          validationStatus: courtCard.validationStatus,
+        });
       }
       
       // Queue daily digest for Court Rep

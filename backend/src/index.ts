@@ -4,9 +4,11 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
 import { PrismaClient } from '@prisma/client';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
+import { websocketService } from './services/websocketService';
 
 // Routes
 import { authV2Routes } from './routes/auth-v2';
@@ -128,22 +130,31 @@ app.use('*', (req, res) => {
   });
 });
 
+// Create HTTP server (needed for WebSocket)
+const httpServer = createServer(app);
+
+// Initialize WebSocket service
+websocketService.initialize(httpServer);
+
 // Graceful shutdown
 process.on('SIGINT', async () => {
   logger.info('Shutting down server...');
+  websocketService.shutdown();
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   logger.info('Shutting down server...');
+  websocketService.shutdown();
   await prisma.$disconnect();
   process.exit(0);
 });
 
 // Start server
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
+httpServer.listen(PORT, () => {
+  logger.info(`🚀 Server running on port ${PORT}`);
+  logger.info(`📡 WebSocket available at ws://localhost:${PORT}/ws`);
   logger.info(`Environment: ${process.env['NODE_ENV']}`);
 });
 
