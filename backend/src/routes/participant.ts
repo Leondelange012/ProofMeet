@@ -701,6 +701,61 @@ router.post(
       
       logger.info(`Leave meeting: Total=${totalDurationMinutes}min, Absence=${totalAbsenceMinutes}min, Net=${netDurationMinutes}min`);
 
+      // Check if meeting's scheduled time window has ended
+      const meetingStartTime = joinTime;
+      const meetingDuration = attendance.externalMeeting?.durationMinutes || 60;
+      const meetingEndTime = new Date(meetingStartTime.getTime() + meetingDuration * 60 * 1000);
+      const now = new Date();
+      const isMeetingWindowEnded = now > meetingEndTime;
+      
+      logger.info(`Meeting window check: Started ${meetingStartTime.toISOString()}, Ends ${meetingEndTime.toISOString()}, Now ${now.toISOString()}, Ended: ${isMeetingWindowEnded}`);
+
+      // If meeting window hasn't ended, just mark as COMPLETED temporarily (can still rejoin)
+      if (!isMeetingWindowEnded) {
+        const updated = await prisma.attendanceRecord.update({
+          where: { id: attendanceId },
+          data: {
+            leaveTime,
+            totalDurationMin: netDurationMinutes,
+            activeDurationMin: netDurationMinutes,
+            idleDurationMin: totalAbsenceMinutes,
+            attendancePercent,
+            status: 'COMPLETED', // Temporarily completed - can reopen if they rejoin
+            // @ts-ignore
+            metadata: {
+              ...(metadata || {}),
+              totalRawDuration: totalDurationMinutes,
+              totalAbsenceTime: totalAbsenceMinutes,
+              netAttendanceTime: netDurationMinutes,
+              temporaryLeave: true, // Flag indicating they can still rejoin
+              meetingStillActive: true,
+            },
+          },
+        });
+
+        const minutesRemaining = Math.ceil((meetingEndTime.getTime() - now.getTime()) / (1000 * 60));
+        
+        logger.info(`Participant ${participantId} left meeting early. ${minutesRemaining} minutes remaining in meeting window.`);
+
+        return res.json({
+          success: true,
+          message: `You've left the meeting. You can rejoin within the next ${minutesRemaining} minute${minutesRemaining !== 1 ? 's' : ''}. Your court card will be generated when the meeting ends.`,
+          data: {
+            attendanceId: updated.id,
+            duration: netDurationMinutes,
+            totalDuration: totalDurationMinutes,
+            absenceTime: totalAbsenceMinutes,
+            attendancePercentage: attendancePercent,
+            canRejoin: true,
+            minutesRemainingInMeeting: minutesRemaining,
+            courtCardGenerated: false,
+            status: 'TEMPORARY_LEAVE',
+          },
+        });
+      }
+
+      // Meeting window has ended - proceed with full finalization
+
       // === TIER 2: RUN ENGAGEMENT ANALYSIS ===
       const engagementAnalysis = await analyzeAttendanceEngagement(attendanceId, attendance);
       

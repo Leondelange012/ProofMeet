@@ -9,6 +9,7 @@ import { PrismaClient } from '@prisma/client';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 import { websocketService } from './services/websocketService';
+import { startMeetingFinalizationScheduler } from './services/meetingFinalizationService';
 
 // Routes
 import { authV2Routes } from './routes/auth-v2';
@@ -132,6 +133,9 @@ const httpServer = createServer(app);
 
 // Initialize WebSocket service
 websocketService.initialize(httpServer);
+
+// Start meeting finalization scheduler (checks every 5 minutes)
+startMeetingFinalizationScheduler();
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
