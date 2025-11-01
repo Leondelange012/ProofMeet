@@ -52,7 +52,11 @@ function validateAttendance(
   idleDurationMin: number,
   attendancePercent: number,
   meetingDurationMin: number,
-  activityTimeline: any
+  activityTimeline: any,
+  scheduledStartTime: Date | null,
+  scheduledEndTime: Date | null,
+  actualJoinTime: Date,
+  actualLeaveTime: Date
 ): { violations: Violation[]; validationStatus: 'PASSED' | 'FAILED' } {
   const violations: Violation[] = [];
   
@@ -60,6 +64,30 @@ function validateAttendance(
   const activePercent = totalDurationMin > 0 ? (activeDurationMin / totalDurationMin) * 100 : 0;
   const idlePercent = totalDurationMin > 0 ? (idleDurationMin / totalDurationMin) * 100 : 0;
   const meetingAttendancePercent = meetingDurationMin > 0 ? (totalDurationMin / meetingDurationMin) * 100 : 0;
+  
+  // STRICT COMPLIANCE: Check tardiness and early departure (CUMULATIVE 10-minute grace period)
+  const TOTAL_GRACE_PERIOD_MINUTES = 10;
+  
+  // Rule 0: TARDINESS + EARLY DEPARTURE - Combined grace period of 10 minutes
+  if (scheduledStartTime && scheduledEndTime) {
+    const minutesLate = Math.max(0, Math.round((actualJoinTime.getTime() - scheduledStartTime.getTime()) / (1000 * 60)));
+    const minutesEarly = Math.max(0, Math.round((scheduledEndTime.getTime() - actualLeaveTime.getTime()) / (1000 * 60)));
+    const totalMinutesMissed = minutesLate + minutesEarly;
+    
+    // FAIL if combined tardiness + early departure exceeds grace period
+    if (totalMinutesMissed > TOTAL_GRACE_PERIOD_MINUTES) {
+      const details: string[] = [];
+      if (minutesLate > 0) details.push(`${minutesLate} min late`);
+      if (minutesEarly > 0) details.push(`${minutesEarly} min early departure`);
+      
+      violations.push({
+        type: 'ATTENDANCE_WINDOW_VIOLATION',
+        message: `Missed ${totalMinutesMissed} minutes of scheduled meeting time (${details.join(' + ')}). Maximum allowed: ${TOTAL_GRACE_PERIOD_MINUTES} minutes.`,
+        severity: 'CRITICAL',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
   
   // Count activity heartbeats
   const events = activityTimeline?.events || [];
@@ -290,6 +318,8 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
           select: {
             id: true,
             durationMinutes: true,
+            time: true,
+            timezone: true,
           },
         },
         webcamSnapshots: {
@@ -345,6 +375,27 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
     const attendancePercent = Number(attendance.attendancePercent || 0);
     const meetingDurationMin = attendance.externalMeeting?.durationMinutes || 60;
 
+    // Parse scheduled meeting times for tardiness/early departure checking
+    let scheduledStartTime: Date | null = null;
+    let scheduledEndTime: Date | null = null;
+    
+    if (attendance.externalMeeting?.time) {
+      try {
+        // Parse time string (e.g., "13:00" or "13:30")
+        const [hours, minutes] = attendance.externalMeeting.time.split(':').map(Number);
+        
+        // Create scheduled start time by combining meeting date with scheduled time
+        scheduledStartTime = new Date(attendance.meetingDate);
+        scheduledStartTime.setHours(hours, minutes || 0, 0, 0);
+        
+        // Calculate scheduled end time (start + duration)
+        scheduledEndTime = new Date(scheduledStartTime);
+        scheduledEndTime.setMinutes(scheduledEndTime.getMinutes() + meetingDurationMin);
+      } catch (error) {
+        logger.warn(`Failed to parse scheduled time: ${attendance.externalMeeting.time}`);
+      }
+    }
+
     // Validate attendance and generate violations
     const { violations, validationStatus } = validateAttendance(
       totalDurationMin,
@@ -352,7 +403,11 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       idleDurationMin,
       attendancePercent,
       meetingDurationMin,
-      attendance.activityTimeline
+      attendance.activityTimeline,
+      scheduledStartTime,
+      scheduledEndTime,
+      attendance.joinTime,
+      attendance.leaveTime || new Date()
     );
 
     // Get total hours and meeting IDs for this participant
