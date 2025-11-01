@@ -986,6 +986,9 @@ router.post('/create-test-meeting', async (req: Request, res: Response) => {
     const timezone = req.body.timezone || 'America/Los_Angeles';
     const topic = req.body.topic;
 
+    // Log request parameters for debugging
+    logger.info(`Creating test meeting - Duration requested: ${duration} minutes, Start: ${startDateTime || `in ${startInMinutes} minutes`}`);
+
     // Create Zoom meeting with custom settings
     const meeting = await zoomService.createTestMeeting(
       courtRepName,

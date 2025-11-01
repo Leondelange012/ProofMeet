@@ -126,7 +126,9 @@ class ZoomService {
         }
       );
 
+      // Log meeting creation details for debugging
       logger.info(`Zoom meeting created: ${response.data.id} - ${options.topic}`);
+      logger.info(`Meeting duration - Requested: ${options.duration} min, Zoom returned: ${response.data.duration} min`);
 
       return {
         id: response.data.id.toString(),

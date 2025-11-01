@@ -1087,6 +1087,14 @@ const CourtRepDashboardPage: React.FC = () => {
                     InputProps={{ readOnly: true }}
                   />
                 </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label="Duration"
+                    value={`${meetingCreated.duration || 'N/A'} minutes`}
+                    InputProps={{ readOnly: true }}
+                  />
+                </Grid>
                 <Grid item xs={12}>
                   <Alert severity="info">
                     <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
