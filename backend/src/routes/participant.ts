@@ -517,7 +517,7 @@ router.post(
       }
 
       // Check if already attending
-      const existingAttendance = await prisma.attendanceRecord.findFirst({
+      const existingInProgress = await prisma.attendanceRecord.findFirst({
         where: {
           participantId,
           externalMeetingId: meetingId,
@@ -525,28 +525,84 @@ router.post(
         },
       });
 
-      if (existingAttendance) {
+      if (existingInProgress) {
         return res.status(400).json({
           success: false,
           error: 'Already attending this meeting',
         });
       }
 
-      // Create attendance record
-      const attendance = await prisma.attendanceRecord.create({
-        data: {
+      // Check for recent COMPLETED record from today (re-join scenario)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const existingCompleted = await prisma.attendanceRecord.findFirst({
+        where: {
           participantId,
-          courtRepId: participant.courtRepId,
           externalMeetingId: meetingId,
-          meetingName: meeting.name,
-          meetingProgram: meeting.program,
-          meetingDate: new Date(),
-          joinTime: new Date(),
-          status: 'IN_PROGRESS',
+          status: 'COMPLETED',
+          meetingDate: {
+            gte: today,
+          },
+        },
+        orderBy: {
+          leaveTime: 'desc',
         },
       });
 
-      logger.info(`Participant ${participantId} joined meeting ${meetingId}`);
+      // Check if meeting is still active (within its scheduled duration)
+      const meetingStartTime = meeting.lastSyncedAt || new Date();
+      const meetingEndTime = new Date(meetingStartTime.getTime() + (meeting.durationMinutes || 60) * 60 * 1000);
+      const now = new Date();
+      const isMeetingStillActive = now <= meetingEndTime;
+
+      let attendance;
+
+      // RE-JOIN: If there's a completed record and meeting is still active, reopen it
+      if (existingCompleted && isMeetingStillActive) {
+        const rejoinTime = new Date();
+        const absenceTimeMin = Math.floor((rejoinTime.getTime() - existingCompleted.leaveTime!.getTime()) / (1000 * 60));
+        
+        // Update the existing record to IN_PROGRESS and track absence
+        attendance = await prisma.attendanceRecord.update({
+          where: { id: existingCompleted.id },
+          data: {
+            status: 'IN_PROGRESS',
+            // Track the absence period in metadata
+            // @ts-ignore
+            metadata: {
+              ...((existingCompleted.metadata as any) || {}),
+              rejoinCount: (((existingCompleted.metadata as any)?.rejoinCount || 0) + 1),
+              absencePeriods: [
+                ...(((existingCompleted.metadata as any)?.absencePeriods || []) as any[]),
+                {
+                  leftAt: existingCompleted.leaveTime,
+                  rejoinedAt: rejoinTime,
+                  absenceMinutes: absenceTimeMin,
+                },
+              ],
+            },
+          },
+        });
+
+        logger.info(`Participant ${participantId} re-joined meeting ${meetingId} after ${absenceTimeMin} min absence`);
+      } else {
+        // NEW JOIN: Create new attendance record
+        attendance = await prisma.attendanceRecord.create({
+          data: {
+            participantId,
+            courtRepId: participant.courtRepId,
+            externalMeetingId: meetingId,
+            meetingName: meeting.name,
+            meetingProgram: meeting.program,
+            meetingDate: new Date(),
+            joinTime: new Date(),
+            status: 'IN_PROGRESS',
+          },
+        });
+
+        logger.info(`Participant ${participantId} joined meeting ${meetingId}`);
+      }
 
       res.status(201).json({
         success: true,
@@ -611,11 +667,28 @@ router.post(
 
       const leaveTime = new Date();
       const joinTime = attendance.joinTime;
-      const durationMinutes = Math.floor((leaveTime.getTime() - joinTime.getTime()) / (1000 * 60));
-
-      // Calculate attendance percentage (simplified for now)
+      
+      // Calculate base duration from first join to final leave
+      let totalDurationMinutes = Math.floor((leaveTime.getTime() - joinTime.getTime()) / (1000 * 60));
+      
+      // Calculate total absence time if this is a re-join scenario
+      let totalAbsenceMinutes = 0;
+      const metadata = attendance.metadata as any;
+      if (metadata?.absencePeriods && Array.isArray(metadata.absencePeriods)) {
+        totalAbsenceMinutes = metadata.absencePeriods.reduce(
+          (sum: number, period: any) => sum + (period.absenceMinutes || 0),
+          0
+        );
+      }
+      
+      // Net duration = total time - absence time
+      const netDurationMinutes = Math.max(0, totalDurationMinutes - totalAbsenceMinutes);
+      
+      // Calculate attendance percentage based on net duration
       const expectedDuration = attendance.externalMeeting?.durationMinutes || 60;
-      const attendancePercent = Math.min((durationMinutes / expectedDuration) * 100, 100);
+      const attendancePercent = Math.min((netDurationMinutes / expectedDuration) * 100, 100);
+      
+      logger.info(`Leave meeting: Total=${totalDurationMinutes}min, Absence=${totalAbsenceMinutes}min, Net=${netDurationMinutes}min`);
 
       // === TIER 2: RUN ENGAGEMENT ANALYSIS ===
       const engagementAnalysis = await analyzeAttendanceEngagement(attendanceId, attendance);
@@ -626,18 +699,23 @@ router.post(
         where: { id: attendanceId },
         data: {
           leaveTime,
-          totalDurationMin: durationMinutes,
-          activeDurationMin: durationMinutes, // Will be refined by engagement analysis
-          idleDurationMin: 0,
+          totalDurationMin: netDurationMinutes, // Use net duration (excludes absence time)
+          activeDurationMin: netDurationMinutes, // Will be refined by engagement analysis
+          idleDurationMin: totalAbsenceMinutes, // Track absence time as idle
           attendancePercent,
           status: 'COMPLETED',
           verificationMethod: 'SCREEN_ACTIVITY',
           // Store engagement data in metadata
           // @ts-ignore
           metadata: {
+            ...(metadata || {}), // Preserve existing metadata (including absencePeriods)
             engagementScore: engagementAnalysis.score,
             engagementLevel: engagementAnalysis.level,
             engagementFlags: engagementAnalysis.flags,
+            // Add re-join summary
+            totalRawDuration: totalDurationMinutes,
+            totalAbsenceTime: totalAbsenceMinutes,
+            netAttendanceTime: netDurationMinutes,
           },
         },
         // @ts-ignore - metadata field in select
@@ -796,7 +874,7 @@ router.post(
           await sendAttendanceConfirmation(
             req.user!.email,
             attendance.meetingName,
-            durationMinutes,
+            netDurationMinutes,
             Number(attendancePercent),
             courtCard.cardNumber
           );
@@ -806,7 +884,7 @@ router.post(
         }
       }
 
-      logger.info(`Participant ${participantId} left meeting, duration: ${durationMinutes}min`);
+      logger.info(`Participant ${participantId} left meeting, net duration: ${netDurationMinutes}min (absence: ${totalAbsenceMinutes}min)`);
 
       res.json({
         success: true,
@@ -817,7 +895,9 @@ router.post(
           : 'Meeting attendance recorded successfully',
         data: {
           attendanceId: updated.id,
-          duration: durationMinutes,
+          duration: netDurationMinutes,
+          totalDuration: totalDurationMinutes,
+          absenceTime: totalAbsenceMinutes,
           attendancePercentage: attendancePercent,
           courtCardGenerated,
           courtCardId: courtCard?.id,
