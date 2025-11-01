@@ -12,8 +12,6 @@ import {
   CircularProgress,
   IconButton,
   InputAdornment,
-  FormControlLabel,
-  Checkbox,
 } from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
 import { Person, Visibility, VisibilityOff } from '@mui/icons-material';
@@ -35,8 +33,6 @@ const RegisterParticipantPage: React.FC = () => {
     courtRepEmail: '',
     phoneNumber: '',
   });
-  
-  const [isHost, setIsHost] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -66,10 +62,7 @@ const RegisterParticipantPage: React.FC = () => {
       return;
     }
 
-    const result = await authServiceV2.registerParticipant({
-      ...formData,
-      isHost,
-    });
+    const result = await authServiceV2.registerParticipant(formData);
 
     if (result.success) {
       setSuccess('Registration successful! Please check your email to verify your account.');
@@ -210,27 +203,6 @@ const RegisterParticipantPage: React.FC = () => {
                 required
                 margin="normal"
                 helperText="Email address of your assigned probation officer or court representative"
-              />
-
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={isHost}
-                    onChange={(e) => setIsHost(e.target.checked)}
-                    color="primary"
-                  />
-                }
-                label={
-                  <Box>
-                    <Typography variant="body2" fontWeight="medium">
-                      I will be hosting Zoom meetings
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Check this if you need host controls in Zoom meetings. Leave unchecked for standard attendance tracking.
-                    </Typography>
-                  </Box>
-                }
-                sx={{ mt: 2, mb: 1, alignItems: 'flex-start' }}
               />
 
               <Button
