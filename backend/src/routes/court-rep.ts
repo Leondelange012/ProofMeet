@@ -1000,6 +1000,9 @@ router.post('/create-test-meeting', async (req: Request, res: Response) => {
     );
 
     // Store meeting in database as external meeting
+    // Parse the actual start time from Zoom
+    const meetingStartTime = new Date(meeting.start_time);
+    
     const externalMeeting = await prisma.externalMeeting.create({
       data: {
         externalId: meeting.id,
@@ -1007,8 +1010,8 @@ router.post('/create-test-meeting', async (req: Request, res: Response) => {
         program: 'TEST',
         meetingType: 'Test Meeting',
         description: 'Test meeting for ProofMeet compliance tracking',
-        dayOfWeek: new Date(meeting.start_time).toLocaleDateString('en-US', { weekday: 'long' }),
-        time: new Date(meeting.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        dayOfWeek: meetingStartTime.toLocaleDateString('en-US', { weekday: 'long', timeZone: meeting.timezone }),
+        time: meetingStartTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: meeting.timezone }),
         timezone: meeting.timezone,
         durationMinutes: meeting.duration,
         format: 'ONLINE',
@@ -1017,7 +1020,8 @@ router.post('/create-test-meeting', async (req: Request, res: Response) => {
         zoomPassword: meeting.password,
         tags: ['test', 'compliance-tracking'],
         hasProofCapability: true,
-        lastSyncedAt: new Date(),
+        lastSyncedAt: meetingStartTime, // Use actual meeting start time
+        createdAt: meetingStartTime, // Set createdAt to when the meeting actually starts
       },
     });
 

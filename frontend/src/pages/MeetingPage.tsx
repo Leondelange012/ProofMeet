@@ -251,7 +251,17 @@ const MeetingPage: React.FC = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                         <Schedule sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
                         <Typography variant="body2" color="text.secondary">
-                          {meeting.day} at {meeting.time} ({meeting.timezone})
+                          {meeting.startTime ? (
+                            // For test meetings with actual start times, show formatted date
+                            <>
+                              {new Date(meeting.startTime).toLocaleDateString(undefined, { weekday: 'long' })} at {new Date(meeting.startTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                              <br />
+                              ({new Date(meeting.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})
+                            </>
+                          ) : (
+                            // For recurring meetings, show day and time
+                            `${meeting.day} at ${meeting.time} (${meeting.timezone})`
+                          )}
                         </Typography>
                       </Box>
 

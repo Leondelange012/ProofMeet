@@ -249,6 +249,7 @@ router.get('/meetings/available', async (req: Request, res: Response) => {
         day: meeting.dayOfWeek,
         time: meeting.time,
         timezone: meeting.timezone,
+        startTime: meeting.createdAt || meeting.lastSyncedAt, // Actual meeting start time for proper timezone conversion
         duration: meeting.durationMinutes,
         format: meeting.format,
         zoomUrl: meeting.zoomUrl,
