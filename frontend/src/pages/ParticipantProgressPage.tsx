@@ -23,7 +23,6 @@ import {
   LinearProgress,
   IconButton,
   Tooltip,
-  Snackbar,
 } from '@mui/material';
 import {
   CheckCircle,
@@ -31,14 +30,12 @@ import {
   TrendingUp,
   Refresh,
   CalendarToday,
-  Draw as SignatureIcon,
-  Verified as VerifiedIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import { useWebSocketConnection, useWebSocketEvents } from '../hooks/useWebSocket';
 import axios from 'axios';
-import SignCourtCardDialog from '../components/SignCourtCardDialog';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
@@ -50,11 +47,6 @@ const ParticipantProgressPage: React.FC = () => {
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  
-  // Signing dialogs
-  const [signDialogOpen, setSignDialogOpen] = useState(false);
-  const [selectedCourtCard, setSelectedCourtCard] = useState<any>(null);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   // WebSocket connection
   useWebSocketConnection();
@@ -136,31 +128,6 @@ const ParticipantProgressPage: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [token]);
-
-  const handleSignSuccess = () => {
-    setSnackbar({
-      open: true,
-      message: 'Court card signed successfully!',
-      severity: 'success',
-    });
-    loadProgress(); // Reload to show updated signature status
-  };
-
-  const openSignDialog = (courtCard: any) => {
-    setSelectedCourtCard(courtCard);
-    setSignDialogOpen(true);
-  };
-
-  const getSignatureStatus = (courtCard: any) => {
-    if (!courtCard || !courtCard.courtCard) {
-      return { participantSigned: false };
-    }
-
-    const signatures = courtCard.courtCard.signatures || [];
-    const participantSigned = signatures.some((sig: any) => sig.signerRole === 'PARTICIPANT');
-
-    return { participantSigned };
-  };
 
   if (loading) {
     return (
@@ -358,15 +325,11 @@ const ParticipantProgressPage: React.FC = () => {
                     <TableCell>Duration</TableCell>
                     <TableCell>Attendance</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell>Signatures</TableCell>
                     <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {recentAttendance.map((record: any) => {
-                    const { participantSigned } = getSignatureStatus(record);
-                    
-                    return (
+                  {recentAttendance.map((record: any) => (
                     <TableRow key={record.id} hover>
                       <TableCell>
                         {new Date(record.date || record.meetingDate).toLocaleDateString()}
@@ -418,30 +381,22 @@ const ParticipantProgressPage: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          icon={participantSigned ? <VerifiedIcon /> : undefined}
-                          label={participantSigned ? 'You Signed' : 'Not Signed'}
-                          size="small"
-                          color={participantSigned ? 'success' : 'default'}
-                          variant={participantSigned ? 'filled' : 'outlined'}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {record.status === 'COMPLETED' && record.courtCard && !participantSigned && (
-                          <Tooltip title="Sign this court card">
+                        {record.status === 'COMPLETED' && record.courtCard && record.courtCard.verificationUrl && (
+                          <Tooltip title="View Court Card">
                             <IconButton
                               size="small"
                               color="primary"
-                              onClick={() => openSignDialog(record)}
+                              component="a"
+                              href={`/verify/${record.courtCard.id}`}
+                              target="_blank"
                             >
-                              <SignatureIcon fontSize="small" />
+                              <VisibilityIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                         )}
                       </TableCell>
                     </TableRow>
-                    );
-                  })}
+                  ))}
                 </TableBody>
               </Table>
             </Box>
@@ -492,29 +447,6 @@ const ParticipantProgressPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
-
-      {/* Signing Dialogs */}
-      {selectedCourtCard && (
-        <SignCourtCardDialog
-          open={signDialogOpen}
-          courtCardId={selectedCourtCard.courtCard?.id || ''}
-          courtCardNumber={selectedCourtCard.courtCard?.cardNumber || ''}
-          onClose={() => setSignDialogOpen(false)}
-          onSuccess={handleSignSuccess}
-          token={token || ''}
-        />
-      )}
-
-      {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-      >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Container>
   );
 };
