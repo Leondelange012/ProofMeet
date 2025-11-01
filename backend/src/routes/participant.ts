@@ -551,10 +551,14 @@ router.post(
       });
 
       // Check if meeting is still active (within its scheduled duration)
-      const meetingStartTime = meeting.lastSyncedAt || new Date();
-      const meetingEndTime = new Date(meetingStartTime.getTime() + (meeting.durationMinutes || 60) * 60 * 1000);
+      // For test meetings, use createdAt as start time; for recurring meetings with existing attendance, use first join time
+      const meetingStartTime = existingCompleted?.joinTime || meeting.createdAt;
+      const meetingDuration = meeting.durationMinutes || 60;
+      const meetingEndTime = new Date(meetingStartTime.getTime() + meetingDuration * 60 * 1000);
       const now = new Date();
       const isMeetingStillActive = now <= meetingEndTime;
+      
+      logger.info(`Re-join check: Meeting started at ${meetingStartTime.toISOString()}, ends at ${meetingEndTime.toISOString()}, now: ${now.toISOString()}, active: ${isMeetingStillActive}`);
 
       let attendance;
 
@@ -586,6 +590,13 @@ router.post(
         });
 
         logger.info(`Participant ${participantId} re-joined meeting ${meetingId} after ${absenceTimeMin} min absence`);
+      } else if (existingCompleted && !isMeetingStillActive) {
+        // Meeting has ended - can't rejoin
+        const minutesSinceEnd = Math.floor((now.getTime() - meetingEndTime.getTime()) / (1000 * 60));
+        return res.status(400).json({
+          success: false,
+          error: `This meeting has ended. It finished ${minutesSinceEnd} minute${minutesSinceEnd !== 1 ? 's' : ''} ago.`,
+        });
       } else {
         // NEW JOIN: Create new attendance record
         attendance = await prisma.attendanceRecord.create({
