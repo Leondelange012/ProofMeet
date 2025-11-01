@@ -300,39 +300,6 @@ const CourtRepDashboardPage: React.FC = () => {
     }
   };
 
-  const regenerateMissingCourtCards = async () => {
-    if (!confirm('This will generate court cards for all completed meetings that are missing them. Continue?')) {
-      return;
-    }
-    
-    try {
-      setRefreshing(true);
-      const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.post(
-        `${API_BASE_URL}/court-rep/admin/regenerate-court-cards`,
-        {},
-        { headers }
-      );
-
-      if (response.data.success) {
-        setSnackbar({
-          open: true,
-          message: `Generated ${response.data.data.generated} court card(s)`,
-          severity: 'success',
-        });
-        await loadDashboard(true); // Reload data
-      }
-    } catch (error: any) {
-      setSnackbar({
-        open: true,
-        message: error.response?.data?.error || 'Failed to regenerate court cards',
-        severity: 'error',
-      });
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   const loadTestMeetings = async () => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
@@ -419,14 +386,6 @@ const CourtRepDashboardPage: React.FC = () => {
               }}
             >
               {showTestMeetings ? 'Hide' : 'Manage'} Test Meetings
-            </Button>
-            <Button
-              variant="outlined"
-              color="warning"
-              onClick={regenerateMissingCourtCards}
-              disabled={refreshing}
-            >
-              Generate Missing Court Cards
             </Button>
             <Button
               variant="contained"
