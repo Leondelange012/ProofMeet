@@ -42,91 +42,94 @@ export function calculateEngagementScore(
   const focusTimePercent = (metrics.tabFocusTimeMs / meetingDurationMs) * 100;
   const activityRate = metrics.activityEvents / meetingDurationMin; // Events per minute
 
-  // Weighted scoring system
+  // Weighted scoring system - REALISTIC for actual meetings
   const weights = {
-    tabFocusTime: 0.40,      // Most important - was tab actually focused?
-    activityRate: 0.25,       // Mouse/keyboard activity
-    audioVideo: 0.15,         // Audio/video participation
-    consistency: 0.20,        // Pattern consistency
+    audioVideo: 0.50,         // MOST IMPORTANT - is camera on and are they visible?
+    hasAnyActivity: 0.30,     // Did they show ANY signs of presence?
+    consistency: 0.20,        // Pattern consistency (not a bot)
   };
 
-  // 1. Tab Focus Score (0-100)
-  let focusScore = Math.min(focusTimePercent, 100);
-  if (focusTimePercent < 50) {
-    flags.push('LOW_TAB_FOCUS');
-  }
-  if (focusTimePercent < 30) {
-    flags.push('CRITICALLY_LOW_FOCUS');
-  }
-
-  // 2. Activity Rate Score (0-100)
-  // Expect at least 1 activity event per 2 minutes (0.5/min) for engaged participant
-  const expectedActivityRate = 0.5;
-  let activityScore = Math.min((activityRate / expectedActivityRate) * 100, 100);
-  if (activityRate < 0.2) {
-    flags.push('LOW_ACTIVITY');
-  }
-
-  // 3. Audio/Video Participation Score (0-100)
+  // 1. Audio/Video Participation Score (0-100) - PRIMARY CHECK
+  // This proves they're actually present and visible
   let avScore = 0;
-  if (metrics.audioActive) avScore += 50;
-  if (metrics.videoActive) avScore += 50;
-  if (!metrics.audioActive && !metrics.videoActive) {
-    flags.push('NO_AUDIO_VIDEO');
+  if (metrics.audioActive) avScore += 30;  // Audio helps but not required
+  if (metrics.videoActive) avScore += 70;  // Video is the key indicator
+  
+  if (!metrics.videoActive) {
+    flags.push('NO_VIDEO'); // No camera = can't verify presence
   }
 
-  // 4. Consistency Score - check for suspicious patterns
+  // 2. Activity Presence Score (0-100)
+  // ANY activity (mouse/keyboard) proves they're actually there
+  // We don't care if it's frequent - just that it exists
+  let activityScore = 0;
+  const hasAnyActivity = (metrics.mouseMovements > 0 || metrics.keyboardActivity > 0 || metrics.activityEvents > 0);
+  
+  if (hasAnyActivity) {
+    activityScore = 100; // ANY activity is good enough
+  } else {
+    activityScore = 0;
+    // Only flag if there's literally ZERO activity in a meeting > 10 min
+    if (meetingDurationMin > 10) {
+      flags.push('ZERO_ACTIVITY');
+    }
+  }
+
+  // 3. Tab Focus is REMOVED - people in meetings look at notes, other screens, etc.
+  // We care about video + any activity, not constant tab focus
+
+  // 4. Consistency Score - check for suspicious patterns (bot detection)
   let consistencyScore = 100;
   
-  // Check idle events ratio
-  const totalEvents = metrics.activityEvents + metrics.idleEvents;
-  const idlePercent = totalEvents > 0 ? (metrics.idleEvents / totalEvents) * 100 : 0;
-  
-  if (idlePercent > 60) {
-    flags.push('HIGH_IDLE_TIME');
-    consistencyScore -= 30;
+  // Check for automation patterns (too consistent = possible bot)
+  if (metrics.activityEvents > 0 && activityRate > 10) {
+    flags.push('SUSPICIOUSLY_HIGH_ACTIVITY'); // Possible bot/automation
+    consistencyScore -= 50;
   }
 
-  // Check for automation patterns (too consistent)
-  if (metrics.activityEvents > 0 && activityRate > 5) {
-    flags.push('SUSPICIOUSLY_HIGH_ACTIVITY'); // Possible bot
-    consistencyScore -= 40;
-  }
-
-  // Check for zero activity (tab left open)
-  if (metrics.activityEvents === 0 && meetingDurationMin > 10) {
-    flags.push('ZERO_ACTIVITY_DETECTED');
+  // Extremely high activity with perfect timing suggests automation
+  if (activityRate > 15) {
+    flags.push('LIKELY_AUTOMATED');
     consistencyScore = 0;
   }
 
   // Calculate final weighted score
   const finalScore = Math.round(
-    (focusScore * weights.tabFocusTime) +
-    (activityScore * weights.activityRate) +
     (avScore * weights.audioVideo) +
+    (activityScore * weights.hasAnyActivity) +
     (consistencyScore * weights.consistency)
   );
 
-  // Determine engagement level
+  // Determine engagement level and recommendation
   let level: 'HIGH' | 'MEDIUM' | 'LOW' | 'SUSPICIOUS';
   let recommendation: 'APPROVE' | 'FLAG_FOR_REVIEW' | 'REJECT';
 
-  if (finalScore >= 70) {
+  // Simple, clear rules:
+  // - Video ON + ANY activity = APPROVE (they're clearly there)
+  // - Video OFF but activity present = FLAG FOR REVIEW (can't verify visual presence)
+  // - No activity at all = REJECT (tab left open)
+  // - Bot-like behavior = REJECT (automation detected)
+
+  if (flags.includes('LIKELY_AUTOMATED')) {
+    level = 'SUSPICIOUS';
+    recommendation = 'REJECT';
+  } else if (flags.includes('ZERO_ACTIVITY')) {
+    level = 'SUSPICIOUS';
+    recommendation = 'REJECT';
+  } else if (finalScore >= 80) {
+    // Video ON + activity = great!
     level = 'HIGH';
     recommendation = 'APPROVE';
   } else if (finalScore >= 50) {
+    // Some presence indicators but maybe no video
     level = 'MEDIUM';
-    recommendation = flags.length > 2 ? 'FLAG_FOR_REVIEW' : 'APPROVE';
+    recommendation = flags.includes('NO_VIDEO') ? 'FLAG_FOR_REVIEW' : 'APPROVE';
   } else if (finalScore >= 30) {
+    // Minimal engagement
     level = 'LOW';
     recommendation = 'FLAG_FOR_REVIEW';
   } else {
     level = 'SUSPICIOUS';
-    recommendation = 'REJECT';
-  }
-
-  // Override recommendation if critical flags present
-  if (flags.includes('ZERO_ACTIVITY_DETECTED') || flags.includes('CRITICALLY_LOW_FOCUS')) {
     recommendation = 'REJECT';
   }
 
@@ -147,15 +150,16 @@ export function calculateEngagementScore(
  * Determine engagement pattern
  */
 function determinePattern(metrics: EngagementMetrics, durationMin: number): string {
+  const hasActivity = (metrics.mouseMovements > 0 || metrics.keyboardActivity > 0 || metrics.activityEvents > 0);
   const activityRate = metrics.activityEvents / durationMin;
-  const idleRate = metrics.idleEvents / durationMin;
 
-  if (metrics.activityEvents === 0) return 'NO_ACTIVITY';
-  if (activityRate > 5) return 'HYPERACTIVE'; // Possibly automated
-  if (idleRate > activityRate * 2) return 'MOSTLY_IDLE';
-  if (activityRate >= 0.5 && idleRate < activityRate) return 'CONSISTENTLY_ENGAGED';
-  if (activityRate >= 0.3) return 'MODERATELY_ENGAGED';
-  return 'SPORADIC_ENGAGEMENT';
+  // Simple pattern detection
+  if (!hasActivity) return 'NO_ACTIVITY';
+  if (activityRate > 15) return 'LIKELY_AUTOMATED'; // Too perfect = bot
+  if (activityRate > 10) return 'VERY_HIGH_ACTIVITY'; // Suspicious
+  if (metrics.videoActive && hasActivity) return 'PRESENT_AND_ENGAGED';
+  if (hasActivity && !metrics.videoActive) return 'ACTIVE_NO_VIDEO';
+  return 'NORMAL_ENGAGEMENT';
 }
 
 /**
