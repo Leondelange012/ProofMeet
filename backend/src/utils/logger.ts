@@ -11,6 +11,14 @@ export const logger = winston.createLogger({
   format: logFormat,
   defaultMeta: { service: 'proofmeet-api' },
   transports: [
+    // Always log to console (Railway/Docker needs this)
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    }),
+    // Also log to files for local development
     new winston.transports.File({ 
       filename: process.env.LOG_FILE_PATH || './logs/error.log', 
       level: 'error' 
@@ -20,13 +28,3 @@ export const logger = winston.createLogger({
     }),
   ],
 });
-
-// If we're not in production, log to the console as well
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple()
-    )
-  }));
-}
