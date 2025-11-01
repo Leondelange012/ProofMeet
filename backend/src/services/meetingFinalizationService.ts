@@ -7,9 +7,9 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { generateCourtCard } from './courtCardService';
-import { analyzeAttendanceEngagement } from './engagementAnalysis';
+import { analyzeAttendanceEngagement } from './engagementDetection';
 import { runFraudDetection, shouldAutoReject, needsManualReview } from './fraudDetection';
-import { createAttendanceBlock } from './cryptoService';
+import { createAttendanceBlock } from './attendanceLedger';
 import { queueDailyDigest } from './emailService';
 
 const prisma = new PrismaClient();
