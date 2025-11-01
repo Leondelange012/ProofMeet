@@ -1086,6 +1086,35 @@ router.get('/test-meetings', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/court-rep/finalize-pending-meetings
+ * Manually trigger finalization of pending meetings (for testing/troubleshooting)
+ */
+router.post('/finalize-pending-meetings', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+    
+    logger.info(`Manual finalization triggered by Court Rep: ${courtRepId}`);
+    
+    // Import the finalization function
+    const { finalizePendingMeetings } = require('../services/meetingFinalizationService');
+    
+    // Run finalization
+    await finalizePendingMeetings();
+    
+    res.json({
+      success: true,
+      message: 'Finalization process completed. Check logs for details.',
+    });
+  } catch (error: any) {
+    logger.error('Manual finalization error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to run finalization',
+    });
+  }
+});
+
+/**
  * DELETE /api/court-rep/delete-meeting/:meetingId
  * Delete a test meeting (for testing purposes only)
  */

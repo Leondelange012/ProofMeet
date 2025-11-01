@@ -22,14 +22,16 @@ export async function finalizePendingMeetings(): Promise<void> {
   try {
     logger.info('🔍 Checking for meetings to finalize...');
 
-    // Find all COMPLETED attendance records that are still in "temporary leave" state
+    // Find all COMPLETED attendance records without court cards from the last 24 hours
+    // These are meetings where participants left early and we're waiting for the window to end
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
     const pendingRecords = await prisma.attendanceRecord.findMany({
       where: {
         status: 'COMPLETED',
-        // @ts-ignore - metadata field
-        metadata: {
-          path: ['meetingStillActive'],
-          equals: true,
+        courtCard: null, // No court card generated yet
+        meetingDate: {
+          gte: twentyFourHoursAgo, // Only recent meetings
         },
       },
       include: {
