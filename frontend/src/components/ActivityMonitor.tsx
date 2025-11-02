@@ -44,8 +44,8 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
   const [isActive, setIsActive] = useState(true);
   const [lastActivityTime, setLastActivityTime] = useState(Date.now());
   const [tabFocused, setTabFocused] = useState(!document.hidden);
-  const [cameraOn, setCameraOn] = useState(initialCameraStatus);
-  const [audioOn, setAudioOn] = useState(initialAudioStatus);
+  const [cameraOn] = useState(initialCameraStatus);
+  const [audioOn] = useState(initialAudioStatus);
   const [deviceId] = useState(() => {
     // Generate or retrieve persistent device ID
     let id = localStorage.getItem('deviceId');
@@ -221,7 +221,7 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
 
   // Auto-leave detection when tab closes or user navigates away
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (_e: BeforeUnloadEvent) => {
       // Send leave meeting request using sendBeacon (doesn't wait for response)
       const leaveUrl = `${API_BASE_URL}/participant/leave-meeting`;
       const headers = { 

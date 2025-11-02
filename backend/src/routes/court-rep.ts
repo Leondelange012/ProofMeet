@@ -1115,6 +1115,248 @@ router.post('/finalize-pending-meetings', async (req: Request, res: Response) =>
 });
 
 /**
+ * GET /api/court-rep/flagged-attendance
+ * Get all attendance records flagged for review (rejected by fraud detection)
+ */
+router.get('/flagged-attendance', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+    
+    logger.info(`Court Rep ${courtRepId} fetching flagged attendance records`);
+    
+    // Find all attendance records that are flagged (isValid = false, status = COMPLETED)
+    const flaggedRecords = await prisma.attendanceRecord.findMany({
+      where: {
+        courtRepId,
+        isValid: false,  // Flagged/rejected
+        status: 'COMPLETED',
+        meetingDate: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+        },
+      },
+      include: {
+        participant: true,
+        externalMeeting: true,
+        courtCard: true,
+      },
+      orderBy: {
+        meetingDate: 'desc',
+      },
+    });
+    
+    // Format the response with fraud detection details
+    const formatted = flaggedRecords.map((record: any) => {
+      const metadata = (record.metadata as any) || {};
+      return {
+        id: record.id,
+        participant: {
+          id: record.participant.id,
+          name: record.participant.name,
+          email: record.participant.email,
+        },
+        meeting: {
+          id: record.externalMeeting.id,
+          name: record.externalMeeting.name,
+          program: record.externalMeeting.program,
+          dayOfWeek: record.externalMeeting.dayOfWeek,
+          time: record.externalMeeting.time,
+          durationMinutes: record.externalMeeting.durationMinutes,
+        },
+        meetingDate: record.meetingDate,
+        joinTime: record.joinTime,
+        leaveTime: record.leaveTime,
+        duration: record.totalDurationMin,
+        attendancePercent: record.attendancePercent,
+        status: record.status,
+        isValid: record.isValid,
+        // Fraud/Engagement details
+        engagementScore: metadata.engagement?.score || null,
+        engagementLevel: metadata.engagement?.level || null,
+        engagementFlags: metadata.engagement?.flags || [],
+        fraudRiskScore: metadata.fraudDetection?.riskScore || null,
+        fraudViolations: metadata.fraudDetection?.violations || null,
+        fraudReasons: metadata.fraudDetection?.reasons || [],
+        // Override details (if any)
+        manualOverride: metadata.manualOverride || false,
+        overrideAction: metadata.overrideAction || null,
+        overrideReason: metadata.overrideReason || null,
+        overrideTimestamp: metadata.overrideTimestamp || null,
+        // Auto-rejection details
+        autoRejected: metadata.autoRejected || false,
+        rejectionReason: metadata.rejectionReason || null,
+        // Court card (if exists)
+        courtCard: record.courtCard ? {
+          id: record.courtCard.id,
+          validationStatus: record.courtCard.validationStatus,
+        } : null,
+      };
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        total: formatted.length,
+        records: formatted,
+      },
+    });
+    
+  } catch (error: any) {
+    logger.error('Fetch flagged attendance error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch flagged attendance',
+    });
+  }
+});
+
+/**
+ * POST /api/court-rep/override-attendance/:attendanceId
+ * Manually approve or reject an attendance record (overrides fraud detection)
+ */
+router.post('/override-attendance/:attendanceId', [
+  body('action').isIn(['approve', 'reject']).withMessage('Action must be approve or reject'),
+  body('reason').isString().optional().withMessage('Reason must be a string'),
+], async (req: Request, res: Response) => {
+  try {
+    const { attendanceId } = req.params;
+    const { action, reason } = req.body;
+    const courtRepId = req.user!.id;
+    
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+    
+    logger.info(`Court Rep ${courtRepId} attempting to ${action} attendance ${attendanceId}`);
+    
+    // Find the attendance record
+    const attendance = await prisma.attendanceRecord.findUnique({
+      where: { id: attendanceId },
+      include: {
+        participant: true,
+        externalMeeting: true,
+        courtCard: true,
+      },
+    });
+    
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        error: 'Attendance record not found',
+      });
+    }
+    
+    // Verify court rep owns this participant
+    if (attendance.participant.courtRepId !== courtRepId) {
+      return res.status(403).json({
+        success: false,
+        error: 'You do not have permission to override this attendance record',
+      });
+    }
+    
+    // Check if already has a court card
+    if (attendance.courtCard && action === 'approve') {
+      return res.status(400).json({
+        success: false,
+        error: 'This attendance already has a court card generated',
+      });
+    }
+    
+    if (action === 'approve') {
+      // APPROVE: Set isValid to true and generate court card if missing
+      logger.info(`Court Rep ${courtRepId} approving attendance ${attendanceId}`);
+      
+      // Update attendance record
+      await prisma.attendanceRecord.update({
+        where: { id: attendanceId },
+        data: {
+          isValid: true,
+          metadata: Object.assign(
+            {},
+            (attendance.metadata as any) || {},
+            {
+              manualOverride: true,
+              overriddenBy: courtRepId,
+              overrideAction: 'approve',
+              overrideReason: reason || 'Manual approval by court representative',
+              overrideTimestamp: new Date().toISOString(),
+            }
+          ),
+        },
+      });
+      
+      // Generate court card if it doesn't exist
+      if (!attendance.courtCard) {
+        logger.info(`Generating court card for approved attendance ${attendanceId}`);
+        const courtCard = await generateCourtCard(attendanceId);
+        
+        return res.json({
+          success: true,
+          message: 'Attendance approved and court card generated',
+          data: {
+            attendanceId,
+            courtCardId: courtCard.id,
+            action: 'approve',
+          },
+        });
+      }
+      
+      return res.json({
+        success: true,
+        message: 'Attendance approved',
+        data: {
+          attendanceId,
+          action: 'approve',
+        },
+      });
+      
+    } else {
+      // REJECT: Set isValid to false
+      logger.info(`Court Rep ${courtRepId} rejecting attendance ${attendanceId}`);
+      
+      await prisma.attendanceRecord.update({
+        where: { id: attendanceId },
+        data: {
+          isValid: false,
+          metadata: Object.assign(
+            {},
+            (attendance.metadata as any) || {},
+            {
+              manualOverride: true,
+              overriddenBy: courtRepId,
+              overrideAction: 'reject',
+              overrideReason: reason || 'Manual rejection by court representative',
+              overrideTimestamp: new Date().toISOString(),
+            }
+          ),
+        },
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Attendance rejected',
+        data: {
+          attendanceId,
+          action: 'reject',
+        },
+      });
+    }
+    
+  } catch (error: any) {
+    logger.error('Override attendance error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to override attendance',
+    });
+  }
+});
+
+/**
  * DELETE /api/court-rep/delete-meeting/:meetingId
  * Delete a test meeting (for testing purposes only)
  */
