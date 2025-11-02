@@ -26,10 +26,83 @@ export async function finalizePendingMeetings(): Promise<void> {
     logger.info(`⏰ Current time: ${startTime.toISOString()}`);
     logger.info('========================================');
 
-    // Find all COMPLETED attendance records without court cards from the last 24 hours
+    // STEP 1: Auto-complete stale IN_PROGRESS meetings
+    // These are meetings where participant never clicked "leave" but the meeting ended
+    logger.info('🔧 STEP 1: Checking for stale IN_PROGRESS meetings...');
+    const staleRecords = await prisma.attendanceRecord.findMany({
+      where: {
+        status: 'IN_PROGRESS',
+        joinTime: {
+          lte: new Date(Date.now() - 60 * 60 * 1000), // At least 1 hour old
+        },
+      },
+      include: {
+        externalMeeting: true,
+      },
+    });
+
+    logger.info(`   Found ${staleRecords.length} IN_PROGRESS records to check`);
+
+    for (const record of staleRecords) {
+      try {
+        const meetingStartTime = record.joinTime;
+        const meetingDuration = record.externalMeeting?.durationMinutes || 60;
+        const meetingEndTime = new Date(meetingStartTime.getTime() + meetingDuration * 60 * 1000);
+        const now = new Date();
+        const gracePeriod = 5 * 60 * 1000; // 5 minutes grace period
+
+        if (now.getTime() > (meetingEndTime.getTime() + gracePeriod)) {
+          // Meeting ended more than 5 minutes ago - auto-complete it
+          const leaveTime = meetingEndTime; // Use scheduled end time as leave time
+          const totalDurationMinutes = Math.floor((leaveTime.getTime() - record.joinTime.getTime()) / (1000 * 60));
+          const expectedDuration = meetingDuration;
+          const attendancePercent = Math.min((totalDurationMinutes / expectedDuration) * 100, 100);
+
+          logger.info(`   🔄 Auto-completing stale record: ${record.id}`);
+          logger.info(`      Meeting: ${record.meetingName}`);
+          logger.info(`      Join: ${record.joinTime.toISOString()}, Expected End: ${meetingEndTime.toISOString()}`);
+          logger.info(`      Auto-setting leave time to meeting end time`);
+
+          await prisma.attendanceRecord.update({
+            where: { id: record.id },
+            data: {
+              status: 'COMPLETED',
+              leaveTime,
+              totalDurationMin: totalDurationMinutes,
+              activeDurationMin: totalDurationMinutes,
+              idleDurationMin: 0,
+              attendancePercent,
+              // @ts-ignore
+              metadata: Object.assign(
+                {},
+                (record.metadata as any) || {},
+                {
+                  autoCompleted: true,
+                  autoCompletedAt: now.toISOString(),
+                  reason: 'User did not manually leave - auto-completed after meeting ended',
+                }
+              ),
+            },
+          });
+
+          logger.info(`   ✅ Auto-completed record ${record.id} - now ready for finalization`);
+        } else {
+          const minutesRemaining = Math.ceil((meetingEndTime.getTime() + gracePeriod - now.getTime()) / (1000 * 60));
+          logger.info(`   ⏳ Record ${record.id} still within grace period (${minutesRemaining} min remaining)`);
+        }
+      } catch (error: any) {
+        logger.error(`   ❌ Failed to auto-complete record ${record.id}: ${error.message}`);
+      }
+    }
+
+    logger.info('✅ STEP 1 Complete: Stale meetings processed');
+    logger.info('');
+
+    // STEP 2: Find all COMPLETED attendance records without court cards from the last 24 hours
     // These are meetings where participants left early and we're waiting for the window to end
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     
+    logger.info('🔍 STEP 2: Processing COMPLETED meetings for court card generation...');
     logger.info(`📅 Searching for meetings from: ${twentyFourHoursAgo.toISOString()}`);
     logger.info(`🔎 Query filters: status=COMPLETED, courtCard=null, isValid!=false, meetingDate >= 24h ago`);
     
