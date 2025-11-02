@@ -81,10 +81,18 @@ const ActiveMeetingPage: React.FC = () => {
 
   return (
     <Container maxWidth="md">
-      {/* Camera Status Confirmation */}
+      {/* Activity Monitor - ALWAYS ACTIVE (doesn't wait for camera confirmation) */}
+      <ActivityMonitor
+        attendanceId={attendanceId}
+        token={token!}
+        initialCameraStatus={cameraOn}
+        initialAudioStatus={true}
+      />
+
+      {/* Camera Status Confirmation - Non-blocking overlay */}
       {!cameraConfirmed && (
         <Alert 
-          severity="warning" 
+          severity="info" 
           sx={{ mt: 4, mb: 2 }}
           action={
             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -112,22 +120,12 @@ const ActiveMeetingPage: React.FC = () => {
           }
         >
           <Typography variant="body2" fontWeight="bold">
-            📹 Is your camera ON in Zoom?
+            📹 Optional: Confirm your camera status
           </Typography>
           <Typography variant="body2">
-            This helps us verify your attendance. Please confirm your camera status.
+            This helps improve tracking accuracy. Tracking is already active!
           </Typography>
         </Alert>
-      )}
-
-      {/* Activity Monitor - sends heartbeats while page is open */}
-      {cameraConfirmed && (
-        <ActivityMonitor
-          attendanceId={attendanceId}
-          token={token!}
-          initialCameraStatus={cameraOn}
-          initialAudioStatus={true}
-        />
       )}
 
       <Box sx={{ mt: 4 }}>
