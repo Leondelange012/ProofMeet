@@ -32,9 +32,7 @@ export async function finalizePendingMeetings(): Promise<void> {
     const staleRecords = await prisma.attendanceRecord.findMany({
       where: {
         status: 'IN_PROGRESS',
-        joinTime: {
-          lte: new Date(Date.now() - 60 * 60 * 1000), // At least 1 hour old
-        },
+        // No time limit - check all IN_PROGRESS meetings to see if they should be completed
       },
       include: {
         externalMeeting: true,
