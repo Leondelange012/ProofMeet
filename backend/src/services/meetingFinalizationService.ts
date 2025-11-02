@@ -31,12 +31,13 @@ export async function finalizePendingMeetings(): Promise<void> {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     
     logger.info(`📅 Searching for meetings from: ${twentyFourHoursAgo.toISOString()}`);
-    logger.info(`🔎 Query filters: status=COMPLETED, courtCard=null, meetingDate >= 24h ago`);
+    logger.info(`🔎 Query filters: status=COMPLETED, courtCard=null, isValid!=false, meetingDate >= 24h ago`);
     
     const pendingRecords = await prisma.attendanceRecord.findMany({
       where: {
-        status: 'COMPLETED',
+        status: 'COMPLETED', // Only completed (not rejected)
         courtCard: null, // No court card generated yet
+        isValid: { not: false }, // Exclude already-rejected records
         meetingDate: {
           gte: twentyFourHoursAgo, // Only recent meetings
         },
@@ -196,7 +197,8 @@ export async function finalizePendingMeetings(): Promise<void> {
           await prisma.attendanceRecord.update({
             where: { id: record.id },
             data: {
-              isValid: false,
+              isValid: false, // Mark as invalid to prevent re-processing
+              // status stays 'COMPLETED' for reporting purposes
               // @ts-ignore
               metadata: Object.assign(
                 {},
@@ -204,12 +206,14 @@ export async function finalizePendingMeetings(): Promise<void> {
                 {
                   rejectionReason: fraudResult.reasons.join('; '),
                   autoRejected: true,
+                  finalizedAt: now.toISOString(),
+                  finalizedBy: 'AUTO_REJECTION',
                 }
               ),
             },
           });
           
-          logger.warn(`   ❌ Attendance ${record.id} auto-rejected due to fraud detection`);
+          logger.warn(`   ❌ Attendance ${record.id} auto-rejected (isValid=false) - will not re-process`);
         } else {
           // Generate court card if it doesn't exist
           logger.info(`   📄 Proceeding with court card generation...`);
