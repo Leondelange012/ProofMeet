@@ -42,6 +42,8 @@ const ActiveMeetingPage: React.FC = () => {
   const [meetingUrl] = useState<string>(
     stateData.meetingUrl || sessionStorage.getItem('activeMeetingUrl') || ''
   );
+  const [cameraConfirmed, setCameraConfirmed] = useState(false);
+  const [cameraOn, setCameraOn] = useState(true); // Default to true
 
   // Persist to sessionStorage when data changes
   useEffect(() => {
@@ -79,11 +81,54 @@ const ActiveMeetingPage: React.FC = () => {
 
   return (
     <Container maxWidth="md">
+      {/* Camera Status Confirmation */}
+      {!cameraConfirmed && (
+        <Alert 
+          severity="warning" 
+          sx={{ mt: 4, mb: 2 }}
+          action={
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button 
+                color="inherit" 
+                size="small"
+                onClick={() => {
+                  setCameraOn(true);
+                  setCameraConfirmed(true);
+                }}
+              >
+                ✅ Camera ON
+              </Button>
+              <Button 
+                color="inherit" 
+                size="small"
+                onClick={() => {
+                  setCameraOn(false);
+                  setCameraConfirmed(true);
+                }}
+              >
+                ❌ Camera OFF
+              </Button>
+            </Box>
+          }
+        >
+          <Typography variant="body2" fontWeight="bold">
+            📹 Is your camera ON in Zoom?
+          </Typography>
+          <Typography variant="body2">
+            This helps us verify your attendance. Please confirm your camera status.
+          </Typography>
+        </Alert>
+      )}
+
       {/* Activity Monitor - sends heartbeats while page is open */}
-      <ActivityMonitor
-        attendanceId={attendanceId}
-        token={token!}
-      />
+      {cameraConfirmed && (
+        <ActivityMonitor
+          attendanceId={attendanceId}
+          token={token!}
+          initialCameraStatus={cameraOn}
+          initialAudioStatus={true}
+        />
+      )}
 
       <Box sx={{ mt: 4 }}>
         {/* Header */}

@@ -22,6 +22,8 @@ interface ActivityMonitorProps {
   attendanceId: string;
   token: string;
   onActivityChange?: (isActive: boolean) => void;
+  initialCameraStatus?: boolean; // Allow parent to specify camera status
+  initialAudioStatus?: boolean;  // Allow parent to specify audio status
 }
 
 interface EnhancedActivityData {
@@ -36,10 +38,14 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
   attendanceId,
   token,
   onActivityChange,
+  initialCameraStatus = true,  // Default to true - assume camera is on
+  initialAudioStatus = true,   // Default to true - assume audio is on
 }) => {
   const [isActive, setIsActive] = useState(true);
   const [lastActivityTime, setLastActivityTime] = useState(Date.now());
   const [tabFocused, setTabFocused] = useState(!document.hidden);
+  const [cameraOn, setCameraOn] = useState(initialCameraStatus);
+  const [audioOn, setAudioOn] = useState(initialAudioStatus);
   const [deviceId] = useState(() => {
     // Generate or retrieve persistent device ID
     let id = localStorage.getItem('deviceId');
@@ -169,9 +175,9 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
           tabFocusTimeMs: activityData.current.tabFocusTime,
           // Device fingerprinting
           deviceId,
-          // Audio/video (would come from Zoom SDK if integrated)
-          audioActive: false, // TODO: Integrate with Zoom SDK
-          videoActive: false, // TODO: Integrate with Zoom SDK
+          // Audio/video status (from user confirmation or detection)
+          audioActive: audioOn,
+          videoActive: cameraOn,
         };
         
         await axios.post(
@@ -188,6 +194,8 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
           mouse: metadata.mouseActivityCount,
           keyboard: metadata.keyboardActivityCount,
           focusTime: `${Math.round(metadata.tabFocusTimeMs / 1000)}s`,
+          video: cameraOn ? 'ON' : 'OFF',
+          audio: audioOn ? 'ON' : 'OFF',
         });
         
         // Reset counters after sending
@@ -209,7 +217,48 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
         clearInterval(heartbeatInterval.current);
       }
     };
-  }, [attendanceId, token, isActive, lastActivityTime]);
+  }, [attendanceId, token, isActive, lastActivityTime, cameraOn, audioOn]);
+
+  // Auto-leave detection when tab closes or user navigates away
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Send leave meeting request using sendBeacon (doesn't wait for response)
+      const leaveUrl = `${API_BASE_URL}/participant/leave-meeting`;
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      const body = JSON.stringify({ attendanceId });
+      
+      // Use sendBeacon for reliable delivery even when page is closing
+      const blob = new Blob([body], { type: 'application/json' });
+      
+      try {
+        // Modern browsers support sendBeacon with custom headers via Blob
+        navigator.sendBeacon(leaveUrl, blob);
+        console.log('🚪 Auto-leave triggered: tab closing');
+      } catch (error) {
+        // Fallback: synchronous fetch (may not complete)
+        console.warn('sendBeacon failed, attempting synchronous leave:', error);
+        fetch(leaveUrl, {
+          method: 'POST',
+          headers,
+          body,
+          keepalive: true, // Keep request alive even after page unload
+        }).catch(err => console.error('Failed to send leave request:', err));
+      }
+      
+      // Don't show confirmation dialog (per user requirement)
+      // e.preventDefault();
+      // e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [attendanceId, token]);
 
   // Warn if user is about to become idle
   useEffect(() => {
