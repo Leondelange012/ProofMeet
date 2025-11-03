@@ -329,6 +329,7 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
             durationMinutes: true,
             time: true,
             timezone: true,
+            createdAt: true,
           },
         },
         webcamSnapshots: {
@@ -385,24 +386,19 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
     const meetingDurationMin = attendance.externalMeeting?.durationMinutes || 60;
 
     // Parse scheduled meeting times for tardiness/early departure checking
+    // Use externalMeeting.createdAt which has the correct timezone-aware start time
     let scheduledStartTime: Date | null = null;
     let scheduledEndTime: Date | null = null;
     
-    if (attendance.externalMeeting?.time) {
-      try {
-        // Parse time string (e.g., "13:00" or "13:30")
-        const [hours, minutes] = attendance.externalMeeting.time.split(':').map(Number);
-        
-        // Create scheduled start time by combining meeting date with scheduled time
-        scheduledStartTime = new Date(attendance.meetingDate);
-        scheduledStartTime.setHours(hours, minutes || 0, 0, 0);
-        
-        // Calculate scheduled end time (start + duration)
-        scheduledEndTime = new Date(scheduledStartTime);
-        scheduledEndTime.setMinutes(scheduledEndTime.getMinutes() + meetingDurationMin);
-      } catch (error) {
-        logger.warn(`Failed to parse scheduled time: ${attendance.externalMeeting.time}`);
-      }
+    if (attendance.externalMeeting?.createdAt) {
+      // Use the meeting's createdAt timestamp (set to actual Zoom meeting start time)
+      scheduledStartTime = new Date(attendance.externalMeeting.createdAt);
+      
+      // Calculate scheduled end time (start + duration)
+      scheduledEndTime = new Date(scheduledStartTime);
+      scheduledEndTime.setMinutes(scheduledEndTime.getMinutes() + meetingDurationMin);
+      
+      logger.info(`Scheduled time window: ${scheduledStartTime.toISOString()} to ${scheduledEndTime.toISOString()}`);
     }
 
     // Validate attendance and generate violations
