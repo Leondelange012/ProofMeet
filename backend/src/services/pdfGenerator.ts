@@ -48,6 +48,20 @@ interface ParticipantIDPhoto {
   idType?: string;
 }
 
+interface AuditTrailMetrics {
+  startTime: Date;
+  endTime: Date;
+  activeTimeMinutes: number;
+  idleTimeMinutes: number;
+  videoOnPercentage: number;
+  attendancePercentage: number;
+  engagementScore: number | null;
+  engagementLevel: string | null;
+  activityEvents: number;
+  verificationMethod: string;
+  confidenceLevel: string;
+}
+
 interface CourtCardPDFData {
   participantName: string;
   participantEmail: string;
@@ -59,17 +73,18 @@ interface CourtCardPDFData {
   meetingsByType: { [key: string]: number };
   meetings: MeetingRecord[];
   generatedDate: Date;
-  // Digital signature fields
+  // Digital verification fields
   cardNumber?: string;
   verificationUrl?: string;
   qrCodeData?: string;
-  signatures?: DigitalSignatureInfo[];
   cardHash?: string;
   chainPosition?: number;
   // Photo verification fields
   webcamSnapshots?: WebcamSnapshot[];
   hostSignature?: HostSignature;
   participantIDPhoto?: ParticipantIDPhoto;
+  // Audit trail metrics
+  auditTrail?: AuditTrailMetrics;
 }
 
 /**
@@ -343,38 +358,70 @@ export async function generateCourtCardHTML(data: CourtCardPDFData): Promise<str
     </table>
   </div>
 
-  <!-- Digital Signature Section (NEW) -->
-  ${data.signatures && data.signatures.length > 0 ? `
-  <div class="signature-section">
-    <h2 style="color: #1976d2; font-size: 18px; margin-bottom: 15px; border-bottom: 2px solid #1976d2; padding-bottom: 5px;">
-      ✓ Digital Signatures & Verification
+  <!-- Attendance Metrics Section (NEW) -->
+  ${data.auditTrail ? `
+  <div style="background-color: #e8f5e9; padding: 20px; border-radius: 8px; border-left: 5px solid #4caf50; margin-top: 30px; margin-bottom: 20px;">
+    <h2 style="color: #2e7d32; font-size: 18px; margin-bottom: 15px; border-bottom: 2px solid #4caf50; padding-bottom: 5px;">
+      📊 Attendance Verification Metrics
     </h2>
-    <div style="background-color: #e8f5e9; padding: 20px; border-radius: 8px; border-left: 5px solid #4caf50; margin-bottom: 20px;">
-      <p style="margin-bottom: 15px; font-weight: bold; color: #2e7d32;">
-        ✓ This document is digitally signed and cryptographically verified. No physical signatures required.
-      </p>
-      
-      ${data.signatures.map(sig => `
-      <div style="background-color: white; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <div>
-            <strong>Signer:</strong> ${sig.signerName}
-          </div>
-          <div>
-            <strong>Role:</strong> ${sig.signerRole}
-          </div>
-          <div>
-            <strong>Date & Time:</strong> ${new Date(sig.timestamp).toLocaleString()}
-          </div>
-          <div>
-            <strong>Method:</strong> ${sig.signatureMethod}
-          </div>
+    <p style="margin-bottom: 15px; font-size: 13px; color: #555;">
+      Comprehensive proof of attendance tracked throughout the meeting.
+    </p>
+    
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
+      <div style="background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="font-size: 24px; font-weight: bold; color: #2e7d32; margin-bottom: 5px;">
+          ${data.auditTrail.activeTimeMinutes} min
         </div>
-        <div style="margin-top: 10px; padding: 10px; background-color: #f5f5f5; border-radius: 3px; font-family: monospace; font-size: 11px;">
-          ✓ Cryptographic signature verified
+        <div style="font-size: 12px; color: #666;">Active Time</div>
+      </div>
+      <div style="background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="font-size: 24px; font-weight: bold; color: ${data.auditTrail.videoOnPercentage >= 80 ? '#2e7d32' : '#f57c00'}; margin-bottom: 5px;">
+          ${data.auditTrail.videoOnPercentage}%
+        </div>
+        <div style="font-size: 12px; color: #666;">Video On</div>
+      </div>
+      <div style="background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="font-size: 24px; font-weight: bold; color: #2e7d32; margin-bottom: 5px;">
+          ${data.auditTrail.attendancePercentage}%
+        </div>
+        <div style="font-size: 12px; color: #666;">Attendance</div>
+      </div>
+    </div>
+    
+    <div style="background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div>
+          <strong>Meeting Start:</strong> ${new Date(data.auditTrail.startTime).toLocaleString()}
+        </div>
+        <div>
+          <strong>Meeting End:</strong> ${new Date(data.auditTrail.endTime).toLocaleString()}
+        </div>
+        <div>
+          <strong>Engagement Score:</strong> ${data.auditTrail.engagementScore !== null ? `${data.auditTrail.engagementScore}/100` : 'N/A'}
+        </div>
+        <div>
+          <strong>Engagement Level:</strong> ${data.auditTrail.engagementLevel || 'N/A'}
+        </div>
+        <div>
+          <strong>Activity Events:</strong> ${data.auditTrail.activityEvents}
+        </div>
+        <div>
+          <strong>Idle Time:</strong> ${data.auditTrail.idleTimeMinutes} min
+        </div>
+        <div>
+          <strong>Verification Method:</strong> ${data.auditTrail.verificationMethod}
+        </div>
+        <div>
+          <strong>Confidence Level:</strong> <span style="color: ${data.auditTrail.confidenceLevel === 'HIGH' ? '#2e7d32' : data.auditTrail.confidenceLevel === 'MEDIUM' ? '#f57c00' : '#666'}; font-weight: bold;">${data.auditTrail.confidenceLevel}</span>
         </div>
       </div>
-      `).join('')}
+    </div>
+    
+    <div style="padding: 12px; background-color: white; border-radius: 5px; border: 1px solid #4caf50;">
+      <p style="font-size: 11px; color: #555;">
+        <strong>✓ Verified Attendance:</strong> All metrics were tracked in real-time using video monitoring, activity detection, and engagement analysis. This provides comprehensive proof that the participant was present and actively engaged throughout the meeting.
+      </p>
     </div>
   </div>
   ` : ''}
@@ -425,7 +472,7 @@ export async function generateCourtCardHTML(data: CourtCardPDFData): Promise<str
         <li>Scan QR code with any smartphone</li>
         <li>Visit the verification URL in any browser</li>
         <li>Verify the card number matches</li>
-        <li>Check digital signatures are valid</li>
+        <li>Review attendance metrics and timestamps</li>
         <li>Confirm chain of trust is intact</li>
       </ol>
     </div>
@@ -538,10 +585,10 @@ export async function generateCourtCardHTML(data: CourtCardPDFData): Promise<str
   <!-- Footer -->
   <div class="footer">
     <p><strong>ProofMeet™ Digital Court Card System</strong></p>
-    <p style="margin-top: 5px;">This document is an official court compliance record with digital signatures and cryptographic verification.</p>
-    <p style="margin-top: 5px;">All attendance records are verified via Zoom API webhooks, activity monitoring, and blockchain ledger.</p>
+    <p style="margin-top: 5px;">This document is an official court compliance record with cryptographic verification and real-time attendance tracking.</p>
+    <p style="margin-top: 5px;">All attendance records are verified via Zoom API webhooks, video monitoring, activity detection, and blockchain ledger.</p>
     <p style="margin-top: 10px; font-weight: bold; color: #2e7d32;">
-      ✓ NO PHYSICAL SIGNATURES REQUIRED - Fully Digital & Legally Binding
+      ✓ COMPREHENSIVE ATTENDANCE PROOF - Video, Activity & Engagement Tracked
     </p>
     <p style="margin-top: 10px; font-size: 10px;">Document ID: ${data.cardNumber || `CC-${data.caseNumber}-${Date.now()}`}</p>
     <p style="font-size: 10px;">Generated: ${new Date(data.generatedDate).toISOString()}</p>

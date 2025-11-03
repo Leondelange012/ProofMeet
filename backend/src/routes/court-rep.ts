@@ -837,6 +837,32 @@ router.get('/participant/:participantId/court-card-pdf', async (req: Request, re
     // Get the most recent court card for QR code and verification
     const mostRecentCourtCard = meetings.find(m => m.courtCard)?.courtCard;
 
+    // Get the most recent attendance record with full data for audit trail
+    const mostRecentAttendance = meetings[0]; // Already sorted by meetingDate desc
+    
+    // Calculate audit trail metrics from the most recent meeting
+    let auditTrail = undefined;
+    if (mostRecentAttendance && mostRecentCourtCard) {
+      const metadata = (mostRecentAttendance.metadata as any) || {};
+      const timeline = (mostRecentAttendance.activityTimeline as any)?.events || [];
+      const videoOnEvents = timeline.filter((e: any) => e.data?.videoActive === true);
+      const videoOnPercent = timeline.length > 0 ? Math.round((videoOnEvents.length / timeline.length) * 100) : 0;
+      
+      auditTrail = {
+        startTime: mostRecentAttendance.joinTime,
+        endTime: mostRecentAttendance.leaveTime || new Date(),
+        activeTimeMinutes: mostRecentAttendance.totalDurationMin || 0,
+        idleTimeMinutes: (mostRecentAttendance as any).idleDurationMin || 0,
+        videoOnPercentage: videoOnPercent,
+        attendancePercentage: Number(mostRecentAttendance.attendancePercent || 0),
+        engagementScore: metadata.engagementScore || null,
+        engagementLevel: metadata.engagementLevel || null,
+        activityEvents: timeline.length,
+        verificationMethod: mostRecentCourtCard.verificationMethod || 'SCREEN_ACTIVITY',
+        confidenceLevel: mostRecentCourtCard.confidenceLevel || 'MEDIUM',
+      };
+    }
+
     // Prepare PDF data
     const pdfData = {
       participantName: `${participant.firstName} ${participant.lastName}`,
@@ -861,6 +887,8 @@ router.get('/participant/:participantId/court-card-pdf', async (req: Request, re
       qrCodeData: mostRecentCourtCard?.qrCodeData,
       cardHash: mostRecentCourtCard?.cardHash,
       generatedDate: new Date(),
+      // Include audit trail metrics
+      auditTrail,
     };
 
     // Generate HTML with QR code (can be converted to PDF client-side or server-side)

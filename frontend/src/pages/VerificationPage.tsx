@@ -50,12 +50,6 @@ interface VerificationData {
     program: string;
     duration: number;
   };
-  signatures: Array<{
-    signerName: string;
-    signerRole: string;
-    timestamp: string;
-    signatureMethod: string;
-  }>;
   validationStatus: string;
   issueDate: string;
   expirationDate?: string;
@@ -63,29 +57,22 @@ interface VerificationData {
   qrCodeData: string;
   chainOfTrustValid: boolean;
   warnings: string[];
+  auditTrail?: AuditTrail;
 }
 
-interface SignatureVerification {
-  isValid: boolean;
-  validSignatures: number;
-  totalSignatures: number;
-  details: Array<{
-    signerName: string;
-    signerRole: string;
-    isValid: boolean;
-    timestamp: string;
-  }>;
-}
 
-interface AuditStats {
-  totalAuditEntries: number;
-  verificationAttempts: number;
-  signatureCount: number;
-  tamperingDetected: boolean;
-  lastVerification: {
-    timestamp: string;
-    ipAddress: string;
-  } | null;
+interface AuditTrail {
+  startTime: string;
+  endTime: string;
+  activeTimeMinutes: number;
+  idleTimeMinutes: number;
+  videoOnPercentage: number;
+  attendancePercentage: number;
+  engagementScore: number | null;
+  engagementLevel: string | null;
+  activityEvents: number;
+  verificationMethod: string;
+  confidenceLevel: string;
 }
 
 export default function VerificationPage() {
@@ -96,8 +83,7 @@ export default function VerificationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [verificationData, setVerificationData] = useState<VerificationData | null>(null);
-  const [signatureVerification, setSignatureVerification] = useState<SignatureVerification | null>(null);
-  const [auditStats, setAuditStats] = useState<AuditStats | null>(null);
+  const [auditTrail, setAuditTrail] = useState<AuditTrail | null>(null);
   const [chainValid, setChainValid] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -118,13 +104,10 @@ export default function VerificationPage() {
 
       const response = await axios.get(verifyUrl);
       setVerificationData(response.data.data);
-
-      // Get signature verification
-      try {
-        const sigResponse = await axios.get(`${API_URL}/api/verify/${courtCardId}/signatures`);
-        setSignatureVerification(sigResponse.data.data);
-      } catch (err) {
-        console.error('Failed to verify signatures:', err);
+      
+      // Extract auditTrail from main verification response
+      if (response.data.data.auditTrail) {
+        setAuditTrail(response.data.data.auditTrail);
       }
 
       // Get chain of trust
@@ -133,14 +116,6 @@ export default function VerificationPage() {
         setChainValid(chainResponse.data.data.isValid);
       } catch (err) {
         console.error('Failed to verify chain:', err);
-      }
-
-      // Get audit stats
-      try {
-        const auditResponse = await axios.get(`${API_URL}/api/verify/${courtCardId}/audit-trail`);
-        setAuditStats(auditResponse.data.data.statistics);
-      } catch (err) {
-        console.error('Failed to get audit stats:', err);
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to verify court card');
@@ -167,7 +142,13 @@ Verification Status: ${verificationData?.isValid ? 'VALID ✓' : 'INVALID ✗'}
 Validation Status: ${verificationData?.validationStatus}
 Chain of Trust: ${chainValid ? 'VALID ✓' : 'INVALID ✗'}
 
-Digital Signatures: ${signatureVerification?.validSignatures}/${signatureVerification?.totalSignatures} Valid
+ATTENDANCE METRICS:
+- Start Time: ${auditTrail ? new Date(auditTrail.startTime).toLocaleString() : 'N/A'}
+- End Time: ${auditTrail ? new Date(auditTrail.endTime).toLocaleString() : 'N/A'}
+- Active Time: ${auditTrail?.activeTimeMinutes || 0} minutes
+- Video On: ${auditTrail?.videoOnPercentage || 0}%
+- Attendance: ${auditTrail?.attendancePercentage || 0}%
+- Engagement Score: ${auditTrail?.engagementScore || 'N/A'}
 
 Verified by: ProofMeet Verification System
 Verification URL: ${verificationData?.verificationUrl}
@@ -258,11 +239,6 @@ This certificate confirms that the court card has been verified as authentic.
               <Chip
                 label={chainValid ? 'Chain Valid ✓' : 'Chain Invalid ✗'}
                 color={chainValid ? 'success' : 'error'}
-                sx={{ mr: 1 }}
-              />
-              <Chip
-                label={`${signatureVerification?.validSignatures || 0} Signatures`}
-                color="primary"
               />
             </Box>
           </Grid>
@@ -343,49 +319,100 @@ This certificate confirms that the court card has been verified as authentic.
         </CardContent>
       </Card>
 
-      {/* Digital Signatures */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <SecurityIcon sx={{ mr: 1 }} /> Digital Signatures
-          </Typography>
-          <Divider sx={{ mb: 2 }} />
-          {signatureVerification && (
-            <Alert
-              severity={signatureVerification.isValid ? 'success' : 'error'}
-              sx={{ mb: 2 }}
-            >
-              <Typography variant="h6">
-                {signatureVerification.validSignatures} of {signatureVerification.totalSignatures} signatures
-                verified
-              </Typography>
-            </Alert>
-          )}
-          <List>
-            {verificationData.signatures.map((sig, index) => (
-              <ListItem key={index} sx={{ backgroundColor: '#f5f5f5', mb: 1, borderRadius: 1 }}>
-                <ListItemText
-                  primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <CheckCircleIcon sx={{ color: '#4caf50' }} />
-                      <Typography variant="h6">{sig.signerName}</Typography>
-                      <Chip label={sig.signerRole} size="small" color="primary" />
-                    </Box>
-                  }
-                  secondary={
-                    <>
-                      <Typography variant="body2">
-                        Signed: {new Date(sig.timestamp).toLocaleString()}
-                      </Typography>
-                      <Typography variant="body2">Method: {sig.signatureMethod}</Typography>
-                    </>
-                  }
+      {/* Attendance Metrics */}
+      {auditTrail && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <HistoryIcon sx={{ mr: 1 }} /> Attendance Metrics
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Start Time
+                </Typography>
+                <Typography variant="h6">
+                  {new Date(auditTrail.startTime).toLocaleString()}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  End Time
+                </Typography>
+                <Typography variant="h6">
+                  {new Date(auditTrail.endTime).toLocaleString()}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Active Time in Meeting
+                </Typography>
+                <Typography variant="h6" color="success.main">
+                  {auditTrail.activeTimeMinutes} minutes
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Video On Percentage
+                </Typography>
+                <Typography variant="h6" color={auditTrail.videoOnPercentage >= 80 ? 'success.main' : 'warning.main'}>
+                  {auditTrail.videoOnPercentage}%
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Attendance Percentage
+                </Typography>
+                <Typography variant="h6" color="success.main">
+                  {auditTrail.attendancePercentage}%
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Engagement Score
+                </Typography>
+                <Typography variant="h6">
+                  {auditTrail.engagementScore !== null ? `${auditTrail.engagementScore}/100` : 'N/A'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Engagement Level
+                </Typography>
+                <Typography variant="h6">
+                  {auditTrail.engagementLevel || 'N/A'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Activity Events Recorded
+                </Typography>
+                <Typography variant="h6">
+                  {auditTrail.activityEvents}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Verification Method
+                </Typography>
+                <Typography variant="body1">
+                  {auditTrail.verificationMethod}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Confidence Level
+                </Typography>
+                <Chip 
+                  label={auditTrail.confidenceLevel}
+                  color={auditTrail.confidenceLevel === 'HIGH' ? 'success' : auditTrail.confidenceLevel === 'MEDIUM' ? 'warning' : 'default'}
                 />
-              </ListItem>
-            ))}
-          </List>
-        </CardContent>
-      </Card>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Verification Details Accordion */}
       <Accordion sx={{ mb: 3 }}>
@@ -432,53 +459,101 @@ This certificate confirms that the court card has been verified as authentic.
         </AccordionDetails>
       </Accordion>
 
-      {/* Audit Statistics */}
-      {auditStats && (
+      {/* Detailed Audit Trail (Accordion) */}
+      {auditTrail && (
         <Accordion sx={{ mb: 3 }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
-              <HistoryIcon sx={{ mr: 1 }} /> Audit Trail & Statistics
+              <HistoryIcon sx={{ mr: 1 }} /> Detailed Audit Trail & Statistics
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2}>
-              <Grid item xs={12} md={3}>
-                <Typography variant="body2" color="text.secondary">
-                  Total Audit Entries
-                </Typography>
-                <Typography variant="h4">{auditStats.totalAuditEntries}</Typography>
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <Typography variant="body2" color="text.secondary">
-                  Verification Attempts
-                </Typography>
-                <Typography variant="h4">{auditStats.verificationAttempts}</Typography>
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <Typography variant="body2" color="text.secondary">
-                  Signature Count
-                </Typography>
-                <Typography variant="h4">{auditStats.signatureCount}</Typography>
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <Typography variant="body2" color="text.secondary">
-                  Tampering Detected
-                </Typography>
-                <Typography variant="h4" color={auditStats.tamperingDetected ? 'error' : 'success'}>
-                  {auditStats.tamperingDetected ? 'YES' : 'NO'}
-                </Typography>
-              </Grid>
-              {auditStats.lastVerification && (
-                <Grid item xs={12}>
-                  <Typography variant="body2" color="text.secondary">
-                    Last Verification
+              <Grid item xs={12}>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    This section provides comprehensive proof of attendance, including timestamps, 
+                    video verification, and engagement metrics tracked throughout the meeting.
                   </Typography>
-                  <Typography variant="body1">
-                    {new Date(auditStats.lastVerification.timestamp).toLocaleString()} from{' '}
-                    {auditStats.lastVerification.ipAddress}
-                  </Typography>
-                </Grid>
-              )}
+                </Alert>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Meeting Start Time
+                </Typography>
+                <Typography variant="body1" fontWeight="bold">
+                  {new Date(auditTrail.startTime).toLocaleString()}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Meeting End Time
+                </Typography>
+                <Typography variant="body1" fontWeight="bold">
+                  {new Date(auditTrail.endTime).toLocaleString()}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Total Active Time
+                </Typography>
+                <Typography variant="body1" fontWeight="bold">
+                  {auditTrail.activeTimeMinutes} minutes (Idle: {auditTrail.idleTimeMinutes} min)
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Video Camera Status
+                </Typography>
+                <Typography variant="body1" fontWeight="bold" color={auditTrail.videoOnPercentage >= 80 ? 'success.main' : 'warning.main'}>
+                  {auditTrail.videoOnPercentage}% of meeting (Camera ON)
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Overall Attendance
+                </Typography>
+                <Typography variant="h5" color="success.main">
+                  {auditTrail.attendancePercentage}%
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Engagement Score
+                </Typography>
+                <Typography variant="h5">
+                  {auditTrail.engagementScore !== null ? `${auditTrail.engagementScore}/100` : 'N/A'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Total Activity Events
+                </Typography>
+                <Typography variant="h5">
+                  {auditTrail.activityEvents}
+                </Typography>
+              </Grid>
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Verification Method
+                </Typography>
+                <Typography variant="body1">
+                  {auditTrail.verificationMethod}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Confidence Level
+                </Typography>
+                <Chip 
+                  label={auditTrail.confidenceLevel}
+                  color={auditTrail.confidenceLevel === 'HIGH' ? 'success' : auditTrail.confidenceLevel === 'MEDIUM' ? 'warning' : 'default'}
+                  size="small"
+                />
+              </Grid>
             </Grid>
           </AccordionDetails>
         </Accordion>
