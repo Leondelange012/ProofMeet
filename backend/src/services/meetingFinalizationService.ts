@@ -202,6 +202,7 @@ export async function finalizePendingMeetings(): Promise<void> {
             attendancePercent: true,
             status: true,
             metadata: true,
+            activityTimeline: true, // CRITICAL: Include timeline for fraud detection!
           },
         });
 
