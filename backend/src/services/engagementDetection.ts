@@ -91,17 +91,18 @@ export function calculateEngagementScore(
   
   // Check for automation patterns (too consistent = possible bot)
   // UPDATED THRESHOLDS: Much more lenient for normal meeting behavior
-  if (metrics.activityEvents > 0 && activityRate > 30) {
+  // Activity rate of 34/min is normal (heartbeat every 30s + mouse/keyboard events)
+  if (metrics.activityEvents > 0 && activityRate > 60) {
     flags.push('SUSPICIOUSLY_HIGH_ACTIVITY'); // Possible bot/automation
     consistencyScore -= 50;
-    logger.info(`   ⚠️ SUSPICIOUSLY_HIGH_ACTIVITY flagged (rate > 30)`);
+    logger.info(`   ⚠️ SUSPICIOUSLY_HIGH_ACTIVITY flagged (rate > 60)`);
   }
 
   // Extremely high activity with perfect timing suggests automation
-  if (activityRate > 50) {
+  if (activityRate > 100) {
     flags.push('LIKELY_AUTOMATED');
     consistencyScore = 0;
-    logger.info(`   ⚠️ LIKELY_AUTOMATED flagged (rate > 50)`);
+    logger.info(`   ⚠️ LIKELY_AUTOMATED flagged (rate > 100)`);
   }
 
   // Calculate final weighted score
@@ -166,8 +167,8 @@ function determinePattern(metrics: EngagementMetrics, durationMin: number): stri
 
   // Simple pattern detection - UPDATED THRESHOLDS
   if (!hasActivity) return 'NO_ACTIVITY';
-  if (activityRate > 50) return 'LIKELY_AUTOMATED'; // Too perfect = bot
-  if (activityRate > 30) return 'VERY_HIGH_ACTIVITY'; // Suspicious
+  if (activityRate > 100) return 'LIKELY_AUTOMATED'; // Too perfect = bot
+  if (activityRate > 60) return 'VERY_HIGH_ACTIVITY'; // Suspicious
   if (metrics.videoActive && hasActivity) return 'PRESENT_AND_ENGAGED';
   if (hasActivity && !metrics.videoActive) return 'ACTIVE_NO_VIDEO';
   return 'NORMAL_ENGAGEMENT';

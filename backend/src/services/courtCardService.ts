@@ -65,24 +65,33 @@ function validateAttendance(
   const idlePercent = totalDurationMin > 0 ? (idleDurationMin / totalDurationMin) * 100 : 0;
   const meetingAttendancePercent = meetingDurationMin > 0 ? (totalDurationMin / meetingDurationMin) * 100 : 0;
   
-  // STRICT COMPLIANCE: Check tardiness and early departure (CUMULATIVE 10-minute grace period)
-  const TOTAL_GRACE_PERIOD_MINUTES = 10;
+  // LENIENT COMPLIANCE: Check tardiness and early departure (10-minute grace period EACH)
+  const GRACE_PERIOD_MINUTES = 10;
   
-  // Rule 0: TARDINESS + EARLY DEPARTURE - Combined grace period of 10 minutes
+  // Rule 0: TARDINESS + EARLY DEPARTURE - Separate grace periods (not cumulative)
+  // Early joins (before scheduled start) are OK and don't count against grace period
   if (scheduledStartTime && scheduledEndTime) {
+    // Calculate late join (only if joined AFTER scheduled start)
     const minutesLate = Math.max(0, Math.round((actualJoinTime.getTime() - scheduledStartTime.getTime()) / (1000 * 60)));
-    const minutesEarly = Math.max(0, Math.round((scheduledEndTime.getTime() - actualLeaveTime.getTime()) / (1000 * 60)));
-    const totalMinutesMissed = minutesLate + minutesEarly;
     
-    // FAIL if combined tardiness + early departure exceeds grace period
-    if (totalMinutesMissed > TOTAL_GRACE_PERIOD_MINUTES) {
-      const details: string[] = [];
-      if (minutesLate > 0) details.push(`${minutesLate} min late`);
-      if (minutesEarly > 0) details.push(`${minutesEarly} min early departure`);
-      
+    // Calculate early departure (only if left BEFORE scheduled end)
+    const minutesEarly = Math.max(0, Math.round((scheduledEndTime.getTime() - actualLeaveTime.getTime()) / (1000 * 60)));
+    
+    // FAIL only if late join OR early departure exceeds grace period (not cumulative)
+    const violations_found: string[] = [];
+    
+    if (minutesLate > GRACE_PERIOD_MINUTES) {
+      violations_found.push(`${minutesLate} min late (max ${GRACE_PERIOD_MINUTES} min allowed)`);
+    }
+    
+    if (minutesEarly > GRACE_PERIOD_MINUTES) {
+      violations_found.push(`${minutesEarly} min early departure (max ${GRACE_PERIOD_MINUTES} min allowed)`);
+    }
+    
+    if (violations_found.length > 0) {
       violations.push({
         type: 'ATTENDANCE_WINDOW_VIOLATION',
-        message: `Missed ${totalMinutesMissed} minutes of scheduled meeting time (${details.join(' + ')}). Maximum allowed: ${TOTAL_GRACE_PERIOD_MINUTES} minutes.`,
+        message: `Attendance window violation: ${violations_found.join('; ')}. Note: Early joins (before scheduled start) are always allowed.`,
         severity: 'CRITICAL',
         timestamp: new Date().toISOString(),
       });
