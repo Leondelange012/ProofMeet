@@ -219,46 +219,9 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
     };
   }, [attendanceId, token, isActive, lastActivityTime, cameraOn, audioOn]);
 
-  // Auto-leave detection when tab closes or user navigates away
-  useEffect(() => {
-    const handleBeforeUnload = (_e: BeforeUnloadEvent) => {
-      // Send leave meeting request using sendBeacon (doesn't wait for response)
-      const leaveUrl = `${API_BASE_URL}/participant/leave-meeting`;
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-      const body = JSON.stringify({ attendanceId });
-      
-      // Use sendBeacon for reliable delivery even when page is closing
-      const blob = new Blob([body], { type: 'application/json' });
-      
-      try {
-        // Modern browsers support sendBeacon with custom headers via Blob
-        navigator.sendBeacon(leaveUrl, blob);
-        console.log('🚪 Auto-leave triggered: tab closing');
-      } catch (error) {
-        // Fallback: synchronous fetch (may not complete)
-        console.warn('sendBeacon failed, attempting synchronous leave:', error);
-        fetch(leaveUrl, {
-          method: 'POST',
-          headers,
-          body,
-          keepalive: true, // Keep request alive even after page unload
-        }).catch(err => console.error('Failed to send leave request:', err));
-      }
-      
-      // Don't show confirmation dialog (per user requirement)
-      // e.preventDefault();
-      // e.returnValue = '';
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [attendanceId, token]);
+  // Note: Auto-leave detection removed - relies on server-side auto-completion
+  // The scheduler will automatically complete meetings after their scheduled window ends
+  // This ensures reliable processing even if user closes browser/Zoom abruptly
 
   // Warn if user is about to become idle
   useEffect(() => {

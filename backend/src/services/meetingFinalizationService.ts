@@ -47,10 +47,10 @@ export async function finalizePendingMeetings(): Promise<void> {
         const meetingDuration = record.externalMeeting?.durationMinutes || 60;
         const meetingEndTime = new Date(meetingStartTime.getTime() + meetingDuration * 60 * 1000);
         const now = new Date();
-        const gracePeriod = 5 * 60 * 1000; // 5 minutes grace period
+        const gracePeriod = 1 * 60 * 1000; // 1 minute grace period (reduced for faster processing)
 
         if (now.getTime() > (meetingEndTime.getTime() + gracePeriod)) {
-          // Meeting ended more than 5 minutes ago - auto-complete it
+          // Meeting ended more than 1 minute ago - auto-complete it
           const leaveTime = meetingEndTime; // Use scheduled end time as leave time
           const totalDurationMinutes = Math.floor((leaveTime.getTime() - record.joinTime.getTime()) / (1000 * 60));
           const expectedDuration = meetingDuration;
@@ -96,9 +96,9 @@ export async function finalizePendingMeetings(): Promise<void> {
     logger.info('✅ STEP 1 Complete: Stale meetings processed');
     logger.info('');
 
-    // STEP 2: Find all COMPLETED attendance records without court cards from the last 24 hours
+    // STEP 2: Find all COMPLETED attendance records without court cards from the last 48 hours
     // These are meetings where participants left early and we're waiting for the window to end
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000); // Extended to 48h for testing
     
     logger.info('🔍 STEP 2: Processing COMPLETED meetings for court card generation...');
     logger.info(`📅 Searching for meetings from: ${twentyFourHoursAgo.toISOString()}`);
@@ -339,12 +339,12 @@ export async function finalizePendingMeetings(): Promise<void> {
 
 /**
  * Start the finalization scheduler
- * Runs every 5 minutes to check for meetings that need finalization
+ * Runs every 2 minutes to check for meetings that need finalization
  */
 export function startMeetingFinalizationScheduler(): void {
   logger.info('========================================');
   logger.info('🚀 STARTING MEETING FINALIZATION SCHEDULER');
-  logger.info('   Interval: Every 5 minutes');
+  logger.info('   Interval: Every 2 minutes');
   logger.info('   First run: Immediately');
   logger.info('========================================\n');
   
@@ -354,13 +354,13 @@ export function startMeetingFinalizationScheduler(): void {
     logger.error('❌ Initial finalization check failed:', err);
   });
   
-  // Then run every 5 minutes
+  // Then run every 2 minutes (more frequent for faster processing)
   const intervalId = setInterval(() => {
-    logger.info('⏱️  Running scheduled finalization check (every 5 min)...');
+    logger.info('⏱️  Running scheduled finalization check (every 2 min)...');
     finalizePendingMeetings().catch(err => {
       logger.error('❌ Scheduled finalization check failed:', err);
     });
-  }, 5 * 60 * 1000); // 5 minutes
+  }, 2 * 60 * 1000); // 2 minutes
   
   logger.info(`✅ Scheduler started successfully (Interval ID: ${intervalId})\n`);
 }
