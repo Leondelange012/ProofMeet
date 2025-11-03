@@ -81,16 +81,27 @@ export function calculateEngagementScore(
   // 4. Consistency Score - check for suspicious patterns (bot detection)
   let consistencyScore = 100;
   
+  // DEBUG: Log activity rate calculation
+  logger.info(`🔍 Bot Detection Analysis:`);
+  logger.info(`   - Activity Events: ${metrics.activityEvents}`);
+  logger.info(`   - Meeting Duration: ${meetingDurationMin} min`);
+  logger.info(`   - Activity Rate: ${activityRate.toFixed(2)} events/min`);
+  logger.info(`   - Mouse Movements: ${metrics.mouseMovements}`);
+  logger.info(`   - Keyboard Activity: ${metrics.keyboardActivity}`);
+  
   // Check for automation patterns (too consistent = possible bot)
-  if (metrics.activityEvents > 0 && activityRate > 10) {
+  // UPDATED THRESHOLDS: Much more lenient for normal meeting behavior
+  if (metrics.activityEvents > 0 && activityRate > 30) {
     flags.push('SUSPICIOUSLY_HIGH_ACTIVITY'); // Possible bot/automation
     consistencyScore -= 50;
+    logger.info(`   ⚠️ SUSPICIOUSLY_HIGH_ACTIVITY flagged (rate > 30)`);
   }
 
   // Extremely high activity with perfect timing suggests automation
-  if (activityRate > 15) {
+  if (activityRate > 50) {
     flags.push('LIKELY_AUTOMATED');
     consistencyScore = 0;
+    logger.info(`   ⚠️ LIKELY_AUTOMATED flagged (rate > 50)`);
   }
 
   // Calculate final weighted score
@@ -153,10 +164,10 @@ function determinePattern(metrics: EngagementMetrics, durationMin: number): stri
   const hasActivity = (metrics.mouseMovements > 0 || metrics.keyboardActivity > 0 || metrics.activityEvents > 0);
   const activityRate = metrics.activityEvents / durationMin;
 
-  // Simple pattern detection
+  // Simple pattern detection - UPDATED THRESHOLDS
   if (!hasActivity) return 'NO_ACTIVITY';
-  if (activityRate > 15) return 'LIKELY_AUTOMATED'; // Too perfect = bot
-  if (activityRate > 10) return 'VERY_HIGH_ACTIVITY'; // Suspicious
+  if (activityRate > 50) return 'LIKELY_AUTOMATED'; // Too perfect = bot
+  if (activityRate > 30) return 'VERY_HIGH_ACTIVITY'; // Suspicious
   if (metrics.videoActive && hasActivity) return 'PRESENT_AND_ENGAGED';
   if (hasActivity && !metrics.videoActive) return 'ACTIVE_NO_VIDEO';
   return 'NORMAL_ENGAGEMENT';
