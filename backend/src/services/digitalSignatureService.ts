@@ -53,8 +53,22 @@ export interface VerificationResult {
     program: string;
     duration: number;
   };
+  auditTrail: {
+    startTime: Date;
+    endTime: Date;
+    activeTimeMinutes: number;
+    idleTimeMinutes: number;
+    videoOnPercentage: number;
+    attendancePercentage: number;
+    engagementScore: number | null;
+    engagementLevel: string | null;
+    activityEvents: number;
+    verificationMethod: string;
+    confidenceLevel: string;
+  };
   signatures: DigitalSignature[];
   validationStatus: string;
+  violations: any[];
   issueDate: Date;
   expirationDate?: Date;
   verificationUrl: string;
@@ -432,7 +446,8 @@ export async function verifyAllSignatures(courtCardId: string): Promise<{
   const validSignatures = details.filter(d => d.isValid).length;
 
   return {
-    isValid: validSignatures === signatures.length && signatures.length > 0,
+    // Don't require signatures - they're optional, not required for verification
+    isValid: signatures.length === 0 || validSignatures === signatures.length,
     validSignatures,
     totalSignatures: signatures.length,
     details,
@@ -477,9 +492,9 @@ export async function verifyCourtCardPublic(
     warnings.push('WARNING: Card integrity check failed - data may have been modified');
   }
 
-  // Verify signatures
+  // Verify signatures (optional - only warn if signatures exist but are invalid)
   const signatureVerification = await verifyAllSignatures(courtCardId);
-  if (!signatureVerification.isValid) {
+  if (signatureVerification.totalSignatures > 0 && !signatureVerification.isValid) {
     warnings.push('WARNING: One or more digital signatures are invalid');
   }
 
@@ -500,8 +515,28 @@ export async function verifyCourtCardPublic(
   const expirationDate = new Date(courtCard.generatedAt);
   expirationDate.setFullYear(expirationDate.getFullYear() + 5); // 5 year expiration
 
+  // Get attendance record for detailed audit metrics
+  const attendanceRecord = await prisma.attendanceRecord.findUnique({
+    where: { id: courtCard.attendanceRecordId },
+    select: {
+      id: true,
+      metadata: true,
+      activityTimeline: true,
+    },
+  });
+
+  // Calculate video on percentage and other metrics
+  const timeline = (attendanceRecord?.activityTimeline as any)?.events || [];
+  const videoOnEvents = timeline.filter((e: any) => e.data?.videoActive === true);
+  const totalEvents = timeline.length;
+  const videoOnPercent = totalEvents > 0 ? Math.round((videoOnEvents.length / totalEvents) * 100) : 0;
+
+  // Get engagement metadata
+  const metadata = (attendanceRecord?.metadata as any) || {};
+
   return {
-    isValid: !courtCard.isTampered && signatureVerification.isValid,
+    // Signatures are optional - verification is based on data integrity, not signatures
+    isValid: !courtCard.isTampered,
     cardNumber: courtCard.cardNumber,
     participantName: courtCard.participantName,
     meetingDetails: {
@@ -510,8 +545,23 @@ export async function verifyCourtCardPublic(
       program: courtCard.meetingProgram,
       duration: courtCard.totalDurationMin,
     },
+    // Comprehensive audit trail metrics
+    auditTrail: {
+      startTime: courtCard.joinTime,
+      endTime: courtCard.leaveTime,
+      activeTimeMinutes: courtCard.activeDurationMin,
+      idleTimeMinutes: courtCard.idleDurationMin || 0,
+      videoOnPercentage: videoOnPercent,
+      attendancePercentage: Number(courtCard.attendancePercent),
+      engagementScore: metadata.engagementScore || null,
+      engagementLevel: metadata.engagementLevel || null,
+      activityEvents: timeline.length,
+      verificationMethod: courtCard.verificationMethod,
+      confidenceLevel: courtCard.confidenceLevel,
+    },
     signatures,
     validationStatus: (courtCard as any).validationStatus || 'UNKNOWN',
+    violations: (courtCard.violations as any) || [],
     issueDate: courtCard.generatedAt,
     expirationDate,
     verificationUrl,
