@@ -481,7 +481,7 @@ This certificate confirms that the court card has been verified as authentic.
           This is an official ProofMeet digital court card verification.
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          All attendance records are cryptographically signed and verified.
+          All attendance records are cryptographically verified.
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
           Verified at: {new Date().toLocaleString()}
