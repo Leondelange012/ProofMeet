@@ -854,6 +854,9 @@ const CourtRepDashboardPage: React.FC = () => {
                                               <Typography 
                                                 variant="caption" 
                                                 color="primary"
+                                                component="a"
+                                                href={`/verify/${meeting.courtCard.id}`}
+                                                target="_blank"
                                                 sx={{ 
                                                   cursor: 'pointer',
                                                   textDecoration: 'underline',
@@ -862,7 +865,6 @@ const CourtRepDashboardPage: React.FC = () => {
                                                     fontWeight: 'bold'
                                                   }
                                                 }}
-                                                onClick={() => downloadParticipantCourtCard(participant.id)}
                                               >
                                                 {meeting.courtCard.cardNumber}
                                               </Typography>
