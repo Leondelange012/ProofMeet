@@ -251,42 +251,26 @@ const ParticipantDashboardPage: React.FC = () => {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6}>
           <Card 
-            elevation={2}
+            elevation={1}
             sx={{ 
               height: '100%', 
               cursor: 'pointer',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              transition: 'all 0.3s ease',
-              position: 'relative',
-              overflow: 'hidden',
+              border: '1px solid',
+              borderColor: 'divider',
+              transition: 'all 0.2s ease',
               '&:hover': { 
-                transform: 'translateY(-8px) scale(1.02)',
-                boxShadow: 8,
-              },
-              '&::before': {
-                content: '""',
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: 'rgba(255, 255, 255, 0.1)',
-                opacity: 0,
-                transition: 'opacity 0.3s ease',
-              },
-              '&:hover::before': {
-                opacity: 1,
+                boxShadow: 4,
+                borderColor: 'primary.main',
               }
             }} 
             onClick={() => navigate('/meetings')}
           >
-            <CardContent sx={{ position: 'relative', zIndex: 1, p: 3 }}>
+            <CardContent sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Box
                   sx={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    borderRadius: '12px',
+                    backgroundColor: 'primary.light',
+                    borderRadius: 2,
                     p: 1.5,
                     mr: 2,
                     display: 'flex',
@@ -294,13 +278,13 @@ const ParticipantDashboardPage: React.FC = () => {
                     justifyContent: 'center',
                   }}
                 >
-                  <MeetingRoom sx={{ fontSize: 48, color: 'white' }} />
+                  <MeetingRoom sx={{ fontSize: 32, color: 'primary.main' }} />
                 </Box>
-                <Typography variant="h5" fontWeight="bold" sx={{ flex: 1 }}>
+                <Typography variant="h6" fontWeight="600" sx={{ flex: 1 }}>
                   Browse Meetings
                 </Typography>
               </Box>
-              <Typography variant="body1" sx={{ opacity: 0.95, fontSize: '1rem' }}>
+              <Typography variant="body2" color="text.secondary">
                 Find and join recovery meetings
               </Typography>
             </CardContent>
@@ -309,42 +293,26 @@ const ParticipantDashboardPage: React.FC = () => {
 
         <Grid item xs={12} sm={6}>
           <Card 
-            elevation={2}
+            elevation={1}
             sx={{ 
               height: '100%', 
               cursor: 'pointer',
-              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-              color: 'white',
-              transition: 'all 0.3s ease',
-              position: 'relative',
-              overflow: 'hidden',
+              border: '1px solid',
+              borderColor: 'divider',
+              transition: 'all 0.2s ease',
               '&:hover': { 
-                transform: 'translateY(-8px) scale(1.02)',
-                boxShadow: 8,
-              },
-              '&::before': {
-                content: '""',
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: 'rgba(255, 255, 255, 0.1)',
-                opacity: 0,
-                transition: 'opacity 0.3s ease',
-              },
-              '&:hover::before': {
-                opacity: 1,
+                boxShadow: 4,
+                borderColor: 'success.main',
               }
             }} 
             onClick={() => navigate('/participant/progress')}
           >
-            <CardContent sx={{ position: 'relative', zIndex: 1, p: 3 }}>
+            <CardContent sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Box
                   sx={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    borderRadius: '12px',
+                    backgroundColor: 'success.light',
+                    borderRadius: 2,
                     p: 1.5,
                     mr: 2,
                     display: 'flex',
@@ -352,13 +320,13 @@ const ParticipantDashboardPage: React.FC = () => {
                     justifyContent: 'center',
                   }}
                 >
-                  <TrendingUp sx={{ fontSize: 48, color: 'white' }} />
+                  <TrendingUp sx={{ fontSize: 32, color: 'success.main' }} />
                 </Box>
-                <Typography variant="h5" fontWeight="bold" sx={{ flex: 1 }}>
+                <Typography variant="h6" fontWeight="600" sx={{ flex: 1 }}>
                   My Progress
                 </Typography>
               </Box>
-              <Typography variant="body1" sx={{ opacity: 0.95, fontSize: '1rem' }}>
+              <Typography variant="body2" color="text.secondary">
                 View detailed attendance history
               </Typography>
             </CardContent>
