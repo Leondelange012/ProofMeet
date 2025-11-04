@@ -20,7 +20,6 @@ import {
 import {
   Menu as MenuIcon,
   Dashboard,
-  MeetingRoom,
   Logout,
   AccountCircle,
 } from '@mui/icons-material';
@@ -65,7 +64,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       ]
     : [
         { text: 'Dashboard', icon: <Dashboard />, path: '/participant/dashboard' },
-        { text: 'Meetings', icon: <MeetingRoom />, path: '/meetings' },
       ];
 
   const drawer = (
