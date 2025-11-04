@@ -504,9 +504,6 @@ export async function verifyCourtCardPublic(
     warnings.push(`Chain of trust verification failed: ${chainVerification.errors.join(', ')}`);
   }
 
-  // Get signatures
-  const signatures = await getCourtCardSignatures(courtCardId);
-
   // Generate verification data
   const qrCodeData = generateQRCodeData(courtCardId, courtCard.cardNumber, courtCard.cardHash);
   const verificationUrl = generateVerificationUrl(courtCardId);
@@ -535,7 +532,7 @@ export async function verifyCourtCardPublic(
   const metadata = (attendanceRecord?.metadata as any) || {};
 
   return {
-    // Signatures are optional - verification is based on data integrity, not signatures
+    // Verification is based on data integrity, not signatures (signatures are optional and not displayed)
     isValid: !courtCard.isTampered,
     cardNumber: courtCard.cardNumber,
     participantName: courtCard.participantName,
@@ -545,7 +542,7 @@ export async function verifyCourtCardPublic(
       program: courtCard.meetingProgram,
       duration: courtCard.totalDurationMin,
     },
-    // Comprehensive audit trail metrics
+    // Comprehensive audit trail metrics - this is what proves attendance
     auditTrail: {
       startTime: courtCard.joinTime,
       endTime: courtCard.leaveTime,
@@ -559,7 +556,7 @@ export async function verifyCourtCardPublic(
       verificationMethod: courtCard.verificationMethod,
       confidenceLevel: courtCard.confidenceLevel,
     },
-    signatures,
+    // Signatures removed - not needed for verification
     validationStatus: (courtCard as any).validationStatus || 'UNKNOWN',
     violations: (courtCard.violations as any) || [],
     issueDate: courtCard.generatedAt,
