@@ -18,9 +18,6 @@ import {
   Grid,
   Button,
   Paper,
-  List,
-  ListItem,
-  ListItemText,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -35,7 +32,6 @@ import {
   QrCode as QrCodeIcon,
   History as HistoryIcon,
   Link as LinkIcon,
-  Security as SecurityIcon,
 } from '@mui/icons-material';
 
 const API_URL = (import.meta as any).env?.VITE_API_BASE_URL?.replace('/api', '') || 'https://proofmeet-backend-production.up.railway.app';
