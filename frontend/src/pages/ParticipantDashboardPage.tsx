@@ -19,7 +19,6 @@ import {
 } from '@mui/material';
 import {
   CheckCircle,
-  Refresh,
   MeetingRoom,
   TrendingUp,
 } from '@mui/icons-material';
@@ -35,11 +34,9 @@ const ParticipantDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState('');
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // WebSocket connection
   useWebSocketConnection();
@@ -78,9 +75,7 @@ const ParticipantDashboardPage: React.FC = () => {
 
   const loadDashboard = async (isBackgroundRefresh = false) => {
     try {
-      if (isBackgroundRefresh) {
-        setRefreshing(true);
-      } else {
+      if (!isBackgroundRefresh) {
         setLoading(true);
       }
       setError('');
@@ -94,7 +89,6 @@ const ParticipantDashboardPage: React.FC = () => {
       
       if (response.data.success) {
         setDashboardData(response.data.data);
-        setLastUpdated(new Date());
       } else {
         setError(response.data.error || 'Failed to load dashboard');
       }
@@ -104,7 +98,6 @@ const ParticipantDashboardPage: React.FC = () => {
       setError(err.response?.data?.error || err.message || 'Failed to load dashboard');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -161,22 +154,6 @@ const ParticipantDashboardPage: React.FC = () => {
           {requirements?.courtName && requirements.courtName !== 'N/A' && (
             <Typography variant="body2" color="text.secondary">
               Court Representative: {requirements.courtName}
-            </Typography>
-          )}
-        </Box>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
-          <Button
-            variant="outlined"
-            startIcon={refreshing ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
-            onClick={() => loadDashboard()}
-            disabled={refreshing}
-          >
-            {refreshing ? 'Syncing...' : 'Refresh'}
-          </Button>
-          {lastUpdated && (
-            <Typography variant="caption" color="text.secondary">
-              Last updated: {lastUpdated.toLocaleTimeString()}
-              {refreshing && ' • Refreshing...'}
             </Typography>
           )}
         </Box>
