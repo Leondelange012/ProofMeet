@@ -158,9 +158,9 @@ const ParticipantDashboardPage: React.FC = () => {
           <Typography variant="body1" color="text.secondary">
             Track your meetings and stay compliant
           </Typography>
-          {requirements?.courtName && (
+          {requirements?.courtName && requirements.courtName !== 'N/A' && (
             <Typography variant="body2" color="text.secondary">
-              {requirements.courtName}
+              Court Representative: {requirements.courtName}
             </Typography>
           )}
         </Box>
@@ -249,50 +249,116 @@ const ParticipantDashboardPage: React.FC = () => {
 
       {/* Quick Actions */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6}>
           <Card 
+            elevation={2}
             sx={{ 
               height: '100%', 
               cursor: 'pointer',
-              transition: 'all 0.2s',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              overflow: 'hidden',
               '&:hover': { 
-                transform: 'translateY(-4px)',
-                boxShadow: 4,
-              } 
+                transform: 'translateY(-8px) scale(1.02)',
+                boxShadow: 8,
+              },
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(255, 255, 255, 0.1)',
+                opacity: 0,
+                transition: 'opacity 0.3s ease',
+              },
+              '&:hover::before': {
+                opacity: 1,
+              }
             }} 
             onClick={() => navigate('/meetings')}
           >
-            <CardContent>
+            <CardContent sx={{ position: 'relative', zIndex: 1, p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <MeetingRoom sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
-                <Typography variant="h6">Browse Meetings</Typography>
+                <Box
+                  sx={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    borderRadius: '12px',
+                    p: 1.5,
+                    mr: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <MeetingRoom sx={{ fontSize: 48, color: 'white' }} />
+                </Box>
+                <Typography variant="h5" fontWeight="bold" sx={{ flex: 1 }}>
+                  Browse Meetings
+                </Typography>
               </Box>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body1" sx={{ opacity: 0.95, fontSize: '1rem' }}>
                 Find and join recovery meetings
               </Typography>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6}>
           <Card 
+            elevation={2}
             sx={{ 
               height: '100%', 
               cursor: 'pointer',
-              transition: 'all 0.2s',
+              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+              color: 'white',
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              overflow: 'hidden',
               '&:hover': { 
-                transform: 'translateY(-4px)',
-                boxShadow: 4,
-              } 
+                transform: 'translateY(-8px) scale(1.02)',
+                boxShadow: 8,
+              },
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(255, 255, 255, 0.1)',
+                opacity: 0,
+                transition: 'opacity 0.3s ease',
+              },
+              '&:hover::before': {
+                opacity: 1,
+              }
             }} 
             onClick={() => navigate('/participant/progress')}
           >
-            <CardContent>
+            <CardContent sx={{ position: 'relative', zIndex: 1, p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <TrendingUp sx={{ fontSize: 40, color: 'success.main', mr: 2 }} />
-                <Typography variant="h6">My Progress</Typography>
+                <Box
+                  sx={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    borderRadius: '12px',
+                    p: 1.5,
+                    mr: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <TrendingUp sx={{ fontSize: 48, color: 'white' }} />
+                </Box>
+                <Typography variant="h5" fontWeight="bold" sx={{ flex: 1 }}>
+                  My Progress
+                </Typography>
               </Box>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body1" sx={{ opacity: 0.95, fontSize: '1rem' }}>
                 View detailed attendance history
               </Typography>
             </CardContent>

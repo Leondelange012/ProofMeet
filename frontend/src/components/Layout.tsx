@@ -67,7 +67,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     : [
         { text: 'Dashboard', icon: <Dashboard />, path: '/participant/dashboard' },
         { text: 'Meetings', icon: <MeetingRoom />, path: '/meetings' },
-        { text: 'My Progress', icon: <Assessment />, path: '/participant/progress' },
       ];
 
   const drawer = (

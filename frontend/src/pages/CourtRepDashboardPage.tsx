@@ -43,11 +43,9 @@ const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://pro
 const CourtRepDashboardPage: React.FC = () => {
   const { user, token } = useAuthStoreV2();
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [participants, setParticipants] = useState<any[]>([]);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // WebSocket connection
   useWebSocketConnection();
@@ -126,9 +124,7 @@ const CourtRepDashboardPage: React.FC = () => {
 
   const loadDashboard = async (isBackgroundRefresh = false) => {
     try {
-      if (isBackgroundRefresh) {
-        setRefreshing(true);
-      } else {
+      if (!isBackgroundRefresh) {
         setLoading(true);
       }
       setError('');
@@ -169,15 +165,12 @@ const CourtRepDashboardPage: React.FC = () => {
       // If both failed, show error
       if (!dashSuccess && !partSuccess) {
         setError('Unable to load data. Please check the console and refresh the page.');
-      } else {
-        setLastUpdated(new Date());
       }
     } catch (err: any) {
       console.error('Load dashboard error:', err);
       setError(err.response?.data?.error || err.message || 'Failed to load dashboard');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -359,22 +352,7 @@ const CourtRepDashboardPage: React.FC = () => {
             >
               {showTestMeetings ? 'Hide' : 'Manage'} Test Meetings
             </Button>
-            <Button
-              variant="contained"
-              color="success"
-              startIcon={refreshing ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
-              onClick={() => loadDashboard()}
-              disabled={refreshing}
-            >
-              {refreshing ? 'Syncing...' : 'Sync Latest Data'}
-            </Button>
           </Box>
-          {lastUpdated && (
-            <Typography variant="caption" color="text.secondary">
-              Last updated: {lastUpdated.toLocaleTimeString()}
-              {refreshing && ' • Refreshing...'}
-            </Typography>
-          )}
         </Box>
       </Box>
 
