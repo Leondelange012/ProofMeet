@@ -66,7 +66,7 @@ export interface VerificationResult {
     verificationMethod: string;
     confidenceLevel: string;
   };
-  signatures: DigitalSignature[];
+  // Signatures removed - not needed for verification, attendance is proven via audit trail metrics
   validationStatus: string;
   violations: any[];
   issueDate: Date;
