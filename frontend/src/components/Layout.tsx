@@ -21,7 +21,6 @@ import {
   Menu as MenuIcon,
   Dashboard,
   MeetingRoom,
-  Assessment,
   Logout,
   AccountCircle,
 } from '@mui/icons-material';
