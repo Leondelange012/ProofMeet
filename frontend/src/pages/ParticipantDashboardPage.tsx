@@ -22,7 +22,6 @@ import {
   Refresh,
   MeetingRoom,
   TrendingUp,
-  Download,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
@@ -109,30 +108,6 @@ const ParticipantDashboardPage: React.FC = () => {
     }
   };
 
-  const handleDownloadCourtCard = async () => {
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
-      
-      // Fetch the Court Card HTML with authentication
-      const response = await axios.get(
-        `${API_BASE_URL}/participant/my-court-card-pdf`,
-        { 
-          headers,
-          responseType: 'blob'  // Get as blob
-        }
-      );
-
-      // Create a blob URL and open it
-      const blob = new Blob([response.data], { type: 'text/html' });
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
-
-      // Clean up the blob URL after a short delay
-      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to download Court Card');
-    }
-  };
 
   // Initial load
   useEffect(() => {
@@ -324,30 +299,6 @@ const ParticipantDashboardPage: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={4}>
-          <Card 
-            sx={{ 
-              height: '100%', 
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              '&:hover': { 
-                transform: 'translateY(-4px)',
-                boxShadow: 4,
-              } 
-            }} 
-            onClick={handleDownloadCourtCard}
-          >
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Download sx={{ fontSize: 40, color: 'secondary.main', mr: 2 }} />
-                <Typography variant="h6">Court Card</Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Download compliance report
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
       </Grid>
 
       {/* Recent Activity Preview */}
