@@ -28,7 +28,6 @@ import {
   CheckCircle,
   Warning,
   TrendingUp,
-  Refresh,
   CalendarToday,
   Visibility as VisibilityIcon,
   Home,
@@ -44,10 +43,8 @@ const ParticipantProgressPage: React.FC = () => {
   const { token } = useAuthStoreV2();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<any>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // WebSocket connection
   useWebSocketConnection();
@@ -86,9 +83,7 @@ const ParticipantProgressPage: React.FC = () => {
 
   const loadProgress = async (isBackgroundRefresh = false) => {
     try {
-      if (isBackgroundRefresh) {
-        setRefreshing(true);
-      } else {
+      if (!isBackgroundRefresh) {
         setLoading(true);
       }
       setError('');
@@ -102,7 +97,6 @@ const ParticipantProgressPage: React.FC = () => {
       
       if (response.data.success) {
         setDashboardData(response.data.data);
-        setLastUpdated(new Date());
       } else {
         setError(response.data.error || 'Failed to load progress data');
       }
@@ -112,7 +106,6 @@ const ParticipantProgressPage: React.FC = () => {
       setError(err.response?.data?.error || err.message || 'Failed to load progress data');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -176,22 +169,6 @@ const ParticipantProgressPage: React.FC = () => {
             Track your compliance and meeting history
           </Typography>
           </Box>
-        </Box>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
-          <Button
-            variant="outlined"
-            startIcon={refreshing ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
-            onClick={() => loadProgress()}
-            disabled={refreshing}
-          >
-            {refreshing ? 'Syncing...' : 'Refresh'}
-          </Button>
-          {lastUpdated && (
-            <Typography variant="caption" color="text.secondary">
-              Last updated: {lastUpdated.toLocaleTimeString()}
-              {refreshing && ' • Refreshing...'}
-            </Typography>
-          )}
         </Box>
       </Box>
 
