@@ -15,6 +15,8 @@ import {
   DialogActions,
   CircularProgress,
   Alert,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   QrCodeScanner,
@@ -22,6 +24,7 @@ import {
   LocationOn,
   Schedule,
   MeetingRoom,
+  Home,
 } from '@mui/icons-material';
 import { aaIntergroupService } from '../services/aaIntergroupService';
 import axios from 'axios';
@@ -163,9 +166,27 @@ const MeetingPage: React.FC = () => {
       )}
 
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Recovery Meeting Directory
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Tooltip title="Back to Dashboard">
+            <IconButton
+              onClick={() => navigate('/participant/dashboard')}
+              color="primary"
+              sx={{ 
+                border: '1px solid',
+                borderColor: 'divider',
+                '&:hover': {
+                  borderColor: 'primary.main',
+                  backgroundColor: 'action.hover',
+                }
+              }}
+            >
+              <Home />
+            </IconButton>
+          </Tooltip>
+          <Typography variant="h4">
+            Recovery Meeting Directory
+          </Typography>
+        </Box>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Join court-approved recovery meetings with proof of attendance capability.
         </Typography>

@@ -31,6 +31,7 @@ import {
   Refresh,
   CalendarToday,
   Visibility as VisibilityIcon,
+  Home,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
@@ -150,13 +151,31 @@ const ParticipantProgressPage: React.FC = () => {
     <Container maxWidth="lg">
       {/* Header */}
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" gutterBottom>
-            My Progress & Attendance
-          </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Tooltip title="Back to Dashboard">
+            <IconButton
+              onClick={() => navigate('/participant/dashboard')}
+              color="primary"
+              sx={{ 
+                border: '1px solid',
+                borderColor: 'divider',
+                '&:hover': {
+                  borderColor: 'primary.main',
+                  backgroundColor: 'action.hover',
+                }
+              }}
+            >
+              <Home />
+            </IconButton>
+          </Tooltip>
+          <Box>
+            <Typography variant="h4" gutterBottom>
+              My Progress & Attendance
+            </Typography>
           <Typography variant="body1" color="text.secondary">
             Track your compliance and meeting history
           </Typography>
+          </Box>
         </Box>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
           <Button
