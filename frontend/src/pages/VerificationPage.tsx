@@ -323,147 +323,6 @@ This certificate confirms that the court card has been verified as authentic.
               <HistoryIcon sx={{ mr: 1 }} /> Attendance Metrics
             </Typography>
             <Divider sx={{ mb: 2 }} />
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Start Time
-                </Typography>
-                <Typography variant="h6">
-                  {new Date(auditTrail.startTime).toLocaleString()}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2" color="text.secondary">
-                  End Time
-                </Typography>
-                <Typography variant="h6">
-                  {new Date(auditTrail.endTime).toLocaleString()}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="body2" color="text.secondary">
-                  Active Time in Meeting
-                </Typography>
-                <Typography variant="h6" color="success.main">
-                  {auditTrail.activeTimeMinutes} minutes
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="body2" color="text.secondary">
-                  Video On Percentage
-                </Typography>
-                <Typography variant="h6" color={auditTrail.videoOnPercentage >= 80 ? 'success.main' : 'warning.main'}>
-                  {auditTrail.videoOnPercentage}%
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="body2" color="text.secondary">
-                  Attendance Percentage
-                </Typography>
-                <Typography variant="h6" color="success.main">
-                  {auditTrail.attendancePercentage}%
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="body2" color="text.secondary">
-                  Engagement Score
-                </Typography>
-                <Typography variant="h6">
-                  {auditTrail.engagementScore !== null ? `${auditTrail.engagementScore}/100` : 'N/A'}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="body2" color="text.secondary">
-                  Engagement Level
-                </Typography>
-                <Typography variant="h6">
-                  {auditTrail.engagementLevel || 'N/A'}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="body2" color="text.secondary">
-                  Activity Events Recorded
-                </Typography>
-                <Typography variant="h6">
-                  {auditTrail.activityEvents}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Verification Method
-                </Typography>
-                <Typography variant="body1">
-                  {auditTrail.verificationMethod}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Confidence Level
-                </Typography>
-                <Chip 
-                  label={auditTrail.confidenceLevel}
-                  color={auditTrail.confidenceLevel === 'HIGH' ? 'success' : auditTrail.confidenceLevel === 'MEDIUM' ? 'warning' : 'default'}
-                />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Verification Details Accordion */}
-      <Accordion sx={{ mb: 3 }}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
-            <QrCodeIcon sx={{ mr: 1 }} /> Verification Details
-          </Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <Typography variant="body2" color="text.secondary">
-                Verification URL
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <LinkIcon fontSize="small" />
-                <Typography
-                  variant="body1"
-                  sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}
-                >
-                  {verificationData.verificationUrl}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Typography variant="body2" color="text.secondary">
-                Issue Date
-              </Typography>
-              <Typography variant="body1">
-                {new Date(verificationData.issueDate).toLocaleString()}
-              </Typography>
-            </Grid>
-            {verificationData.expirationDate && (
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Expiration Date
-                </Typography>
-                <Typography variant="body1">
-                  {new Date(verificationData.expirationDate).toLocaleDateString()}
-                </Typography>
-              </Grid>
-            )}
-          </Grid>
-        </AccordionDetails>
-      </Accordion>
-
-      {/* Detailed Audit Trail (Accordion) */}
-      {auditTrail && (
-        <Accordion sx={{ mb: 3 }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
-              <HistoryIcon sx={{ mr: 1 }} /> Detailed Audit Trail & Statistics
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
             <Grid container spacing={2}>
               <Grid item xs={12}>
                 <Alert severity="info" sx={{ mb: 2 }}>
@@ -551,9 +410,55 @@ This certificate confirms that the court card has been verified as authentic.
                 />
               </Grid>
             </Grid>
-          </AccordionDetails>
-        </Accordion>
+          </CardContent>
+        </Card>
       )}
+
+      {/* Verification Details Accordion */}
+      <Accordion sx={{ mb: 3 }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+            <QrCodeIcon sx={{ mr: 1 }} /> Verification Details
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Typography variant="body2" color="text.secondary">
+                Verification URL
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <LinkIcon fontSize="small" />
+                <Typography
+                  variant="body1"
+                  sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}
+                >
+                  {verificationData.verificationUrl}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Typography variant="body2" color="text.secondary">
+                Issue Date
+              </Typography>
+              <Typography variant="body1">
+                {new Date(verificationData.issueDate).toLocaleString()}
+              </Typography>
+            </Grid>
+            {verificationData.expirationDate && (
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Expiration Date
+                </Typography>
+                <Typography variant="body1">
+                  {new Date(verificationData.expirationDate).toLocaleDateString()}
+                </Typography>
+              </Grid>
+            )}
+          </Grid>
+        </AccordionDetails>
+      </Accordion>
+
 
       {/* Actions */}
       <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mt: 4 }}>
