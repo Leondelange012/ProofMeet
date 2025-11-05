@@ -75,6 +75,7 @@ export interface VerificationResult {
   qrCodeData: string;
   chainOfTrustValid: boolean;
   warnings: string[];
+  validationExplanation?: string | null; // Detailed explanation of why meeting passed/failed
 }
 
 // ============================================
@@ -530,6 +531,10 @@ export async function verifyCourtCardPublic(
 
   // Get engagement metadata
   const metadata = (attendanceRecord?.metadata as any) || {};
+  
+  // Get validation explanation from court card metadata (if stored)
+  const courtCardMetadata = (courtCard as any).metadata || {};
+  const validationExplanation = courtCardMetadata.validationExplanation || null;
 
   return {
     // Verification is based on data integrity, not signatures (signatures are optional and not displayed)
@@ -556,6 +561,8 @@ export async function verifyCourtCardPublic(
       verificationMethod: courtCard.verificationMethod,
       confidenceLevel: courtCard.confidenceLevel,
     },
+    // Detailed validation explanation showing why meeting passed/failed
+    validationExplanation: validationExplanation,
     // Signatures removed - not needed for verification
     validationStatus: (courtCard as any).validationStatus || 'UNKNOWN',
     violations: (courtCard.violations as any) || [],

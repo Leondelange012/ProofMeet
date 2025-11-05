@@ -54,6 +54,7 @@ interface VerificationData {
   chainOfTrustValid: boolean;
   warnings: string[];
   auditTrail?: AuditTrail;
+  validationExplanation?: string | null;
 }
 
 
@@ -314,6 +315,38 @@ This certificate confirms that the court card has been verified as authentic.
           </Grid>
         </CardContent>
       </Card>
+
+      {/* Validation Explanation */}
+      {verificationData.validationExplanation && (
+        <Card sx={{ mb: 3, bgcolor: verificationData.validationStatus === 'PASSED' ? 'success.lighter' : 'error.lighter' }}>
+          <CardContent>
+            <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              {verificationData.validationStatus === 'PASSED' ? (
+                <CheckCircleIcon sx={{ mr: 1, color: 'success.main' }} />
+              ) : (
+                <ErrorIcon sx={{ mr: 1, color: 'error.main' }} />
+              )}
+              Validation Details
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Paper sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+              <Typography
+                component="pre"
+                variant="body2"
+                sx={{
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: 'monospace',
+                  fontSize: '0.875rem',
+                  lineHeight: 1.6,
+                  mb: 0,
+                }}
+              >
+                {verificationData.validationExplanation}
+              </Typography>
+            </Paper>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Attendance Metrics */}
       {auditTrail && (
