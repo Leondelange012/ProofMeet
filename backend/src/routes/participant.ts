@@ -793,13 +793,28 @@ router.post(
       }
       
       // Net duration = total time - absence time
+      // This represents the actual time spent in the meeting (excluding leave/rejoin gaps)
       const netDurationMinutes = Math.max(0, totalDurationMinutes - totalAbsenceMinutes);
       
       // Calculate attendance percentage based on net duration
       const expectedDuration = attendance.externalMeeting?.durationMinutes || 60;
       const attendancePercent = Math.min((netDurationMinutes / expectedDuration) * 100, 100);
       
-      logger.info(`Leave meeting: Total=${totalDurationMinutes}min, Absence=${totalAbsenceMinutes}min, Net=${netDurationMinutes}min`);
+      logger.info(`📊 Leave meeting calculation:`);
+      logger.info(`   First join: ${joinTime.toISOString()}`);
+      logger.info(`   Final leave: ${leaveTime.toISOString()}`);
+      logger.info(`   Total time span: ${totalDurationMinutes} minutes (from first join to final leave)`);
+      logger.info(`   Total absence time: ${totalAbsenceMinutes} minutes (from ${metadata?.absencePeriods?.length || 0} absence periods)`);
+      logger.info(`   Net attendance time: ${netDurationMinutes} minutes (actual time in meeting)`);
+      logger.info(`   Expected duration: ${expectedDuration} minutes`);
+      logger.info(`   Attendance percentage: ${attendancePercent.toFixed(1)}%`);
+      
+      if (metadata?.absencePeriods && metadata.absencePeriods.length > 0) {
+        logger.info(`   Absence periods:`);
+        metadata.absencePeriods.forEach((period: any, index: number) => {
+          logger.info(`     ${index + 1}. Left: ${period.leftAt}, Rejoined: ${period.rejoinedAt}, Absence: ${period.absenceMinutes} min`);
+        });
+      }
 
       // Check if meeting's scheduled time window has ended
       const meetingStartTime = joinTime;
