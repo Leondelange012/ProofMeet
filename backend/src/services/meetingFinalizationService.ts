@@ -37,6 +37,29 @@ export async function finalizePendingMeetings(): Promise<void> {
       include: {
         externalMeeting: true,
       },
+      // @ts-ignore - activityTimeline is a JSON field
+      select: {
+        id: true,
+        participantId: true,
+        externalMeetingId: true,
+        meetingName: true,
+        joinTime: true,
+        leaveTime: true,
+        totalDurationMin: true,
+        activeDurationMin: true,
+        idleDurationMin: true,
+        attendancePercent: true,
+        status: true,
+        metadata: true,
+        activityTimeline: true, // CRITICAL: Need timeline to determine actual leave time
+        externalMeeting: {
+          select: {
+            id: true,
+            durationMinutes: true,
+            name: true,
+          },
+        },
+      },
     });
 
     logger.info(`   Found ${staleRecords.length} IN_PROGRESS records to check`);
@@ -51,15 +74,51 @@ export async function finalizePendingMeetings(): Promise<void> {
 
         if (now.getTime() > (meetingEndTime.getTime() + gracePeriod)) {
           // Meeting ended more than 1 minute ago - auto-complete it
-          const leaveTime = meetingEndTime; // Use scheduled end time as leave time
-          const totalDurationMinutes = Math.floor((leaveTime.getTime() - record.joinTime.getTime()) / (1000 * 60));
+          // CRITICAL FIX: Use actual last activity time, NOT scheduled end time
+          const timeline = (record.activityTimeline as any)?.events || [];
+          
+          // Find the last activity event (ACTIVE or IDLE, not just any event)
+          const activityEvents = timeline.filter((e: any) => 
+            e.source === 'FRONTEND_MONITOR' && (e.type === 'ACTIVE' || e.type === 'IDLE')
+          );
+          
+          let leaveTime: Date;
+          let totalDurationMinutes: number;
+          
+          if (activityEvents.length > 0) {
+            // Use last activity timestamp as leave time (most accurate)
+            const lastActivityTimestamp = new Date(activityEvents[activityEvents.length - 1].timestamp);
+            // Add 30 seconds buffer (one heartbeat interval) to account for time between last heartbeat and actual leave
+            leaveTime = new Date(lastActivityTimestamp.getTime() + 30 * 1000);
+            totalDurationMinutes = Math.floor((leaveTime.getTime() - record.joinTime.getTime()) / (1000 * 60));
+            
+            logger.info(`   🔄 Auto-completing stale record: ${record.id}`);
+            logger.info(`      Meeting: ${record.meetingName}`);
+            logger.info(`      Join: ${record.joinTime.toISOString()}`);
+            logger.info(`      Last Activity: ${lastActivityTimestamp.toISOString()}`);
+            logger.info(`      Calculated Leave Time: ${leaveTime.toISOString()}`);
+            logger.info(`      Actual Duration: ${totalDurationMinutes} minutes (NOT scheduled ${meetingDuration} minutes)`);
+          } else {
+            // No activity data - use join time + 1 minute as conservative estimate
+            // This should rarely happen, but if it does, we assume minimal attendance
+            leaveTime = new Date(record.joinTime.getTime() + 1 * 60 * 1000); // 1 minute conservative estimate
+            totalDurationMinutes = 1;
+            
+            logger.warn(`   ⚠️ Auto-completing stale record ${record.id} with NO activity data - using conservative 1 min estimate`);
+            logger.warn(`      Join: ${record.joinTime.toISOString()}`);
+            logger.warn(`      Estimated Leave Time: ${leaveTime.toISOString()} (1 min after join)`);
+          }
+          
           const expectedDuration = meetingDuration;
           const attendancePercent = Math.min((totalDurationMinutes / expectedDuration) * 100, 100);
-
-          logger.info(`   🔄 Auto-completing stale record: ${record.id}`);
-          logger.info(`      Meeting: ${record.meetingName}`);
-          logger.info(`      Join: ${record.joinTime.toISOString()}, Expected End: ${meetingEndTime.toISOString()}`);
-          logger.info(`      Auto-setting leave time to meeting end time`);
+          
+          // Calculate active vs idle time from activity timeline
+          const { calculateActivityDurations } = await import('../routes/zoom-webhooks');
+          const { activeDurationMin, idleDurationMin } = calculateActivityDurations({ events: timeline });
+          
+          // Use calculated active duration, or fallback to total duration if no activity data
+          const finalActiveDuration = activeDurationMin > 0 ? activeDurationMin : totalDurationMinutes;
+          const finalIdleDuration = idleDurationMin > 0 ? idleDurationMin : 0;
 
           await prisma.attendanceRecord.update({
             where: { id: record.id },
@@ -67,8 +126,8 @@ export async function finalizePendingMeetings(): Promise<void> {
               status: 'COMPLETED',
               leaveTime,
               totalDurationMin: totalDurationMinutes,
-              activeDurationMin: totalDurationMinutes,
-              idleDurationMin: 0,
+              activeDurationMin: finalActiveDuration,
+              idleDurationMin: finalIdleDuration,
               attendancePercent,
               // @ts-ignore
               metadata: Object.assign(
@@ -77,13 +136,17 @@ export async function finalizePendingMeetings(): Promise<void> {
                 {
                   autoCompleted: true,
                   autoCompletedAt: now.toISOString(),
-                  reason: 'User did not manually leave - auto-completed after meeting ended',
+                  reason: activityEvents.length > 0 
+                    ? 'User did not manually leave - auto-completed using last activity timestamp' 
+                    : 'User did not manually leave - auto-completed with no activity data (conservative estimate)',
+                  calculatedFromLastActivity: activityEvents.length > 0,
+                  lastActivityTimestamp: activityEvents.length > 0 ? activityEvents[activityEvents.length - 1].timestamp : null,
                 }
               ),
             },
           });
 
-          logger.info(`   ✅ Auto-completed record ${record.id} - now ready for finalization`);
+          logger.info(`   ✅ Auto-completed record ${record.id} - Duration: ${totalDurationMinutes} min (${attendancePercent.toFixed(1)}%)`);
         } else {
           const minutesRemaining = Math.ceil((meetingEndTime.getTime() + gracePeriod - now.getTime()) / (1000 * 60));
           logger.info(`   ⏳ Record ${record.id} still within grace period (${minutesRemaining} min remaining)`);

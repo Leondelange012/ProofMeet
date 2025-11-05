@@ -70,7 +70,7 @@ router.post('/zoom', async (req: Request, res: Response) => {
  * Calculate active vs idle duration from activity timeline
  * Uses heartbeat events sent by frontend activity monitor
  */
-function calculateActivityDurations(activityTimeline: any): {
+export function calculateActivityDurations(activityTimeline: any): {
   activeDurationMin: number;
   idleDurationMin: number;
 } {
