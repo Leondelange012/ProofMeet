@@ -200,6 +200,101 @@ function validateAttendance(
 }
 
 /**
+ * Generate detailed validation explanation
+ * Provides human-readable explanation of why a meeting passed or failed
+ */
+function generateValidationExplanation(
+  validationStatus: 'PASSED' | 'FAILED',
+  violations: Violation[],
+  attendancePercent: number,
+  activeDurationMin: number,
+  idleDurationMin: number,
+  totalDurationMin: number,
+  meetingDurationMin: number,
+  engagementScore: number | null,
+  engagementLevel: string | null,
+  videoOnPercentage: number,
+  fraudRiskScore: number,
+  fraudRecommendation: string,
+  activityEvents: number
+): string {
+  const explanations: string[] = [];
+  
+  if (validationStatus === 'PASSED') {
+    explanations.push('✅ VALIDATION PASSED - All requirements met');
+    explanations.push('');
+    explanations.push('📊 Attendance Metrics:');
+    explanations.push(`   • Attended ${totalDurationMin} of ${meetingDurationMin} minutes (${attendancePercent.toFixed(1)}% attendance)`);
+    explanations.push(`   • Active time: ${activeDurationMin} minutes (${((activeDurationMin / totalDurationMin) * 100).toFixed(1)}% active)`);
+    if (idleDurationMin > 0) {
+      explanations.push(`   • Idle time: ${idleDurationMin} minutes (within acceptable limits)`);
+    }
+    
+    explanations.push('');
+    explanations.push('🎥 Engagement Verification:');
+    if (engagementScore !== null) {
+      explanations.push(`   • Engagement Score: ${engagementScore}/100 (${engagementLevel || 'N/A'})`);
+    }
+    explanations.push(`   • Video Active: ${videoOnPercentage}% of meeting time`);
+    explanations.push(`   • Activity Events: ${activityEvents} tracked`);
+    
+    explanations.push('');
+    explanations.push('🔒 Fraud Detection:');
+    explanations.push(`   • Risk Score: ${fraudRiskScore}/100 (${fraudRiskScore < 50 ? 'Low Risk' : fraudRiskScore < 80 ? 'Medium Risk' : 'High Risk'})`);
+    explanations.push(`   • Recommendation: ${fraudRecommendation}`);
+    
+    // Check for warnings
+    const warnings = violations.filter(v => v.severity === 'WARNING');
+    if (warnings.length > 0) {
+      explanations.push('');
+      explanations.push('⚠️ Warnings (Non-Critical):');
+      warnings.forEach(w => {
+        explanations.push(`   • ${w.message}`);
+      });
+    }
+    
+    explanations.push('');
+    explanations.push('✅ All critical requirements satisfied. Court card generated successfully.');
+    
+  } else {
+    explanations.push('❌ VALIDATION FAILED - Critical requirements not met');
+    explanations.push('');
+    
+    const criticalViolations = violations.filter(v => v.severity === 'CRITICAL');
+    explanations.push('🚫 Critical Violations:');
+    criticalViolations.forEach((v, index) => {
+      explanations.push(`   ${index + 1}. ${v.message}`);
+    });
+    
+    explanations.push('');
+    explanations.push('📊 Attendance Metrics:');
+    explanations.push(`   • Attended ${totalDurationMin} of ${meetingDurationMin} minutes (${attendancePercent.toFixed(1)}% attendance)`);
+    explanations.push(`   • Active time: ${activeDurationMin} minutes (${((activeDurationMin / totalDurationMin) * 100).toFixed(1)}% active)`);
+    if (idleDurationMin > 0) {
+      explanations.push(`   • Idle time: ${idleDurationMin} minutes (${((idleDurationMin / totalDurationMin) * 100).toFixed(1)}% idle)`);
+    }
+    
+    explanations.push('');
+    explanations.push('🎥 Engagement Verification:');
+    if (engagementScore !== null) {
+      explanations.push(`   • Engagement Score: ${engagementScore}/100 (${engagementLevel || 'N/A'})`);
+    }
+    explanations.push(`   • Video Active: ${videoOnPercentage}% of meeting time`);
+    explanations.push(`   • Activity Events: ${activityEvents} tracked`);
+    
+    explanations.push('');
+    explanations.push('🔒 Fraud Detection:');
+    explanations.push(`   • Risk Score: ${fraudRiskScore}/100`);
+    explanations.push(`   • Recommendation: ${fraudRecommendation}`);
+    
+    explanations.push('');
+    explanations.push('❌ Court card cannot be generated due to critical violations above.');
+  }
+  
+  return explanations.join('\n');
+}
+
+/**
  * Generate a unique Court Card number
  * Format: CC-YYYY-CASENUM-SEQ
  * Example: CC-2024-12345-001
@@ -444,6 +539,40 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       validationStatus,
     };
 
+    // Extract engagement and fraud metrics from metadata
+    const metadata = (attendance.metadata as any) || {};
+    const engagementScore = metadata.engagementScore || null;
+    const engagementLevel = metadata.engagementLevel || null;
+    const fraudRiskScore = metadata.fraudRiskScore || 0;
+    const fraudRecommendation = metadata.fraudRecommendation || 'APPROVE';
+    
+    // Calculate video on percentage from activity timeline
+    const timeline = (attendance.activityTimeline as any)?.events || [];
+    const videoOnEvents = timeline.filter((e: any) => e.data?.videoActive === true);
+    const videoOnPercentage = timeline.length > 0 
+      ? Math.round((videoOnEvents.length / timeline.length) * 100)
+      : 0;
+    
+    // Count total activity events
+    const activityEvents = timeline.length;
+    
+    // Generate detailed validation explanation
+    const validationExplanation = generateValidationExplanation(
+      validationStatus,
+      violations,
+      attendancePercent,
+      activeDurationMin,
+      idleDurationMin,
+      totalDurationMin,
+      meetingDurationMin,
+      engagementScore,
+      engagementLevel,
+      videoOnPercentage,
+      fraudRiskScore,
+      fraudRecommendation,
+      activityEvents
+    );
+
     // Generate card number and hash
     const cardNumber = generateCardNumber(cardData.caseNumber);
     const cardHash = generateCardHash(cardData);
@@ -489,6 +618,17 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         verificationMethod: cardData.verificationMethod,
         confidenceLevel,
         cardHash,
+        // Store validation explanation in metadata (JSON field)
+        // @ts-ignore
+        metadata: {
+          validationExplanation,
+          engagementScore,
+          engagementLevel,
+          fraudRiskScore,
+          fraudRecommendation,
+          videoOnPercentage,
+          activityEvents,
+        },
       },
     });
     
