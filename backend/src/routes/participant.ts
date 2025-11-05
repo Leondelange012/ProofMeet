@@ -524,13 +524,80 @@ router.post(
           externalMeetingId: meetingId,
           status: 'IN_PROGRESS',
         },
+        include: {
+          externalMeeting: true,
+        },
       });
 
+      // If there's an IN_PROGRESS record, check if it's stale (user left and came back)
       if (existingInProgress) {
-        return res.status(400).json({
-          success: false,
-          error: 'Already attending this meeting',
-        });
+        // Check last activity from activity timeline
+        const timeline = (existingInProgress.activityTimeline as any)?.events || [];
+        const lastActivityTime = timeline.length > 0 
+          ? new Date(timeline[timeline.length - 1].timestamp)
+          : existingInProgress.joinTime;
+        
+        const now = new Date();
+        const minutesSinceLastActivity = Math.floor((now.getTime() - lastActivityTime.getTime()) / (1000 * 60));
+        
+        // If no activity for 2+ minutes, treat as rejoin (they left and came back)
+        if (minutesSinceLastActivity >= 2) {
+          logger.info(`Detected stale IN_PROGRESS record - treating as rejoin. Last activity: ${minutesSinceLastActivity} min ago`);
+          
+          // Mark the previous session as completed temporarily and track absence
+          const leaveTime = lastActivityTime;
+          const rejoinTime = now;
+          const absenceTimeMin = minutesSinceLastActivity;
+          
+          const metadata = (existingInProgress.metadata as any) || {};
+          
+          // Update the record to track the absence period
+          const updatedAttendance = await prisma.attendanceRecord.update({
+            where: { id: existingInProgress.id },
+            data: {
+              // Keep status as IN_PROGRESS for continued tracking
+              // @ts-ignore
+              metadata: {
+                ...metadata,
+                rejoinCount: ((metadata.rejoinCount || 0) + 1),
+                absencePeriods: [
+                  ...((metadata.absencePeriods || []) as any[]),
+                  {
+                    leftAt: leaveTime,
+                    rejoinedAt: rejoinTime,
+                    absenceMinutes: absenceTimeMin,
+                  },
+                ],
+                lastStaleRejoin: {
+                  detectedAt: rejoinTime,
+                  minutesSinceLastActivity,
+                },
+              },
+            },
+          });
+          
+          logger.info(`Participant ${participantId} re-joined meeting ${meetingId} after ${absenceTimeMin} min absence (stale IN_PROGRESS record)`);
+          
+          return res.status(201).json({
+            success: true,
+            message: 'Attendance tracking resumed',
+            data: {
+              attendanceId: updatedAttendance.id,
+              meetingName: meeting.name,
+              joinTime: updatedAttendance.joinTime,
+              trackingActive: true,
+              meetingUrl: meeting.zoomUrl,
+              rejoinDetected: true,
+              absenceMinutes: absenceTimeMin,
+            },
+          });
+        } else {
+          // Recent activity - they're actually still attending
+          return res.status(400).json({
+            success: false,
+            error: 'Already attending this meeting',
+          });
+        }
       }
 
       // Check for recent COMPLETED record from today (re-join scenario)
