@@ -34,9 +34,6 @@ export async function finalizePendingMeetings(): Promise<void> {
         status: 'IN_PROGRESS',
         // No time limit - check all IN_PROGRESS meetings to see if they should be completed
       },
-      include: {
-        externalMeeting: true,
-      },
       // @ts-ignore - activityTimeline is a JSON field
       select: {
         id: true,
