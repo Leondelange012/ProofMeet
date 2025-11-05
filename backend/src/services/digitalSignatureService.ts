@@ -532,9 +532,8 @@ export async function verifyCourtCardPublic(
   // Get engagement metadata
   const metadata = (attendanceRecord?.metadata as any) || {};
   
-  // Get validation explanation from court card metadata (if stored)
-  const courtCardMetadata = (courtCard as any).metadata || {};
-  const validationExplanation = courtCardMetadata.validationExplanation || null;
+  // Get validation explanation from attendance record metadata (where it's stored)
+  const validationExplanation = metadata.validationExplanation || null;
 
   return {
     // Verification is based on data integrity, not signatures (signatures are optional and not displayed)

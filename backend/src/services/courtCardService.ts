@@ -618,10 +618,18 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         verificationMethod: cardData.verificationMethod,
         confidenceLevel,
         cardHash,
-        // Store validation explanation in metadata (JSON field)
+      },
+    });
+    
+    // Store validation explanation in attendance record metadata (CourtCard doesn't have metadata field)
+    await prisma.attendanceRecord.update({
+      where: { id: attendanceRecordId },
+      data: {
         // @ts-ignore
         metadata: {
+          ...metadata,
           validationExplanation,
+          // These are already in metadata, but we'll ensure they're present
           engagementScore,
           engagementLevel,
           fraudRiskScore,
