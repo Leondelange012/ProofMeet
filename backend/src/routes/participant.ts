@@ -533,21 +533,34 @@ router.post(
       if (existingInProgress) {
         // Check last activity from activity timeline
         const timeline = (existingInProgress.activityTimeline as any)?.events || [];
-        const lastActivityTime = timeline.length > 0 
-          ? new Date(timeline[timeline.length - 1].timestamp)
+        
+        // Find the last FRONTEND_MONITOR activity (ACTIVE or IDLE) - this is the most accurate indicator
+        const activityEvents = timeline.filter((e: any) => 
+          e.source === 'FRONTEND_MONITOR' && (e.type === 'ACTIVE' || e.type === 'IDLE')
+        );
+        
+        const lastActivityTime = activityEvents.length > 0
+          ? new Date(activityEvents[activityEvents.length - 1].timestamp)
           : existingInProgress.joinTime;
         
         const now = new Date();
         const minutesSinceLastActivity = Math.floor((now.getTime() - lastActivityTime.getTime()) / (1000 * 60));
         
-        // If no activity for 2+ minutes, treat as rejoin (they left and came back)
-        if (minutesSinceLastActivity >= 2) {
-          logger.info(`Detected stale IN_PROGRESS record - treating as rejoin. Last activity: ${minutesSinceLastActivity} min ago`);
+        // IMPROVED: Check for gaps in activity timeline (not just 2+ min threshold)
+        // Also check if there's a significant gap (30+ seconds) between heartbeats
+        const hasActivityGap = activityEvents.length > 1 && minutesSinceLastActivity >= 1; // 1 minute threshold for rejoin detection
+        
+        // If no activity for 1+ minutes OR there's a clear gap, treat as rejoin (they left and came back)
+        if (hasActivityGap) {
+          logger.info(`🔍 Detected stale IN_PROGRESS record - treating as rejoin`);
+          logger.info(`   Last activity: ${lastActivityTime.toISOString()} (${minutesSinceLastActivity} min ago)`);
+          logger.info(`   Activity events: ${activityEvents.length} total`);
           
           // Mark the previous session as completed temporarily and track absence
-          const leaveTime = lastActivityTime;
+          // Add 30 seconds buffer (one heartbeat interval) to last activity timestamp
+          const leaveTime = new Date(lastActivityTime.getTime() + 30 * 1000);
           const rejoinTime = now;
-          const absenceTimeMin = minutesSinceLastActivity;
+          const absenceTimeMin = Math.max(0, Math.floor((rejoinTime.getTime() - leaveTime.getTime()) / (1000 * 60)));
           
           const metadata = (existingInProgress.metadata as any) || {};
           
@@ -563,20 +576,23 @@ router.post(
                 absencePeriods: [
                   ...((metadata.absencePeriods || []) as any[]),
                   {
-                    leftAt: leaveTime,
-                    rejoinedAt: rejoinTime,
+                    leftAt: leaveTime.toISOString(),
+                    rejoinedAt: rejoinTime.toISOString(),
                     absenceMinutes: absenceTimeMin,
+                    detectedFrom: 'STALE_IN_PROGRESS',
+                    lastActivityTimestamp: lastActivityTime.toISOString(),
                   },
                 ],
                 lastStaleRejoin: {
-                  detectedAt: rejoinTime,
+                  detectedAt: rejoinTime.toISOString(),
                   minutesSinceLastActivity,
+                  lastActivityTimestamp: lastActivityTime.toISOString(),
                 },
               },
             },
           });
           
-          logger.info(`Participant ${participantId} re-joined meeting ${meetingId} after ${absenceTimeMin} min absence (stale IN_PROGRESS record)`);
+          logger.info(`✅ Participant ${participantId} re-joined meeting ${meetingId} after ${absenceTimeMin} min absence (stale IN_PROGRESS record)`);
           
           return res.status(201).json({
             success: true,
@@ -593,6 +609,7 @@ router.post(
           });
         } else {
           // Recent activity - they're actually still attending
+          logger.info(`✅ Participant ${participantId} is actively attending meeting ${meetingId} (last activity: ${minutesSinceLastActivity} min ago)`);
           return res.status(400).json({
             success: false,
             error: 'Already attending this meeting',
@@ -619,14 +636,18 @@ router.post(
       });
 
       // Check if meeting is still active (within its scheduled duration)
-      // For test meetings, use createdAt as start time; for recurring meetings with existing attendance, use first join time
-      const meetingStartTime = existingCompleted?.joinTime || meeting.createdAt;
+      // CRITICAL: Use the scheduled start time (externalMeeting.createdAt), NOT the first join time
+      // This ensures rejoins are only allowed within the actual scheduled meeting window
+      const meetingStartTime = meeting.createdAt || new Date(); // Scheduled start time from Zoom meeting creation
       const meetingDuration = meeting.durationMinutes || 60;
       const meetingEndTime = new Date(meetingStartTime.getTime() + meetingDuration * 60 * 1000);
       const now = new Date();
       const isMeetingStillActive = now <= meetingEndTime;
       
-      logger.info(`Re-join check: Meeting started at ${meetingStartTime.toISOString()}, ends at ${meetingEndTime.toISOString()}, now: ${now.toISOString()}, active: ${isMeetingStillActive}`);
+      logger.info(`Re-join check: Meeting scheduled at ${meetingStartTime.toISOString()}, ends at ${meetingEndTime.toISOString()}, now: ${now.toISOString()}, active: ${isMeetingStillActive}`);
+      if (existingCompleted) {
+        logger.info(`   First join: ${existingCompleted.joinTime.toISOString()}, Last leave: ${existingCompleted.leaveTime?.toISOString() || 'N/A'}`);
+      }
 
       let attendance;
 
@@ -634,6 +655,12 @@ router.post(
       if (existingCompleted && isMeetingStillActive) {
         const rejoinTime = new Date();
         const absenceTimeMin = Math.floor((rejoinTime.getTime() - existingCompleted.leaveTime!.getTime()) / (1000 * 60));
+        
+        logger.info(`🔄 Participant ${participantId} re-joining meeting ${meetingId}`);
+        logger.info(`   First join: ${existingCompleted.joinTime.toISOString()}`);
+        logger.info(`   Last leave: ${existingCompleted.leaveTime!.toISOString()}`);
+        logger.info(`   Rejoin time: ${rejoinTime.toISOString()}`);
+        logger.info(`   Absence duration: ${absenceTimeMin} minutes`);
         
         // Update the existing record to IN_PROGRESS and track absence
         attendance = await prisma.attendanceRecord.update({
@@ -648,16 +675,21 @@ router.post(
               absencePeriods: [
                 ...(((existingCompleted.metadata as any)?.absencePeriods || []) as any[]),
                 {
-                  leftAt: existingCompleted.leaveTime,
-                  rejoinedAt: rejoinTime,
+                  leftAt: existingCompleted.leaveTime!.toISOString(),
+                  rejoinedAt: rejoinTime.toISOString(),
                   absenceMinutes: absenceTimeMin,
+                  detectedFrom: 'EXPLICIT_REJOIN',
                 },
               ],
+              lastRejoin: {
+                timestamp: rejoinTime.toISOString(),
+                absenceMinutes: absenceTimeMin,
+              },
             },
           },
         });
 
-        logger.info(`Participant ${participantId} re-joined meeting ${meetingId} after ${absenceTimeMin} min absence`);
+        logger.info(`✅ Participant ${participantId} re-joined meeting ${meetingId} after ${absenceTimeMin} min absence`);
       } else if (existingCompleted && !isMeetingStillActive) {
         // Meeting has ended - can't rejoin
         const minutesSinceEnd = Math.floor((now.getTime() - meetingEndTime.getTime()) / (1000 * 60));
