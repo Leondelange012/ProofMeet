@@ -19,6 +19,15 @@ import { logger } from '../utils/logger';
 import { authenticate, requireParticipant } from '../middleware/auth';
 import { generateCourtCard, getCourtCard, verifyCourtCard } from '../services/courtCardService';
 import { queueDailyDigest, sendAttendanceConfirmation } from '../services/emailService';
+import {
+  addActivityEvent,
+  recordLeaveEvent,
+  recordRejoinEvent,
+  calculateActiveDuration,
+  getLastActivityTimestamp,
+  calculateEngagementMetrics,
+  ActivityEvent,
+} from '../services/activityTrackingService';
 
 const router = Router();
 
@@ -540,20 +549,39 @@ router.post(
 
       const leaveTime = new Date();
       const joinTime = attendance.joinTime;
-      const durationMinutes = Math.floor((leaveTime.getTime() - joinTime.getTime()) / (1000 * 60));
 
-      // Calculate attendance percentage (simplified for now)
+      // Record final leave event
+      await recordLeaveEvent(attendanceId, 'Final leave');
+
+      // Calculate durations using activity timeline
+      const activityTimeline = (attendance.activityTimeline as ActivityEvent[]) || [];
+      const durationCalc = calculateActiveDuration(
+        joinTime,
+        leaveTime,
+        activityTimeline
+      );
+
+      // Calculate attendance percentage
       const expectedDuration = attendance.externalMeeting?.durationMinutes || 60;
-      const attendancePercent = Math.min((durationMinutes / expectedDuration) * 100, 100);
+      const attendancePercent = Math.min(
+        (durationCalc.activeDurationMin / expectedDuration) * 100,
+        100
+      );
+
+      // Calculate engagement metrics
+      const engagementMetrics = calculateEngagementMetrics(
+        activityTimeline,
+        durationCalc.totalDurationMin
+      );
 
       // Update attendance record
       const updated = await prisma.attendanceRecord.update({
         where: { id: attendanceId },
         data: {
           leaveTime,
-          totalDurationMin: durationMinutes,
-          activeDurationMin: durationMinutes, // TODO: Calculate based on activity tracking
-          idleDurationMin: 0,
+          totalDurationMin: durationCalc.totalDurationMin,
+          activeDurationMin: durationCalc.activeDurationMin,
+          idleDurationMin: durationCalc.idleDurationMin,
           attendancePercent,
           status: 'COMPLETED',
           verificationMethod: 'SCREEN_ACTIVITY',
@@ -661,6 +689,182 @@ router.get('/requirements', async (req: Request, res: Response) => {
     });
   }
 });
+
+// ============================================
+// ACTIVITY TRACKING
+// ============================================
+
+/**
+ * POST /api/participant/track-activity
+ * Record activity event (mouse, keyboard, etc.)
+ */
+router.post(
+  '/track-activity',
+  [
+    body('attendanceId').isString(),
+    body('eventType').isIn(['MOUSE_MOVE', 'KEYBOARD', 'SCROLL', 'CLICK', 'IDLE', 'ACTIVE']),
+    body('metadata').optional().isObject(),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      const participantId = req.user!.id;
+      const { attendanceId, eventType, metadata } = req.body;
+
+      // Verify attendance belongs to this participant
+      const attendance = await prisma.attendanceRecord.findFirst({
+        where: {
+          id: attendanceId,
+          participantId,
+          status: 'IN_PROGRESS',
+        },
+      });
+
+      if (!attendance) {
+        return res.status(404).json({
+          success: false,
+          error: 'Attendance record not found or not in progress',
+        });
+      }
+
+      // Add activity event
+      await addActivityEvent(attendanceId, {
+        timestamp: new Date().toISOString(),
+        type: eventType as any,
+        metadata,
+      });
+
+      res.json({
+        success: true,
+        message: 'Activity recorded',
+      });
+    } catch (error: any) {
+      logger.error('Track activity error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/participant/leave-meeting-temp
+ * Record temporary leave (user can rejoin)
+ */
+router.post(
+  '/leave-meeting-temp',
+  [body('attendanceId').isString(), body('reason').optional().isString()],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      const participantId = req.user!.id;
+      const { attendanceId, reason } = req.body;
+
+      // Verify attendance belongs to this participant
+      const attendance = await prisma.attendanceRecord.findFirst({
+        where: {
+          id: attendanceId,
+          participantId,
+          status: 'IN_PROGRESS',
+        },
+      });
+
+      if (!attendance) {
+        return res.status(404).json({
+          success: false,
+          error: 'Attendance record not found or not in progress',
+        });
+      }
+
+      // Record leave event
+      const leaveEvent = await recordLeaveEvent(attendanceId, reason);
+
+      res.json({
+        success: true,
+        message: 'Leave event recorded',
+        data: leaveEvent,
+      });
+    } catch (error: any) {
+      logger.error('Leave meeting temp error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/participant/rejoin-meeting
+ * Record rejoin after temporary leave
+ */
+router.post(
+  '/rejoin-meeting',
+  [body('attendanceId').isString()],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      const participantId = req.user!.id;
+      const { attendanceId } = req.body;
+
+      // Verify attendance belongs to this participant
+      const attendance = await prisma.attendanceRecord.findFirst({
+        where: {
+          id: attendanceId,
+          participantId,
+          status: 'IN_PROGRESS',
+        },
+      });
+
+      if (!attendance) {
+        return res.status(404).json({
+          success: false,
+          error: 'Attendance record not found or not in progress',
+        });
+      }
+
+      // Record rejoin event
+      const rejoinEvent = await recordRejoinEvent(attendanceId);
+
+      res.json({
+        success: true,
+        message: 'Rejoin event recorded',
+        data: rejoinEvent,
+      });
+    } catch (error: any) {
+      logger.error('Rejoin meeting error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+      });
+    }
+  }
+);
 
 // ============================================
 // COURT CARDS

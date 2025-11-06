@@ -50,13 +50,32 @@ const api = axios.create({
   },
 });
 
-// Add auth token to requests
+// Add auth token to requests (V2 compatible)
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('proofmeet-auth');
-  if (token) {
-    const authData = JSON.parse(token);
-    if (authData.state?.token) {
-      config.headers.Authorization = `Bearer ${authData.state.token}`;
+  // Try V2 auth first
+  const tokenV2 = localStorage.getItem('proofmeet-auth-v2');
+  if (tokenV2) {
+    try {
+      const authData = JSON.parse(tokenV2);
+      if (authData.token) {
+        config.headers.Authorization = `Bearer ${authData.token}`;
+        return config;
+      }
+    } catch (e) {
+      // Invalid token format, continue to fallback
+    }
+  }
+  
+  // Fallback to V1 auth for backward compatibility
+  const tokenV1 = localStorage.getItem('proofmeet-auth');
+  if (tokenV1) {
+    try {
+      const authData = JSON.parse(tokenV1);
+      if (authData.state?.token) {
+        config.headers.Authorization = `Bearer ${authData.state.token}`;
+      }
+    } catch (e) {
+      // Invalid token format, ignore
     }
   }
   return config;

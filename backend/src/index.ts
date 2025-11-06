@@ -14,6 +14,9 @@ import { courtRepRoutes } from './routes/court-rep';
 import { participantRoutes } from './routes/participant';
 import { adminRoutes } from './routes/admin';
 
+// Scheduled Services
+import { finalizeStaleMeetings } from './services/finalizationService';
+
 // V1 Routes (Phase 1 - for backward compatibility during migration) - MOVED TO v1-backup/
 // import { authRoutes } from './routes/auth';
 // import { meetingRoutes } from './routes/meetings';
@@ -130,5 +133,23 @@ app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   logger.info(`Environment: ${process.env['NODE_ENV']}`);
 });
+
+// ============================================
+// SCHEDULED TASKS
+// ============================================
+
+// Run finalization check every 2 minutes
+const FINALIZATION_CHECK_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+
+logger.info('Starting scheduled finalization check (every 2 min)...');
+
+// Run immediately on startup, then every 2 minutes
+setTimeout(() => {
+  finalizeStaleMeetings();
+}, 5000); // Wait 5 seconds after server starts
+
+setInterval(() => {
+  finalizeStaleMeetings();
+}, FINALIZATION_CHECK_INTERVAL_MS);
 
 export default app;
