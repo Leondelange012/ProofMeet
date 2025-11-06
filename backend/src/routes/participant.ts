@@ -554,7 +554,7 @@ router.post(
       await recordLeaveEvent(attendanceId, 'Final leave');
 
       // Calculate durations using activity timeline
-      const activityTimeline = (attendance.activityTimeline as ActivityEvent[]) || [];
+      const activityTimeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
       const durationCalc = calculateActiveDuration(
         joinTime,
         leaveTime,
@@ -614,7 +614,7 @@ router.post(
           await sendAttendanceConfirmation(
             req.user!.email,
             attendance.meetingName,
-            durationMinutes,
+            durationCalc.totalDurationMin,
             Number(attendancePercent),
             courtCard.cardNumber
           );
@@ -624,14 +624,14 @@ router.post(
         }
       }
 
-      logger.info(`Participant ${participantId} left meeting, duration: ${durationMinutes}min`);
+      logger.info(`Participant ${participantId} left meeting, duration: ${durationCalc.totalDurationMin}min`);
 
       res.json({
         success: true,
         message: 'Meeting attendance recorded successfully',
         data: {
           attendanceId: updated.id,
-          duration: durationMinutes,
+          duration: durationCalc.totalDurationMin,
           attendancePercentage: attendancePercent,
           courtCardGenerated: !!courtCard,
           courtCardId: courtCard?.id,

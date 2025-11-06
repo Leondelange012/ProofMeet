@@ -45,7 +45,7 @@ async function finalizeAttendanceRecord(attendanceId: string): Promise<boolean> 
     logger.info(`   Participant: ${attendance.participant.email}`);
 
     const joinTime = attendance.joinTime;
-    const activityTimeline = (attendance.activityTimeline as ActivityEvent[]) || [];
+    const activityTimeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
 
     // Get last activity timestamp
     const lastActivity = getLastActivityTimestamp(activityTimeline);
@@ -201,8 +201,8 @@ async function finalizeAttendanceRecord(attendanceId: string): Promise<boolean> 
           await prisma.courtCard.update({
             where: { id: courtCard.id },
             data: {
-              isValid: false,
-              validationNotes: fraudDetection.reasons.join('; '),
+              validationStatus: 'FAILED',
+              violations: fraudDetection.violations as any,
             },
           });
           logger.warn(`Court Card ${courtCard.cardNumber} FAILED validation. Violations: ${fraudDetection.violations.join(', ')}`);
@@ -210,7 +210,7 @@ async function finalizeAttendanceRecord(attendanceId: string): Promise<boolean> 
           await prisma.courtCard.update({
             where: { id: courtCard.id },
             data: {
-              isValid: true,
+              validationStatus: 'PASSED',
             },
           });
         }
@@ -294,7 +294,7 @@ export async function finalizeStaleMeetings(): Promise<{
         logger.info(`       Meeting: ${meeting.meetingName}`);
         logger.info(`       Join: ${meeting.joinTime.toISOString()}`);
 
-        const activityTimeline = (meeting.activityTimeline as ActivityEvent[]) || [];
+        const activityTimeline = (meeting.activityTimeline as unknown as ActivityEvent[]) || [];
         const lastActivity = getLastActivityTimestamp(activityTimeline);
         logger.info(`       Last Activity: ${lastActivity?.toISOString() || 'None'}`);
 

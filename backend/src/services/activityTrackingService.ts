@@ -56,7 +56,7 @@ export async function addActivityEvent(
     }
 
     // Get existing timeline or initialize
-    const timeline = (attendance.activityTimeline as ActivityEvent[]) || [];
+    const timeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
     
     // Add new event
     timeline.push({
@@ -68,7 +68,7 @@ export async function addActivityEvent(
     await prisma.attendanceRecord.update({
       where: { id: attendanceId },
       data: {
-        activityTimeline: timeline,
+        activityTimeline: timeline as any,
         updatedAt: new Date(),
       },
     });
@@ -118,7 +118,7 @@ export async function recordLeaveEvent(
     });
 
     // Also track in a separate leave/rejoin events array
-    const timeline = (attendance.activityTimeline as ActivityEvent[]) || [];
+    const timeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
     const leaveRejoinEvents = timeline.filter(
       (e) => e.type === 'LEAVE' || e.type === 'REJOIN'
     ) as any[];
@@ -128,7 +128,7 @@ export async function recordLeaveEvent(
     await prisma.attendanceRecord.update({
       where: { id: attendanceId },
       data: {
-        activityTimeline: timeline,
+        activityTimeline: timeline as any,
         updatedAt: now,
       },
     });
@@ -177,6 +177,16 @@ export async function recordRejoinEvent(
       timestamp: now.toISOString(),
       type: 'REJOIN',
       metadata: { durationAtRejoin },
+    });
+
+    // Update timeline (already done in addActivityEvent, but ensure consistency)
+    const timeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
+    await prisma.attendanceRecord.update({
+      where: { id: attendanceId },
+      data: {
+        activityTimeline: timeline as any,
+        updatedAt: now,
+      },
     });
 
     logger.info(`Rejoin event recorded for ${attendanceId} at ${rejoinEvent.timestamp}`);
