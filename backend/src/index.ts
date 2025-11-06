@@ -4,25 +4,20 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
 import { PrismaClient } from '@prisma/client';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
+import { websocketService } from './services/websocketService';
+import { startMeetingFinalizationScheduler } from './services/meetingFinalizationService';
 
-// V2 Routes (Court Compliance System)
+// Routes
 import { authV2Routes } from './routes/auth-v2';
 import { courtRepRoutes } from './routes/court-rep';
 import { participantRoutes } from './routes/participant';
 import { adminRoutes } from './routes/admin';
-
-// Scheduled Services
-import { finalizeStaleMeetings } from './services/finalizationService';
-
-// V1 Routes (Phase 1 - for backward compatibility during migration) - MOVED TO v1-backup/
-// import { authRoutes } from './routes/auth';
-// import { meetingRoutes } from './routes/meetings';
-// import { attendanceRoutes } from './routes/attendance';
-// import { complianceRoutes } from './routes/compliance';
-// import { qrRoutes } from './routes/qr';
+import { zoomWebhookRoutes } from './routes/zoom-webhooks';
+import { verificationRoutes } from './routes/verification';
 
 // Load environment variables
 dotenv.config();
@@ -33,8 +28,12 @@ const PORT = process.env['PORT'] || 5000;
 // Initialize Prisma
 export const prisma = new PrismaClient();
 
-logger.info('ProofMeet Version 2.0 - Court Compliance System');
-logger.info('===============================================');
+logger.info('ProofMeet - Court Compliance System');
+logger.info('====================================');
+
+// Trust proxy - required for Railway, Heroku, etc.
+// This allows express-rate-limit to correctly identify client IPs behind proxies
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());
@@ -45,64 +44,78 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '900000'), // 15 minutes
-  max: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100'),
-  message: 'Too many requests from this IP, please try again later.'
+// Rate limiting - strict for auth endpoints only
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 login attempts per 15 minutes
+  message: 'Too many login attempts, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  skipSuccessfulRequests: true, // Don't count successful requests
 });
-app.use(limiter);
+
+// Lenient rate limiter for authenticated API routes
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5000, // Very high limit - 5000 requests per 15 minutes
+  message: 'Too many requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  skip: (req) => {
+    // Skip rate limiting for authenticated users (they have a valid JWT)
+    const authHeader = req.headers.authorization;
+    return !!authHeader && authHeader.startsWith('Bearer ');
+  },
+});
 
 // Body parsing middleware
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-  // Health check endpoint with database test
-  app.get('/health', async (_req, res) => {
-    try {
-      await prisma.$connect();
-      const userCount = await prisma.user.count();
-      
-      res.status(200).json({ 
-        status: 'OK', 
-        timestamp: new Date().toISOString(),
-        version: '2.0.5',
-        system: 'Court Compliance',
-        database: 'Connected',
-        userCount
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        status: 'ERROR',
-        error: error.message,
-        database: 'Disconnected'
-      });
-    }
-  });
+// Health check endpoint with database test (no rate limiting)
+app.get('/health', async (_req, res) => {
+  try {
+    await prisma.$connect();
+    const userCount = await prisma.user.count();
+    
+    res.status(200).json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      version: '2.0.6',
+      system: 'Court Compliance',
+      database: 'Connected',
+      userCount
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      status: 'ERROR',
+      error: error.message,
+      database: 'Disconnected'
+    });
+  }
+});
 
-// API routes - Version 2.0 (Primary)
-app.use('/api/v2/auth', authV2Routes);
-app.use('/api/v2/court-rep', courtRepRoutes);
-app.use('/api/v2/participant', participantRoutes);
-app.use('/api/v2/admin', adminRoutes);
-app.use('/api/auth', authV2Routes); // Default to V2
-app.use('/api/court-rep', courtRepRoutes); // Default to V2
-app.use('/api/participant', participantRoutes); // Default to V2
-app.use('/api/admin', adminRoutes); // Default to V2
+// API routes with appropriate rate limiting
+// Auth routes - strict rate limiting (20 attempts per 15 min)
+app.use('/api/v2/auth', authLimiter, authV2Routes);
+app.use('/api/auth', authLimiter, authV2Routes);
 
-// API routes - Version 1.0 (Backward compatibility) - DISABLED DUE TO SCHEMA MISMATCH
-// app.use('/api/v1/auth', authRoutes);
-// app.use('/api/v1/meetings', meetingRoutes);
-// app.use('/api/v1/attendance', attendanceRoutes);
-// app.use('/api/v1/compliance', complianceRoutes);
-// app.use('/api/v1/qr', qrRoutes);
+// Authenticated routes - lenient rate limiting (skipped for JWT users)
+app.use('/api/v2/court-rep', apiLimiter, courtRepRoutes);
+app.use('/api/v2/participant', apiLimiter, participantRoutes);
+app.use('/api/v2/admin', apiLimiter, adminRoutes);
+app.use('/api/v2/webhooks', apiLimiter, zoomWebhookRoutes);
+app.use('/api/v2/verify', apiLimiter, verificationRoutes); // Public verification
 
-// Phase 1 routes (still accessible during migration) - DISABLED DUE TO SCHEMA MISMATCH
-// app.use('/api/meetings', meetingRoutes);
-// app.use('/api/attendance', attendanceRoutes);
-// app.use('/api/compliance', complianceRoutes);
-// app.use('/api/qr', qrRoutes);
+// Default routes (no version prefix)
+app.use('/api/court-rep', apiLimiter, courtRepRoutes);
+app.use('/api/participant', apiLimiter, participantRoutes);
+app.use('/api/admin', apiLimiter, adminRoutes);
+app.use('/api/webhooks', apiLimiter, zoomWebhookRoutes);
+app.use('/api/verify', apiLimiter, verificationRoutes); // Public verification
 
 // Error handling middleware
 app.use(errorHandler);
@@ -115,41 +128,35 @@ app.use('*', (req, res) => {
   });
 });
 
+// Create HTTP server (needed for WebSocket)
+const httpServer = createServer(app);
+
+// Initialize WebSocket service
+websocketService.initialize(httpServer);
+
+// Start meeting finalization scheduler (checks every 5 minutes)
+startMeetingFinalizationScheduler();
+
 // Graceful shutdown
 process.on('SIGINT', async () => {
   logger.info('Shutting down server...');
+  websocketService.shutdown();
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   logger.info('Shutting down server...');
+  websocketService.shutdown();
   await prisma.$disconnect();
   process.exit(0);
 });
 
 // Start server
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
+httpServer.listen(PORT, () => {
+  logger.info(`🚀 Server running on port ${PORT}`);
+  logger.info(`📡 WebSocket available at ws://localhost:${PORT}/ws`);
   logger.info(`Environment: ${process.env['NODE_ENV']}`);
 });
-
-// ============================================
-// SCHEDULED TASKS
-// ============================================
-
-// Run finalization check every 2 minutes
-const FINALIZATION_CHECK_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
-
-logger.info('Starting scheduled finalization check (every 2 min)...');
-
-// Run immediately on startup, then every 2 minutes
-setTimeout(() => {
-  finalizeStaleMeetings();
-}, 5000); // Wait 5 seconds after server starts
-
-setInterval(() => {
-  finalizeStaleMeetings();
-}, FINALIZATION_CHECK_INTERVAL_MS);
 
 export default app;

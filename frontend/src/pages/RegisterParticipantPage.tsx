@@ -10,9 +10,11 @@ import {
   Alert,
   Link as MuiLink,
   CircularProgress,
+  IconButton,
+  InputAdornment,
 } from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
-import { Person } from '@mui/icons-material';
+import { Person, Visibility, VisibilityOff } from '@mui/icons-material';
 import { authServiceV2, ParticipantRegisterRequest } from '../services/authService-v2';
 
 const RegisterParticipantPage: React.FC = () => {
@@ -20,6 +22,7 @@ const RegisterParticipantPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState<ParticipantRegisterRequest>({
     email: '',
@@ -143,12 +146,26 @@ const RegisterParticipantPage: React.FC = () => {
                 fullWidth
                 label="Password"
                 name="password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={formData.password}
                 onChange={handleChange}
                 required
                 margin="normal"
                 helperText="Minimum 8 characters"
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label="toggle password visibility"
+                        onClick={() => setShowPassword(!showPassword)}
+                        onMouseDown={(e) => e.preventDefault()}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
 
               <TextField
@@ -194,7 +211,7 @@ const RegisterParticipantPage: React.FC = () => {
                 variant="contained"
                 size="large"
                 disabled={loading}
-                sx={{ mt: 3, mb: 2 }}
+                sx={{ mt: 2, mb: 2 }}
               >
                 {loading ? <CircularProgress size={24} /> : 'Register as Participant'}
               </Button>

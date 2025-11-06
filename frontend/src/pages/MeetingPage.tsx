@@ -13,20 +13,35 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   QrCodeScanner,
   VideoCall,
   LocationOn,
   Schedule,
+  MeetingRoom,
+  Home,
 } from '@mui/icons-material';
 import { aaIntergroupService } from '../services/aaIntergroupService';
+import axios from 'axios';
+import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
+import { useNavigate } from 'react-router-dom';
+
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
 const MeetingPage: React.FC = () => {
+  const { token } = useAuthStoreV2();
+  const navigate = useNavigate();
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [meetingId, setMeetingId] = useState('');
   const [meetingsByProgram, setMeetingsByProgram] = useState<{ [program: string]: any[] }>({});
   const [loading, setLoading] = useState(true);
+  const [joiningMeeting, setJoiningMeeting] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
 
   // Load available meetings for participants
@@ -39,15 +54,39 @@ const MeetingPage: React.FC = () => {
       setLoading(true);
       console.log('🔍 Loading recovery meetings organized by program...');
       
+      // Load from AA Intergroup Service
       const response = await aaIntergroupService.getMeetingsByProgram();
+      let allMeetings: { [program: string]: any[] } = {};
+      
       if (response.success && response.data) {
-        setMeetingsByProgram(response.data);
-        const totalMeetings = Object.values(response.data).reduce((sum, meetings) => sum + meetings.length, 0);
-        console.log(`✅ Loaded ${totalMeetings} meetings across ${Object.keys(response.data).length} programs`);
-      } else {
-        console.error('❌ Failed to load recovery meetings:', response.error);
-        setMeetingsByProgram({});
+        allMeetings = { ...response.data };
       }
+
+      // Load from backend API (includes test meetings)
+      if (token) {
+        try {
+          const headers = { Authorization: `Bearer ${token}` };
+          const backendResponse = await axios.get(`${API_BASE_URL}/participant/meetings/available`, { headers });
+          
+          if (backendResponse.data.success && backendResponse.data.data) {
+            // Merge backend meetings with AA Intergroup meetings
+              const backendMeetings = backendResponse.data.data as { [program: string]: any[] };
+              Object.keys(backendMeetings).forEach((program: string) => {
+                if (allMeetings[program]) {
+                  allMeetings[program] = [...allMeetings[program], ...backendMeetings[program]];
+                } else {
+                  allMeetings[program] = backendMeetings[program];
+                }
+              });
+          }
+        } catch (error) {
+          console.error('Failed to load backend meetings:', error);
+        }
+      }
+
+      setMeetingsByProgram(allMeetings);
+      const totalMeetings = Object.values(allMeetings).reduce((sum: number, meetings: any[]) => sum + meetings.length, 0);
+      console.log(`✅ Loaded ${totalMeetings} meetings across ${Object.keys(allMeetings).length} programs`);
     } catch (error) {
       console.error('❌ Failed to load recovery meetings:', error);
       setMeetingsByProgram({});
@@ -61,6 +100,55 @@ const MeetingPage: React.FC = () => {
     window.open(zoomJoinUrl, '_blank');
   };
 
+  const handleJoinMeeting = async (meetingId: string, meetingName: string, zoomUrl: string) => {
+    try {
+      setJoiningMeeting(meetingId);
+      setError('');
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      console.log('Joining meeting:', { meetingId, meetingName, zoomUrl });
+
+      // Start attendance tracking
+      const response = await axios.post(
+        `${API_BASE_URL}/participant/join-meeting`,
+        {
+          meetingId,
+          joinMethod: 'ONLINE',
+        },
+        { headers }
+      );
+
+      console.log('Join meeting response:', response.data);
+
+      if (response.data.success) {
+        const { attendanceId } = response.data.data;
+
+        // Open Zoom in new tab
+        window.open(zoomUrl, '_blank');
+
+        // Navigate to active meeting page
+        navigate('/participant/active-meeting', {
+          state: {
+            attendanceId,
+            meetingName,
+            meetingUrl: zoomUrl,
+          },
+        });
+      } else {
+        const errorMsg = response.data.error || 'Failed to start meeting tracking';
+        console.error('Join meeting failed:', errorMsg);
+        setError(errorMsg);
+      }
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to join meeting';
+      console.error('Join meeting error:', err);
+      setError(errorMsg);
+    } finally {
+      setJoiningMeeting(null);
+    }
+  };
+
   const handleQrScan = () => {
     setQrScannerOpen(true);
   };
@@ -71,17 +159,41 @@ const MeetingPage: React.FC = () => {
 
   return (
     <Container maxWidth="lg">
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Recovery Meeting Directory
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Tooltip title="Back to Dashboard">
+            <IconButton
+              onClick={() => navigate('/participant/dashboard')}
+              color="primary"
+              sx={{ 
+                border: '1px solid',
+                borderColor: 'divider',
+                '&:hover': {
+                  borderColor: 'primary.main',
+                  backgroundColor: 'action.hover',
+                }
+              }}
+            >
+              <Home />
+            </IconButton>
+          </Tooltip>
+          <Typography variant="h4">
+            Recovery Meeting Directory
+          </Typography>
+        </Box>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Join court-approved recovery meetings with proof of attendance capability.
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
           {Object.keys(meetingsByProgram).length > 0 && (
             <>
-              Showing {Object.values(meetingsByProgram).reduce((sum, meetings) => sum + meetings.length, 0)} meetings 
+              Showing {(Object.values(meetingsByProgram) as any[][]).reduce((sum: number, meetings: any[]) => sum + meetings.length, 0)} meetings 
               across {Object.keys(meetingsByProgram).length} recovery programs. 
               <Button 
                 size="small" 
@@ -105,7 +217,7 @@ const MeetingPage: React.FC = () => {
             <TextField
               label="Meeting ID"
               value={meetingId}
-              onChange={(e) => setMeetingId(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMeetingId(e.target.value)}
               variant="outlined"
               size="small"
             />
@@ -126,7 +238,7 @@ const MeetingPage: React.FC = () => {
           <Typography>Loading recovery meetings...</Typography>
         </Box>
       ) : (
-        Object.keys(meetingsByProgram).map((program) => (
+        Object.keys(meetingsByProgram).map((program: string) => (
           <Box key={program} sx={{ mb: 4 }}>
             {/* Program Header */}
             <Typography variant="h5" sx={{ mb: 2, color: 'primary.main', fontWeight: 'bold' }}>
@@ -141,7 +253,7 @@ const MeetingPage: React.FC = () => {
             
             {/* Meetings Grid for this Program */}
             <Grid container spacing={3}>
-              {meetingsByProgram[program].map((meeting) => (
+              {meetingsByProgram[program].map((meeting: any) => (
                 <Grid item xs={12} md={6} lg={4} key={meeting.id}>
                   <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <CardContent sx={{ flexGrow: 1 }}>
@@ -160,7 +272,17 @@ const MeetingPage: React.FC = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                         <Schedule sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
                         <Typography variant="body2" color="text.secondary">
-                          {meeting.day} at {meeting.time} ({meeting.timezone})
+                          {meeting.startTime ? (
+                            // For test meetings with actual start times, show formatted date
+                            <>
+                              {new Date(meeting.startTime).toLocaleDateString(undefined, { weekday: 'long' })} at {new Date(meeting.startTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                              <br />
+                              ({new Date(meeting.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})
+                            </>
+                          ) : (
+                            // For recurring meetings, show day and time
+                            `${meeting.day} at ${meeting.time} (${meeting.timezone})`
+                          )}
                         </Typography>
                       </Box>
 
@@ -209,15 +331,31 @@ const MeetingPage: React.FC = () => {
 
                       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 'auto' }}>
                         {meeting.zoomUrl ? (
-                          <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={<VideoCall />}
-                            onClick={() => handleJoinOnlineMeeting(meeting.zoomUrl)}
-                            sx={{ fontSize: '0.8rem' }}
-                          >
-                            Join Meeting
-                          </Button>
+                          <>
+                            {/* For test meetings or meetings with ProofMeet capability, use proper tracking */}
+                            {(program === 'TEST' || meeting.hasProofCapability) ? (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={joiningMeeting === meeting.id ? <CircularProgress size={16} color="inherit" /> : <MeetingRoom />}
+                                onClick={() => handleJoinMeeting(meeting.id, meeting.name, meeting.zoomUrl)}
+                                disabled={joiningMeeting === meeting.id}
+                                sx={{ fontSize: '0.8rem' }}
+                              >
+                                {joiningMeeting === meeting.id ? 'Starting...' : 'Join Now'}
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<VideoCall />}
+                                onClick={() => handleJoinOnlineMeeting(meeting.zoomUrl)}
+                                sx={{ fontSize: '0.8rem' }}
+                              >
+                                Join Meeting
+                              </Button>
+                            )}
+                          </>
                         ) : (
                           <Button
                             variant="contained"

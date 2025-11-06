@@ -10,9 +10,11 @@ import {
   Alert,
   Link as MuiLink,
   CircularProgress,
+  IconButton,
+  InputAdornment,
 } from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
-import { Gavel } from '@mui/icons-material';
+import { Gavel, Visibility, VisibilityOff } from '@mui/icons-material';
 import { authServiceV2, CourtRepRegisterRequest } from '../services/authService-v2';
 
 const RegisterCourtRepPage: React.FC = () => {
@@ -20,6 +22,7 @@ const RegisterCourtRepPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState<CourtRepRegisterRequest>({
     email: '',
@@ -118,12 +121,26 @@ const RegisterCourtRepPage: React.FC = () => {
                 fullWidth
                 label="Password"
                 name="password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={formData.password}
                 onChange={handleChange}
                 required
                 margin="normal"
                 helperText="Minimum 8 characters"
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label="toggle password visibility"
+                        onClick={() => setShowPassword(!showPassword)}
+                        onMouseDown={(e) => e.preventDefault()}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
 
               <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>

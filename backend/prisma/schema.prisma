@@ -70,6 +70,7 @@ model User {
   // Participant specific fields
   caseNumber        String?   @map("case_number")
   courtRepId        String?   @map("court_rep_id")
+  isHost            Boolean   @default(false) @map("is_host") // Whether participant can host Zoom meetings
   
   // Common profile fields
   firstName         String    @map("first_name")
@@ -101,6 +102,7 @@ model User {
   // Participant relations
   requirements      MeetingRequirement[] @relation("ParticipantRequirements")
   attendance        AttendanceRecord[]   @relation("ParticipantAttendance")
+  idPhoto           ParticipantIDPhoto?
   
   @@index([courtRepId])
   @@index([caseNumber])
@@ -225,6 +227,9 @@ model AttendanceRecord {
   // Flags
   flags               Json?             // Array of flag objects
   
+  // Tier 2 Enhanced Security Metadata
+  metadata            Json?             // Engagement, fraud detection, blockchain data
+  
   // Court Card
   courtCardGenerated  Boolean           @default(false) @map("court_card_generated")
   courtCardData       Json?             @map("court_card_data")
@@ -238,6 +243,8 @@ model AttendanceRecord {
   courtRep            User              @relation("CourtRepAttendance", fields: [courtRepId], references: [id])
   externalMeeting     ExternalMeeting?  @relation(fields: [externalMeetingId], references: [id], onDelete: SetNull)
   courtCard           CourtCard?
+  webcamSnapshots     WebcamSnapshot[]
+  hostSignature       MeetingHostSignature?
   
   @@index([participantId])
   @@index([courtRepId])
@@ -263,6 +270,7 @@ model CourtCard {
   courtRepName          String           @map("court_rep_name")
   
   // Meeting details
+  meetingId             String?          @map("meeting_id") // External meeting ID for tracking
   meetingName           String           @map("meeting_name")
   meetingProgram        String           @map("meeting_program")
   meetingDate           DateTime         @map("meeting_date") @db.Date
@@ -273,7 +281,12 @@ model CourtCard {
   leaveTime             DateTime         @map("leave_time")
   totalDurationMin      Int              @map("total_duration_min")
   activeDurationMin     Int              @map("active_duration_min")
+  idleDurationMin       Int?             @map("idle_duration_min")
   attendancePercent     Decimal          @map("attendance_percent") @db.Decimal(5, 2)
+  
+  // Validation
+  validationStatus      String           @default("PASSED") @map("validation_status") // PASSED, FAILED
+  violations            Json             @default("[]") @map("violations") // Array of violation objects
   
   // Activity summary
   activePeriods         Json             @map("active_periods") // Detailed timeline
@@ -284,6 +297,13 @@ model CourtCard {
   generatedAt           DateTime         @default(now()) @map("generated_at")
   cardHash              String           @unique @map("card_hash") // SHA-256 for integrity
   isTampered            Boolean          @default(false) @map("is_tampered")
+  
+  // Verification
+  verificationUrl       String?          @map("verification_url") @db.Text
+  qrCodeData            String?          @map("qr_code_data") @db.Text
+  
+  // Digital Signatures
+  signatures            Json             @default("[]") @map("signatures") // Array of digital signature objects
   
   // Export
   pdfUrl                String?          @map("pdf_url") @db.Text
@@ -296,7 +316,115 @@ model CourtCard {
   @@index([caseNumber])
   @@index([meetingDate])
   @@index([cardNumber])
+  @@index([validationStatus])
   @@map("court_cards")
+}
+
+// ============================================
+// PARTICIPANT ID VERIFICATION
+// ============================================
+
+model ParticipantIDPhoto {
+  id                  String    @id @default(uuid())
+  participantId       String    @unique @map("participant_id")
+  
+  // Photo storage
+  photoUrl            String    @map("photo_url") @db.Text // S3 or base64
+  photoHash           String    @map("photo_hash") // SHA-256 for integrity
+  
+  // ID details (optional - for manual verification)
+  idType              String?   @map("id_type") // "DRIVERS_LICENSE", "STATE_ID", "PASSPORT"
+  idNumber            String?   @map("id_number") // Encrypted or masked
+  idState             String?   @map("id_state")
+  
+  // Verification status
+  isVerified          Boolean   @default(false) @map("is_verified")
+  verifiedAt          DateTime? @map("verified_at")
+  verifiedBy          String?   @map("verified_by") // Court Rep ID
+  
+  uploadedAt          DateTime  @default(now()) @map("uploaded_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  participant         User      @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  
+  @@index([participantId])
+  @@map("participant_id_photos")
+}
+
+// ============================================
+// WEBCAM SNAPSHOTS (During Meetings)
+// ============================================
+
+model WebcamSnapshot {
+  id                  String           @id @default(uuid())
+  attendanceRecordId  String           @map("attendance_record_id")
+  participantId       String           @map("participant_id")
+  
+  // Photo storage
+  photoUrl            String           @map("photo_url") @db.Text // S3 or base64
+  photoHash           String           @map("photo_hash") // SHA-256 for integrity
+  
+  // Timing
+  capturedAt          DateTime         @map("captured_at")
+  minuteIntoMeeting   Int              @map("minute_into_meeting") // For tracking when photo was taken
+  
+  // Face detection (optional - future AI verification)
+  faceDetected        Boolean          @default(false) @map("face_detected")
+  faceMatchScore      Decimal?         @map("face_match_score") @db.Decimal(5, 2) // % match to ID photo
+  
+  // Metadata
+  metadata            Json?            // Camera info, resolution, etc.
+  
+  // Relations
+  attendanceRecord    AttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
+  
+  @@index([attendanceRecordId])
+  @@index([participantId])
+  @@index([capturedAt])
+  @@map("webcam_snapshots")
+}
+
+// ============================================
+// MEETING HOST SIGNATURES
+// ============================================
+
+model MeetingHostSignature {
+  id                  String           @id @default(uuid())
+  attendanceRecordId  String           @unique @map("attendance_record_id")
+  
+  // Host information
+  hostName            String           @map("host_name")
+  hostEmail           String           @map("host_email")
+  hostPhone           String?          @map("host_phone")
+  hostRole            String           @default("MEETING_LEADER") @map("host_role") // "MEETING_LEADER", "SPONSOR", "SECRETARY"
+  
+  // Digital signature
+  signatureData       String           @map("signature_data") @db.Text // Base64 signature image or cryptographic signature
+  signatureMethod     String           @default("ELECTRONIC") @map("signature_method") // "ELECTRONIC", "TYPED", "DRAWN"
+  
+  // Confirmation details
+  confirmedAt         DateTime         @map("confirmed_at")
+  ipAddress           String?          @map("ip_address")
+  userAgent           String?          @map("user_agent") @db.Text
+  
+  // Attestation
+  attestationText     String           @map("attestation_text") @db.Text // "I confirm [Name] attended this meeting"
+  meetingLocation     String?          @map("meeting_location") // Physical or virtual location
+  
+  // Verification
+  isVerified          Boolean          @default(true) @map("is_verified")
+  verificationCode    String           @unique @map("verification_code") // Unique code for host to verify signature
+  
+  createdAt           DateTime         @default(now()) @map("created_at")
+  
+  // Relations
+  attendanceRecord    AttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
+  
+  @@index([attendanceRecordId])
+  @@index([hostEmail])
+  @@index([verificationCode])
+  @@map("meeting_host_signatures")
 }
 
 // ============================================

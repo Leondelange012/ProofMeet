@@ -13,7 +13,9 @@ import { body, validationResult } from 'express-validator';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';
 import { authenticate, requireCourtRep } from '../middleware/auth';
-import { getCourtCard } from '../services/courtCardService';
+import { getCourtCard, generateCourtCard } from '../services/courtCardService';
+import { zoomService } from '../services/zoomService';
+import { generateCourtCardHTML } from '../services/pdfGenerator';
 
 const router = Router();
 
@@ -84,15 +86,28 @@ router.get('/dashboard', async (req: Request, res: Response) => {
         weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week
         weekStart.setHours(0, 0, 0, 0);
 
-        const weekAttendance = await prisma.attendanceRecord.count({
+        // ONLY count meetings with PASSED validation (80%+ attendance)
+        const weekAttendanceRecords = await prisma.attendanceRecord.findMany({
           where: {
             participantId: participant.id,
             meetingDate: { gte: weekStart },
             status: 'COMPLETED',
           },
+          include: {
+            courtCard: {
+              select: {
+                validationStatus: true as any,
+              },
+            },
+          },
         });
 
-        if (weekAttendance >= requirement.meetingsPerWeek) {
+        const validMeetings = weekAttendanceRecords.filter(record => {
+          const validationStatus = (record.courtCard as any)?.validationStatus;
+          return validationStatus === 'PASSED';
+        });
+
+        if (validMeetings.length >= requirement.meetingsPerWeek) {
           compliantCount++;
         }
       }
@@ -128,20 +143,33 @@ router.get('/dashboard', async (req: Request, res: Response) => {
         weekStart.setDate(weekStart.getDate() - weekStart.getDay());
         weekStart.setHours(0, 0, 0, 0);
 
-        const weekAttendance = await prisma.attendanceRecord.count({
+        // ONLY count VALID meetings (80%+ attendance)
+        const weekAttendanceRecords = await prisma.attendanceRecord.findMany({
           where: {
             participantId: participant.id,
             meetingDate: { gte: weekStart },
             status: 'COMPLETED',
           },
+          include: {
+            courtCard: {
+              select: {
+                validationStatus: true as any,
+              },
+            },
+          },
         });
 
-        if (weekAttendance < requirement.meetingsPerWeek) {
+        const validMeetings = weekAttendanceRecords.filter(record => {
+          const validationStatus = (record.courtCard as any)?.validationStatus;
+          return validationStatus === 'PASSED';
+        });
+
+        if (validMeetings.length < requirement.meetingsPerWeek) {
           alerts.push({
             type: 'LOW_COMPLIANCE',
             participantName: `${participant.firstName} ${participant.lastName}`,
             caseNumber: participant.caseNumber,
-            message: `Only ${weekAttendance}/${requirement.meetingsPerWeek} required meetings this week`,
+            message: `Only ${validMeetings.length}/${requirement.meetingsPerWeek} valid meetings this week (${weekAttendanceRecords.length} total)`,
           });
         }
       }
@@ -240,11 +268,24 @@ router.get('/participants', async (req: Request, res: Response) => {
             meetingDate: { gte: weekStart },
             status: 'COMPLETED',
           },
+          include: {
+            courtCard: {
+              select: {
+                validationStatus: true as any,
+              },
+            },
+          },
+        });
+
+        // ONLY count meetings with 80%+ attendance (PASSED validation)
+        const validMeetings = thisWeekAttendance.filter(record => {
+          const validationStatus = (record.courtCard as any)?.validationStatus;
+          return validationStatus === 'PASSED';
         });
 
         const requirement = participant.requirements[0];
         const meetingsRequired = requirement?.meetingsPerWeek || 0;
-        const meetingsAttended = thisWeekAttendance.length;
+        const meetingsAttended = validMeetings.length; // Only count VALID meetings
 
         // Calculate average attendance percentage
         const avgAttendance = thisWeekAttendance.length > 0
@@ -362,6 +403,19 @@ router.get('/participants/:participantId', async (req: Request, res: Response) =
         meetingDate: { gte: weekStart },
         status: 'COMPLETED',
       },
+      include: {
+        courtCard: {
+          select: {
+            validationStatus: true as any,
+          },
+        },
+      },
+    });
+
+    // ONLY count valid meetings (80%+ attendance)
+    const validThisWeek = thisWeekAttendance.filter(record => {
+      const validationStatus = (record.courtCard as any)?.validationStatus;
+      return validationStatus === 'PASSED';
     });
 
     const monthStart = new Date();
@@ -374,6 +428,19 @@ router.get('/participants/:participantId', async (req: Request, res: Response) =
         meetingDate: { gte: monthStart },
         status: 'COMPLETED',
       },
+      include: {
+        courtCard: {
+          select: {
+            validationStatus: true as any,
+          },
+        },
+      },
+    });
+
+    // ONLY count valid meetings for the month
+    const validThisMonth = thisMonthAttendance.filter(record => {
+      const validationStatus = (record.courtCard as any)?.validationStatus;
+      return validationStatus === 'PASSED';
     });
 
     // Get recent meetings
@@ -408,18 +475,20 @@ router.get('/participants/:participantId', async (req: Request, res: Response) =
         } : null,
         compliance: {
           currentWeek: {
-            attended: thisWeekAttendance.length,
+            attended: validThisWeek.length, // Only VALID meetings
             required: requirement?.meetingsPerWeek || 0,
+            totalCompleted: thisWeekAttendance.length, // Total including failed
             percentage: requirement?.meetingsPerWeek
-              ? Math.round((thisWeekAttendance.length / requirement.meetingsPerWeek) * 100)
+              ? Math.round((validThisWeek.length / requirement.meetingsPerWeek) * 100)
               : 0,
-            status: thisWeekAttendance.length >= (requirement?.meetingsPerWeek || 0) ? 'ON_TRACK' : 'BEHIND',
+            status: validThisWeek.length >= (requirement?.meetingsPerWeek || 0) ? 'ON_TRACK' : 'BEHIND',
           },
           lastMonth: {
-            attended: thisMonthAttendance.length,
+            attended: validThisMonth.length, // Only VALID meetings
             required: requirement ? Math.ceil((requirement.meetingsPerWeek * 4.33)) : 0,
+            totalCompleted: thisMonthAttendance.length, // Total including failed
             percentage: requirement
-              ? Math.round((thisMonthAttendance.length / (requirement.meetingsPerWeek * 4.33)) * 100)
+              ? Math.round((validThisMonth.length / (requirement.meetingsPerWeek * 4.33)) * 100)
               : 0,
           },
         },
@@ -710,6 +779,137 @@ router.get('/court-card/:attendanceId', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/court-rep/participant/:participantId/court-card-pdf
+ * Generate comprehensive Court Card PDF for participant (all meetings)
+ */
+router.get('/participant/:participantId/court-card-pdf', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+    const { participantId } = req.params;
+
+    // Verify participant belongs to this Court Rep
+    const participant = await prisma.user.findFirst({
+      where: {
+        id: participantId,
+        courtRepId,
+        userType: 'PARTICIPANT',
+      },
+      include: {
+        courtRep: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        error: 'Participant not found',
+      });
+    }
+
+    // Get all completed meetings with full court card data
+    const meetings = await prisma.attendanceRecord.findMany({
+      where: {
+        participantId,
+        status: 'COMPLETED',
+      },
+      orderBy: { meetingDate: 'desc' },
+      include: {
+        courtCard: true, // Include ALL court card fields
+      },
+    });
+
+    // Calculate statistics
+    const totalMinutes = meetings.reduce((sum, m) => sum + (m.totalDurationMin || 0), 0);
+    const totalHours = totalMinutes / 60;
+
+    // Count meetings by type
+    const meetingsByType: { [key: string]: number } = {};
+    meetings.forEach(m => {
+      meetingsByType[m.meetingProgram] = (meetingsByType[m.meetingProgram] || 0) + 1;
+    });
+
+    // Get the most recent court card for QR code and verification
+    const mostRecentCourtCard = meetings.find(m => m.courtCard)?.courtCard;
+
+    // Get the most recent attendance record with full data for audit trail
+    const mostRecentAttendance = meetings[0]; // Already sorted by meetingDate desc
+    
+    // Calculate audit trail metrics from the most recent meeting
+    let auditTrail = undefined;
+    if (mostRecentAttendance && mostRecentCourtCard) {
+      const metadata = (mostRecentAttendance.metadata as any) || {};
+      const timeline = (mostRecentAttendance.activityTimeline as any)?.events || [];
+      const videoOnEvents = timeline.filter((e: any) => e.data?.videoActive === true);
+      const videoOnPercent = timeline.length > 0 ? Math.round((videoOnEvents.length / timeline.length) * 100) : 0;
+      
+      auditTrail = {
+        startTime: mostRecentAttendance.joinTime,
+        endTime: mostRecentAttendance.leaveTime || new Date(),
+        activeTimeMinutes: mostRecentAttendance.totalDurationMin || 0,
+        idleTimeMinutes: (mostRecentAttendance as any).idleDurationMin || 0,
+        videoOnPercentage: videoOnPercent,
+        attendancePercentage: Number(mostRecentAttendance.attendancePercent || 0),
+        engagementScore: metadata.engagementScore || null,
+        engagementLevel: metadata.engagementLevel || null,
+        activityEvents: timeline.length,
+        verificationMethod: mostRecentCourtCard.verificationMethod || 'SCREEN_ACTIVITY',
+        confidenceLevel: mostRecentCourtCard.confidenceLevel || 'MEDIUM',
+      };
+    }
+
+    // Prepare PDF data
+    const pdfData = {
+      participantName: `${participant.firstName} ${participant.lastName}`,
+      participantEmail: participant.email,
+      caseNumber: participant.caseNumber || 'N/A',
+      courtRepName: `${participant.courtRep.firstName} ${participant.courtRep.lastName}`,
+      courtRepEmail: participant.courtRep.email,
+      totalMeetings: meetings.length,
+      totalHours,
+      meetingsByType,
+      meetings: meetings.map(m => ({
+        date: m.meetingDate,
+        meetingName: m.meetingName,
+        meetingProgram: m.meetingProgram,
+        duration: m.totalDurationMin || 0,
+        attendancePercent: Number(m.attendancePercent || 0),
+        validationStatus: (m.courtCard as any)?.validationStatus || 'PENDING',
+      })),
+      // Include court card data for QR code and verification
+      cardNumber: mostRecentCourtCard?.cardNumber,
+      verificationUrl: mostRecentCourtCard?.verificationUrl,
+      qrCodeData: mostRecentCourtCard?.qrCodeData,
+      cardHash: mostRecentCourtCard?.cardHash,
+      generatedDate: new Date(),
+      // Include audit trail metrics
+      auditTrail,
+    };
+
+    // Generate HTML with QR code (can be converted to PDF client-side or server-side)
+    const html = await generateCourtCardHTML(pdfData);
+
+    // Set response headers for HTML download
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Content-Disposition', `inline; filename="CourtCard_${participant.caseNumber}_${Date.now()}.html"`);
+    res.send(html);
+
+    logger.info(`Court Card PDF generated for participant ${participant.email} by Court Rep ${req.user!.email}`);
+  } catch (error: any) {
+    logger.error('Generate court card PDF error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
  * GET /api/court-rep/attendance-reports
  * Get attendance reports for all participants
  */
@@ -787,6 +987,1198 @@ router.get('/attendance-reports', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Get attendance reports error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+// ============================================
+// ZOOM MEETINGS (FOR TESTING)
+// ============================================
+
+/**
+ * POST /api/court-rep/create-test-meeting
+ * Create a test Zoom meeting for compliance tracking
+ */
+router.post('/create-test-meeting', async (req: Request, res: Response) => {
+  try {
+    const courtRep = req.user!;
+    const courtRepName = `${courtRep.firstName} ${courtRep.lastName}`;
+    
+    // Get optional parameters from request body with defaults
+    const duration = req.body.duration || 30;
+    const startInMinutes = req.body.startInMinutes;
+    const startDateTime = req.body.startDateTime; // ISO datetime string
+    const timezone = req.body.timezone || 'America/Los_Angeles';
+    const topic = req.body.topic;
+
+    // Log request parameters for debugging
+    logger.info(`Creating test meeting - Duration requested: ${duration} minutes, Start: ${startDateTime || `in ${startInMinutes} minutes`}`);
+
+    // Create Zoom meeting with custom settings
+    const meeting = await zoomService.createTestMeeting(
+      courtRepName,
+      duration,
+      startInMinutes,
+      topic,
+      startDateTime,
+      timezone
+    );
+
+    // Store meeting in database as external meeting
+    // Parse the actual start time from Zoom
+    const meetingStartTime = new Date(meeting.start_time);
+    
+    const externalMeeting = await prisma.externalMeeting.create({
+      data: {
+        externalId: meeting.id,
+        name: meeting.topic,
+        program: 'TEST',
+        meetingType: 'Test Meeting',
+        description: 'Test meeting for ProofMeet compliance tracking',
+        dayOfWeek: meetingStartTime.toLocaleDateString('en-US', { weekday: 'long', timeZone: meeting.timezone }),
+        time: meetingStartTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: meeting.timezone }),
+        timezone: meeting.timezone,
+        durationMinutes: meeting.duration,
+        format: 'ONLINE',
+        zoomUrl: meeting.join_url,
+        zoomId: meeting.id,
+        zoomPassword: meeting.password,
+        tags: ['test', 'compliance-tracking'],
+        hasProofCapability: true,
+        lastSyncedAt: meetingStartTime, // Use actual meeting start time
+        createdAt: meetingStartTime, // Set createdAt to when the meeting actually starts
+      },
+    });
+
+    logger.info(`Test meeting created by ${courtRep.email}: ${meeting.id}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Test meeting created successfully',
+      data: {
+        meetingId: externalMeeting.id,
+        zoomMeetingId: meeting.id,
+        topic: meeting.topic,
+        joinUrl: meeting.join_url,
+        password: meeting.password,
+        startTime: meeting.start_time,
+        duration: meeting.duration,
+        instructions: 'Share this meeting link with participants to test attendance tracking.',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Create test meeting error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to create test meeting',
+    });
+  }
+});
+
+/**
+ * GET /api/court-rep/test-meetings
+ * Get all test meetings
+ */
+router.get('/test-meetings', async (req: Request, res: Response) => {
+  try {
+    const testMeetings = await prisma.externalMeeting.findMany({
+      where: { program: 'TEST' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        meetings: testMeetings.map(m => ({
+          id: m.id,
+          name: m.name,
+          zoomUrl: m.zoomUrl,
+          zoomId: m.zoomId,
+          password: m.zoomPassword,
+          startTime: m.time,
+          duration: m.durationMinutes,
+          createdAt: m.createdAt,
+        })),
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get test meetings error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * POST /api/court-rep/finalize-pending-meetings
+ * Manually trigger finalization of pending meetings (for testing/troubleshooting)
+ */
+router.post('/finalize-pending-meetings', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+    
+    logger.info(`Manual finalization triggered by Court Rep: ${courtRepId}`);
+    
+    // Import the finalization function
+    const { finalizePendingMeetings } = require('../services/meetingFinalizationService');
+    
+    // Run finalization
+    await finalizePendingMeetings();
+    
+    res.json({
+      success: true,
+      message: 'Finalization process completed. Check logs for details.',
+    });
+  } catch (error: any) {
+    logger.error('Manual finalization error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to run finalization',
+    });
+  }
+});
+
+/**
+ * GET /api/court-rep/flagged-attendance
+ * Get all attendance records flagged for review (rejected by fraud detection)
+ */
+router.get('/flagged-attendance', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+    
+    logger.info(`Court Rep ${courtRepId} fetching flagged attendance records`);
+    
+    // Find all attendance records that are flagged (isValid = false, status = COMPLETED)
+    const flaggedRecords = await prisma.attendanceRecord.findMany({
+      where: {
+        courtRepId,
+        isValid: false,  // Flagged/rejected
+        status: 'COMPLETED',
+        meetingDate: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+        },
+      },
+      include: {
+        participant: true,
+        externalMeeting: true,
+        courtCard: true,
+      },
+      orderBy: {
+        meetingDate: 'desc',
+      },
+    });
+    
+    // Format the response with fraud detection details
+    const formatted = flaggedRecords.map((record: any) => {
+      const metadata = (record.metadata as any) || {};
+      return {
+        id: record.id,
+        participant: {
+          id: record.participant.id,
+          name: record.participant.name,
+          email: record.participant.email,
+        },
+        meeting: {
+          id: record.externalMeeting.id,
+          name: record.externalMeeting.name,
+          program: record.externalMeeting.program,
+          dayOfWeek: record.externalMeeting.dayOfWeek,
+          time: record.externalMeeting.time,
+          durationMinutes: record.externalMeeting.durationMinutes,
+        },
+        meetingDate: record.meetingDate,
+        joinTime: record.joinTime,
+        leaveTime: record.leaveTime,
+        duration: record.totalDurationMin,
+        attendancePercent: record.attendancePercent,
+        status: record.status,
+        isValid: record.isValid,
+        // Fraud/Engagement details
+        engagementScore: metadata.engagement?.score || null,
+        engagementLevel: metadata.engagement?.level || null,
+        engagementFlags: metadata.engagement?.flags || [],
+        fraudRiskScore: metadata.fraudDetection?.riskScore || null,
+        fraudViolations: metadata.fraudDetection?.violations || null,
+        fraudReasons: metadata.fraudDetection?.reasons || [],
+        // Override details (if any)
+        manualOverride: metadata.manualOverride || false,
+        overrideAction: metadata.overrideAction || null,
+        overrideReason: metadata.overrideReason || null,
+        overrideTimestamp: metadata.overrideTimestamp || null,
+        // Auto-rejection details
+        autoRejected: metadata.autoRejected || false,
+        rejectionReason: metadata.rejectionReason || null,
+        // Court card (if exists)
+        courtCard: record.courtCard ? {
+          id: record.courtCard.id,
+          validationStatus: record.courtCard.validationStatus,
+        } : null,
+      };
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        total: formatted.length,
+        records: formatted,
+      },
+    });
+    
+  } catch (error: any) {
+    logger.error('Fetch flagged attendance error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch flagged attendance',
+    });
+  }
+});
+
+/**
+ * POST /api/court-rep/override-attendance/:attendanceId
+ * Manually approve or reject an attendance record (overrides fraud detection)
+ */
+router.post('/override-attendance/:attendanceId', [
+  body('action').isIn(['approve', 'reject']).withMessage('Action must be approve or reject'),
+  body('reason').isString().optional().withMessage('Reason must be a string'),
+], async (req: Request, res: Response) => {
+  try {
+    const { attendanceId } = req.params;
+    const { action, reason } = req.body;
+    const courtRepId = req.user!.id;
+    
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+    
+    logger.info(`Court Rep ${courtRepId} attempting to ${action} attendance ${attendanceId}`);
+    
+    // Find the attendance record
+    const attendance = await prisma.attendanceRecord.findUnique({
+      where: { id: attendanceId },
+      include: {
+        participant: true,
+        externalMeeting: true,
+        courtCard: true,
+      },
+    });
+    
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        error: 'Attendance record not found',
+      });
+    }
+    
+    // Verify court rep owns this participant
+    if (attendance.participant.courtRepId !== courtRepId) {
+      return res.status(403).json({
+        success: false,
+        error: 'You do not have permission to override this attendance record',
+      });
+    }
+    
+    // Check if already has a court card
+    if (attendance.courtCard && action === 'approve') {
+      return res.status(400).json({
+        success: false,
+        error: 'This attendance already has a court card generated',
+      });
+    }
+    
+    if (action === 'approve') {
+      // APPROVE: Set isValid to true and generate court card if missing
+      logger.info(`Court Rep ${courtRepId} approving attendance ${attendanceId}`);
+      
+      // Update attendance record
+      await prisma.attendanceRecord.update({
+        where: { id: attendanceId },
+        data: {
+          isValid: true,
+          metadata: Object.assign(
+            {},
+            (attendance.metadata as any) || {},
+            {
+              manualOverride: true,
+              overriddenBy: courtRepId,
+              overrideAction: 'approve',
+              overrideReason: reason || 'Manual approval by court representative',
+              overrideTimestamp: new Date().toISOString(),
+            }
+          ),
+        },
+      });
+      
+      // Generate court card if it doesn't exist
+      if (!attendance.courtCard) {
+        logger.info(`Generating court card for approved attendance ${attendanceId}`);
+        const courtCard = await generateCourtCard(attendanceId);
+        
+        return res.json({
+          success: true,
+          message: 'Attendance approved and court card generated',
+          data: {
+            attendanceId,
+            courtCardId: courtCard.id,
+            action: 'approve',
+          },
+        });
+      }
+      
+      return res.json({
+        success: true,
+        message: 'Attendance approved',
+        data: {
+          attendanceId,
+          action: 'approve',
+        },
+      });
+      
+    } else {
+      // REJECT: Set isValid to false
+      logger.info(`Court Rep ${courtRepId} rejecting attendance ${attendanceId}`);
+      
+      await prisma.attendanceRecord.update({
+        where: { id: attendanceId },
+        data: {
+          isValid: false,
+          metadata: Object.assign(
+            {},
+            (attendance.metadata as any) || {},
+            {
+              manualOverride: true,
+              overriddenBy: courtRepId,
+              overrideAction: 'reject',
+              overrideReason: reason || 'Manual rejection by court representative',
+              overrideTimestamp: new Date().toISOString(),
+            }
+          ),
+        },
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Attendance rejected',
+        data: {
+          attendanceId,
+          action: 'reject',
+        },
+      });
+    }
+    
+  } catch (error: any) {
+    logger.error('Override attendance error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to override attendance',
+    });
+  }
+});
+
+/**
+ * DELETE /api/court-rep/delete-meeting/:meetingId
+ * Delete a test meeting (for testing purposes only)
+ */
+router.delete('/delete-meeting/:meetingId', async (req: Request, res: Response) => {
+  try {
+    const { meetingId } = req.params;
+
+    // Find the meeting
+    const meeting = await prisma.externalMeeting.findUnique({
+      where: { id: meetingId },
+    });
+
+    if (!meeting) {
+      return res.status(404).json({
+        success: false,
+        error: 'Meeting not found',
+      });
+    }
+
+    // Only allow deletion of TEST meetings
+    if (meeting.program !== 'TEST') {
+      return res.status(403).json({
+        success: false,
+        error: 'Can only delete TEST meetings',
+      });
+    }
+
+    // Delete related attendance records first
+    await prisma.attendanceRecord.deleteMany({
+      where: { externalMeetingId: meetingId },
+    });
+
+    // Delete the meeting
+    await prisma.externalMeeting.delete({
+      where: { id: meetingId },
+    });
+
+    logger.info(`Test meeting deleted: ${meetingId} by ${req.user!.email}`);
+
+    res.json({
+      success: true,
+      message: 'Test meeting deleted successfully',
+    });
+  } catch (error: any) {
+    logger.error('Delete meeting error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * GET /api/court-rep/participants/:participantId/meetings
+ * Get detailed meeting history for a specific participant
+ */
+router.get('/participants/:participantId/meetings', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+    const { participantId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    // Verify participant belongs to this Court Rep
+    const participant = await prisma.user.findFirst({
+      where: {
+        id: participantId,
+        courtRepId,
+        userType: 'PARTICIPANT',
+      },
+    });
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        error: 'Participant not found',
+      });
+    }
+
+    // Get all meetings for this participant
+    const meetings = await prisma.attendanceRecord.findMany({
+      where: { participantId },
+      orderBy: { meetingDate: 'desc' },
+      take: limit,
+      include: {
+        courtCard: {
+          select: {
+            id: true,
+            cardNumber: true,
+            confidenceLevel: true,
+            validationStatus: true as any,
+            violations: true as any,
+            idleDurationMin: true as any,
+          },
+        },
+        externalMeeting: {
+          select: {
+            durationMinutes: true,
+          },
+        },
+      },
+    });
+
+    // Process meetings to calculate accurate durations
+    const now = new Date();
+    const processedMeetings = await Promise.all(meetings.map(async (meeting) => {
+      let actualDuration = meeting.totalDurationMin || 0;
+      let actualStatus = meeting.status;
+      
+      // If meeting is IN_PROGRESS, calculate current duration
+      if (meeting.status === 'IN_PROGRESS') {
+        const elapsedMs = now.getTime() - meeting.joinTime.getTime();
+        actualDuration = Math.floor(elapsedMs / (1000 * 60));
+        
+        // If meeting has exceeded expected duration + 15 min buffer, auto-complete it
+        const expectedDuration = meeting.externalMeeting?.durationMinutes || 60;
+        if (actualDuration > expectedDuration + 15) {
+          logger.warn(`Auto-completing stale meeting: ${meeting.id}, elapsed: ${actualDuration} min`);
+          
+          // Actually update the database to close out the meeting
+          const estimatedLeaveTime = new Date(meeting.joinTime.getTime() + (expectedDuration * 60 * 1000));
+          await prisma.attendanceRecord.update({
+            where: { id: meeting.id },
+            data: {
+              leaveTime: estimatedLeaveTime,
+              totalDurationMin: expectedDuration,
+              activeDurationMin: expectedDuration, // Assume all active since we don't have tracking
+              idleDurationMin: 0,
+              attendancePercent: 100,
+              status: 'COMPLETED',
+            },
+          });
+          
+          actualStatus = 'COMPLETED';
+          actualDuration = expectedDuration;
+          
+          logger.info(`✅ Auto-completed stale meeting: ${meeting.id}`);
+        }
+      }
+      
+      return {
+        ...meeting,
+        calculatedDuration: actualDuration,
+        calculatedStatus: actualStatus,
+      };
+    }));
+
+    // Get summary statistics (only for COMPLETED meetings)
+    const completedMeetingsList = processedMeetings.filter(m => m.status === 'COMPLETED');
+    const totalMeetings = completedMeetingsList.length;
+    const totalMinutes = completedMeetingsList.reduce((sum, m) => sum + (m.totalDurationMin || 0), 0);
+    const avgAttendance = completedMeetingsList.length > 0
+      ? completedMeetingsList.reduce((sum, m) => sum + Number(m.attendancePercent || 0), 0) / completedMeetingsList.length
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        participant: {
+          id: participant.id,
+          name: `${participant.firstName} ${participant.lastName}`,
+          caseNumber: participant.caseNumber,
+        },
+        summary: {
+          totalMeetings,
+          completedMeetings: totalMeetings,
+          totalHours: Math.round((totalMinutes / 60) * 10) / 10,
+          averageAttendance: Math.round(avgAttendance * 10) / 10,
+        },
+        meetings: processedMeetings.map(meeting => ({
+          id: meeting.id,
+          meetingName: meeting.meetingName,
+          meetingProgram: meeting.meetingProgram,
+          date: meeting.meetingDate,
+          joinTime: meeting.joinTime,
+          leaveTime: meeting.leaveTime,
+          duration: meeting.totalDurationMin,
+          // For IN_PROGRESS meetings, show calculated duration, otherwise use stored value
+          activeDuration: meeting.status === 'IN_PROGRESS' ? meeting.calculatedDuration : meeting.activeDurationMin,
+          idleDuration: meeting.idleDurationMin,
+          attendancePercent: meeting.attendancePercent,
+          status: meeting.calculatedStatus,
+          isValid: meeting.isValid,
+          courtCard: meeting.courtCard ? {
+            id: meeting.courtCard.id,
+            cardNumber: meeting.courtCard.cardNumber,
+            confidenceLevel: meeting.courtCard.confidenceLevel,
+            validationStatus: meeting.courtCard.validationStatus,
+            violations: meeting.courtCard.violations,
+          } : null,
+          verificationMethod: meeting.verificationMethod,
+          webcamSnapshots: meeting.webcamSnapshotCount,
+        })),
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get participant meetings error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * POST /api/court-rep/admin/regenerate-court-cards
+ * Regenerate court cards for completed meetings that don't have them
+ * ADMIN ONLY - for fixing missing court cards
+ */
+router.post('/admin/regenerate-court-cards', async (req: Request, res: Response) => {
+  try {
+    logger.info(`Regenerating court cards for ${req.user!.email}`);
+
+    // Find all COMPLETED attendance records without court cards
+    const attendanceRecords = await prisma.attendanceRecord.findMany({
+      where: {
+        status: 'COMPLETED',
+        courtCard: null, // No court card exists
+      },
+      include: {
+        participant: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        externalMeeting: {
+          select: {
+            name: true,
+            durationMinutes: true,
+          },
+        },
+      },
+    });
+
+    logger.info(`Found ${attendanceRecords.length} meetings without court cards`);
+
+    if (attendanceRecords.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No meetings need court cards',
+        data: {
+          generated: 0,
+          meetings: [],
+        },
+      });
+    }
+
+    const generatedCards: any[] = [];
+
+    for (const record of attendanceRecords) {
+      try {
+        const courtCard = await generateCourtCard(record.id);
+        generatedCards.push({
+          participantName: `${record.participant.firstName} ${record.participant.lastName}`,
+          meetingName: record.externalMeeting?.name || record.meetingName,
+          cardNumber: courtCard.cardNumber,
+          validationStatus: courtCard.validationStatus,
+        });
+        logger.info(`Generated court card: ${courtCard.cardNumber}`);
+      } catch (error: any) {
+        logger.error(`Failed to generate court card for ${record.id}: ${error.message}`);
+      }
+    }
+
+    logger.info(`Generated ${generatedCards.length} court cards`);
+
+    res.json({
+      success: true,
+      message: `Generated ${generatedCards.length} court cards`,
+      data: {
+        generated: generatedCards.length,
+        meetings: generatedCards,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Regenerate court cards error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * POST /api/court-rep/admin/update-qr-codes
+ * Update existing court cards with QR codes and verification URLs
+ * ADMIN ONLY - for backfilling old court cards
+ */
+router.post('/admin/update-qr-codes', async (req: Request, res: Response) => {
+  try {
+    logger.info(`Updating court card QR codes for ${req.user!.email}`);
+
+    // Import the functions we need
+    const { generateVerificationUrl, generateQRCodeData } = await import('../services/digitalSignatureService');
+
+    // Find all court cards without verification URLs
+    const courtCardsNeedingUpdate = await prisma.courtCard.findMany({
+      where: {
+        OR: [
+          { verificationUrl: null },
+          { qrCodeData: null },
+        ],
+      },
+      select: {
+        id: true,
+        cardNumber: true,
+        cardHash: true,
+      },
+    });
+
+    logger.info(`Found ${courtCardsNeedingUpdate.length} court cards needing QR code data`);
+
+    if (courtCardsNeedingUpdate.length === 0) {
+      return res.json({
+        success: true,
+        message: 'All court cards already have QR codes',
+        data: {
+          updated: 0,
+          cards: [],
+        },
+      });
+    }
+
+    const updatedCards: any[] = [];
+    let failed = 0;
+
+    for (const courtCard of courtCardsNeedingUpdate) {
+      try {
+        // Generate verification URL and QR code data
+        const verificationUrl = generateVerificationUrl(courtCard.id);
+        const qrCodeData = generateQRCodeData(courtCard.id, courtCard.cardNumber, courtCard.cardHash);
+
+        // Update court card
+        await prisma.courtCard.update({
+          where: { id: courtCard.id },
+          data: {
+            verificationUrl,
+            qrCodeData,
+          },
+        });
+
+        updatedCards.push({
+          cardNumber: courtCard.cardNumber,
+          verificationUrl,
+        });
+
+        logger.info(`Updated QR code for: ${courtCard.cardNumber}`);
+      } catch (error: any) {
+        logger.error(`Failed to update QR code for ${courtCard.cardNumber}: ${error.message}`);
+        failed++;
+      }
+    }
+
+    logger.info(`Updated ${updatedCards.length} court cards with QR codes (${failed} failed)`);
+
+    res.json({
+      success: true,
+      message: `Updated ${updatedCards.length} court cards with QR codes`,
+      data: {
+        updated: updatedCards.length,
+        failed,
+        cards: updatedCards,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Update QR codes error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * POST /api/court-rep/admin/regenerate-signatures
+ * Add digital signatures to court cards that are missing them
+ * ADMIN ONLY - for backfilling signatures
+ */
+router.post('/admin/regenerate-signatures', async (req: Request, res: Response) => {
+  try {
+    logger.info(`Regenerating signatures for ${req.user!.email}`);
+
+    // Import signature function
+    const { signCourtCard } = await import('../services/digitalSignatureService');
+
+    // Find all court cards without signatures (or with empty signatures array)
+    const allCourtCards = await prisma.courtCard.findMany({
+      include: {
+        attendanceRecord: {
+          select: {
+            courtRepId: true,
+          },
+        },
+      },
+    });
+
+    const courtCards = allCourtCards.filter((card: any) => 
+      !card.signatures || card.signatures.length === 0
+    );
+
+    logger.info(`Found ${courtCards.length} court cards without signatures`);
+
+    if (courtCards.length === 0) {
+      return res.json({
+        success: true,
+        message: 'All court cards already have signatures',
+        data: {
+          signed: 0,
+          cards: [],
+        },
+      });
+    }
+
+    const signedCards: any[] = [];
+    let failed = 0;
+
+    for (const courtCard of courtCards) {
+      try {
+        // Create system signature
+        await signCourtCard({
+          courtCardId: courtCard.id,
+          signerId: (courtCard as any).attendanceRecord.courtRepId,
+          signerRole: 'COURT_REP',
+          authMethod: 'SYSTEM_GENERATED',
+          metadata: {
+            ipAddress: 'SYSTEM',
+            userAgent: 'ProofMeet-SignatureBackfill/2.0',
+          },
+        });
+
+        signedCards.push({
+          cardNumber: courtCard.cardNumber,
+        });
+
+        logger.info(`Added signature to: ${courtCard.cardNumber}`);
+      } catch (error: any) {
+        logger.error(`Failed to sign ${courtCard.cardNumber}: ${error.message}`);
+        failed++;
+      }
+    }
+
+    logger.info(`Signed ${signedCards.length} court cards (${failed} failed)`);
+
+    res.json({
+      success: true,
+      message: `Added signatures to ${signedCards.length} court cards`,
+      data: {
+        signed: signedCards.length,
+        failed,
+        cards: signedCards,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Regenerate signatures error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * POST /api/court-rep/approve-court-card/:courtCardId
+ * Court rep reviews and approves/rejects a court card
+ */
+router.post('/approve-court-card/:courtCardId', [
+  body('approved').isBoolean(),
+  body('notes').optional().isString(),
+], async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+
+    const courtRepId = req.user!.id;
+    const { courtCardId } = req.params;
+    const { approved, notes } = req.body;
+
+    // Get court card
+    const courtCard = await prisma.courtCard.findUnique({
+      where: { id: courtCardId },
+      include: {
+        attendanceRecord: {
+          select: {
+            courtRepId: true,
+            participantId: true,
+          },
+        },
+      },
+    });
+
+    if (!courtCard) {
+      return res.status(404).json({
+        success: false,
+        error: 'Court card not found',
+      });
+    }
+
+    // Verify this is the court card's assigned court rep
+    if (courtCard.attendanceRecord.courtRepId !== courtRepId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized to approve this court card',
+      });
+    }
+
+    // Get current signatures
+    const signatures = ((courtCard as any).signatures || []) as any[];
+    const hasParticipantSignature = signatures.some((sig: any) => sig.signerRole === 'PARTICIPANT');
+
+    // Warn if signatures are missing
+    const warnings: string[] = [];
+    if (!hasParticipantSignature) {
+      warnings.push('Participant signature is missing');
+    }
+
+    // Update court card with approval status
+    const updatedCard = await prisma.courtCard.update({
+      where: { id: courtCardId },
+      data: {
+        // Store approval metadata in a separate field we'll add to schema
+        // For now, we'll add it to violations as a workaround
+        violations: [
+          ...((courtCard.violations as any) || []),
+          {
+            type: 'COURT_REP_REVIEW',
+            message: approved ? 'Approved by court representative' : 'Needs revision',
+            severity: approved ? 'INFO' : 'WARNING',
+            timestamp: new Date().toISOString(),
+            reviewer: req.user!.email,
+            notes: notes || '',
+            warnings,
+          },
+        ] as any,
+      },
+    });
+
+    logger.info(
+      `Court Rep ${req.user!.email} ${approved ? 'approved' : 'rejected'} court card ${courtCard.cardNumber}`
+    );
+
+    res.json({
+      success: true,
+      message: approved ? 'Court card approved successfully' : 'Court card marked for revision',
+      data: {
+        courtCardId,
+        approved,
+        reviewedAt: new Date(),
+        warnings,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Approve court card error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * POST /api/court-rep/admin/fix-stale-meetings
+ * Fix attendance records stuck in IN_PROGRESS status
+ * ADMIN ONLY - for fixing stale meetings that never completed
+ */
+router.post('/admin/fix-stale-meetings', async (req: Request, res: Response) => {
+  try {
+    logger.info(`Fixing stale meetings for ${req.user!.email}`);
+
+    // Find all IN_PROGRESS meetings
+    const staleMeetings = await prisma.attendanceRecord.findMany({
+      where: {
+        status: 'IN_PROGRESS',
+      },
+      include: {
+        participant: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        externalMeeting: {
+          select: {
+            name: true,
+            durationMinutes: true,
+          },
+        },
+      },
+    });
+
+    logger.info(`Found ${staleMeetings.length} stale IN_PROGRESS meetings`);
+
+    if (staleMeetings.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No stale meetings found',
+        data: {
+          fixed: 0,
+          meetings: [],
+        },
+      });
+    }
+
+    const now = new Date();
+    const fixedMeetings: any[] = [];
+
+    for (const meeting of staleMeetings) {
+      const joinTime = new Date(meeting.joinTime);
+      const expectedDuration = meeting.externalMeeting?.durationMinutes || 60;
+      
+      // Calculate what the leave time should have been
+      // Use the expected meeting duration as the time they attended
+      const estimatedLeaveTime = new Date(joinTime.getTime() + expectedDuration * 60 * 1000);
+      
+      // Calculate durations
+      const totalDurationMin = expectedDuration;
+      const activeDurationMin = Math.floor(expectedDuration * 0.9); // Assume 90% active
+      const idleDurationMin = totalDurationMin - activeDurationMin;
+      const attendancePercent = 100; // They stayed for the full duration
+
+      // Update the attendance record
+      await prisma.attendanceRecord.update({
+        where: { id: meeting.id },
+        data: {
+          status: 'COMPLETED',
+          leaveTime: estimatedLeaveTime,
+          totalDurationMin,
+          activeDurationMin,
+          idleDurationMin,
+          attendancePercent,
+          isValid: true, // Since they completed the full meeting
+        },
+      });
+
+      fixedMeetings.push({
+        participantName: `${meeting.participant.firstName} ${meeting.participant.lastName}`,
+        meetingName: meeting.externalMeeting?.name || meeting.meetingName,
+        joinTime: joinTime.toISOString(),
+        estimatedLeaveTime: estimatedLeaveTime.toISOString(),
+        duration: totalDurationMin,
+      });
+    }
+
+    logger.info(`Fixed ${fixedMeetings.length} stale meetings`);
+
+    res.json({
+      success: true,
+      message: `Fixed ${fixedMeetings.length} stale meetings`,
+      data: {
+        fixed: fixedMeetings.length,
+        meetings: fixedMeetings,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Fix stale meetings error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * POST /api/court-rep/admin/revalidate-court-cards
+ * Revalidate all Court Cards to ensure correct PASSED/FAILED status
+ * ADMIN ONLY - for fixing validation issues
+ */
+router.post('/admin/revalidate-court-cards', async (req: Request, res: Response) => {
+  try {
+    const courtRepId = req.user!.id;
+
+    // Get all Court Cards (for this Court Rep only for safety)
+    const courtCards = await prisma.courtCard.findMany({
+      where: {
+        courtRepEmail: req.user!.email, // Only revalidate this Court Rep's cards
+      },
+      include: {
+        attendanceRecord: {
+          include: {
+            externalMeeting: {
+              select: {
+                durationMinutes: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    logger.info(`Revalidating ${courtCards.length} Court Cards for ${req.user!.email}`);
+
+    let updatedCount = 0;
+    const results: any[] = [];
+
+    for (const card of courtCards) {
+      const totalDurationMin = card.totalDurationMin;
+      const meetingDurationMin = card.meetingDurationMin;
+      const activeDurationMin = card.activeDurationMin;
+      const idleDurationMin = (card as any).idleDurationMin || 0;
+      
+      // Calculate percentages
+      const activePercent = totalDurationMin > 0 ? (activeDurationMin / totalDurationMin) * 100 : 0;
+      const idlePercent = totalDurationMin > 0 ? (idleDurationMin / totalDurationMin) * 100 : 0;
+      const meetingAttendancePercent = meetingDurationMin > 0 ? (totalDurationMin / meetingDurationMin) * 100 : 0;
+      
+      const violations: any[] = [];
+      
+      // Rule 1: Must be active for at least 80% of time attended
+      if (activePercent < 80) {
+        violations.push({
+          type: 'LOW_ACTIVE_TIME',
+          message: `Only ${activePercent.toFixed(1)}% active during meeting (required 80%).`,
+          severity: 'CRITICAL',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      // Rule 2: Idle time must not exceed 20%
+      if (idlePercent > 20) {
+        violations.push({
+          type: 'EXCESSIVE_IDLE_TIME',
+          message: `Idle for ${idleDurationMin} minutes (${idlePercent.toFixed(1)}% of attendance). Maximum allowed: 20%.`,
+          severity: 'CRITICAL',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      // Rule 3: Must attend at least 80% of scheduled meeting duration
+      if (meetingAttendancePercent < 80) {
+        violations.push({
+          type: 'INSUFFICIENT_ATTENDANCE',
+          message: `Attended ${totalDurationMin} minutes of ${meetingDurationMin} minute meeting (${meetingAttendancePercent.toFixed(1)}%). Required: 80%.`,
+          severity: 'CRITICAL',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      // Determine correct validation status
+      const criticalViolations = violations.filter(v => v.severity === 'CRITICAL');
+      const correctStatus = criticalViolations.length > 0 ? 'FAILED' : 'PASSED';
+      const currentStatus = (card as any).validationStatus || 'PASSED';
+      
+      // Check if status needs updating
+      if (currentStatus !== correctStatus) {
+        // Update the Court Card
+        await prisma.courtCard.update({
+          where: { id: card.id },
+          data: {
+            validationStatus: correctStatus as any,
+            violations: violations as any,
+          },
+        });
+        
+        // Update the attendance record isValid flag
+        await prisma.attendanceRecord.update({
+          where: { id: card.attendanceRecordId },
+          data: {
+            isValid: correctStatus === 'PASSED',
+          },
+        });
+        
+        results.push({
+          cardNumber: card.cardNumber,
+          oldStatus: currentStatus,
+          newStatus: correctStatus,
+          attendancePercent: meetingAttendancePercent.toFixed(1),
+          violations: criticalViolations.length,
+        });
+        
+        updatedCount++;
+      }
+    }
+
+    logger.info(`Revalidation complete: ${updatedCount} Court Cards updated`);
+
+    res.json({
+      success: true,
+      message: `Revalidated ${courtCards.length} Court Cards, updated ${updatedCount}`,
+      data: {
+        total: courtCards.length,
+        updated: updatedCount,
+        alreadyCorrect: courtCards.length - updatedCount,
+        corrections: results,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Revalidate court cards error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

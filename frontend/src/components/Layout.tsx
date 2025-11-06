@@ -4,9 +4,6 @@ import {
   Toolbar,
   Typography,
   IconButton,
-  Drawer,
-  List,
-  ListItem,
   ListItemIcon,
   ListItemText,
   Box,
@@ -14,19 +11,12 @@ import {
   Menu,
   MenuItem,
   Divider,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import {
-  Menu as MenuIcon,
-  Dashboard,
-  MeetingRoom,
-  Assessment,
-  Person,
   Logout,
   AccountCircle,
 } from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStoreV2 } from '@/hooks/useAuthStore-v2';
 
 interface LayoutProps {
@@ -34,17 +24,9 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, logout } = useAuthStoreV2();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -60,69 +42,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     handleProfileMenuClose();
   };
 
-  // Menu items based on user type
-  const menuItems = user?.userType === 'COURT_REP' 
-    ? [
-        { text: 'Dashboard', icon: <Dashboard />, path: '/court-rep/dashboard' },
-        { text: 'Participants', icon: <Person />, path: '/court-rep/participants' },
-        { text: 'Reports', icon: <Assessment />, path: '/court-rep/reports' },
-      ]
-    : [
-        { text: 'Dashboard', icon: <Dashboard />, path: '/participant/dashboard' },
-        { text: 'My Meetings', icon: <MeetingRoom />, path: '/participant/meetings' },
-        { text: 'My Progress', icon: <Assessment />, path: '/participant/progress' },
-      ];
-
-  const drawer = (
-    <Box sx={{ width: 250 }}>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
-          ProofMeet
-        </Typography>
-      </Toolbar>
-      <Divider />
-      <List>
-        {menuItems.map((item) => (
-          <ListItem
-            button
-            key={item.text}
-            onClick={() => {
-              navigate(item.path);
-              if (isMobile) {
-                setMobileOpen(false);
-              }
-            }}
-            selected={location.pathname === item.path}
-          >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.text} />
-          </ListItem>
-        ))}
-      </List>
-    </Box>
-  );
-
+  // No sidebar for any user type - just the main dashboard
   return (
     <Box sx={{ display: 'flex' }}>
       <AppBar
         position="fixed"
         sx={{
-          width: { md: `calc(100% - 250px)` },
-          ml: { md: '250px' },
+          width: '100%',
+          ml: 0,
         }}
       >
         <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {menuItems.find(item => item.path === location.pathname)?.text || 'ProofMeet'}
+            ProofMeet
           </Typography>
           <IconButton
             size="large"
@@ -169,42 +101,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </AppBar>
 
       <Box
-        component="nav"
-        sx={{ width: { md: 250 }, flexShrink: { md: 0 } }}
-        aria-label="mailbox folders"
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true,
-          }}
-          sx={{
-            display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 250 },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 250 },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
-
-      <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { md: `calc(100% - 250px)` },
+          width: '100%',
           mt: 8,
         }}
       >
