@@ -12,11 +12,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import axios from 'axios';
 import { Box, Chip } from '@mui/material';
 import { FiberManualRecord } from '@mui/icons-material';
-
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
+import { authServiceV2 } from '../services/authService-v2';
 
 interface ActivityMonitorProps {
   attendanceId: string;
@@ -58,6 +56,9 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
   
   const heartbeatInterval = useRef<NodeJS.Timeout | null>(null);
   const activityCheckInterval = useRef<NodeJS.Timeout | null>(null);
+  const activityThrottle = useRef<NodeJS.Timeout | null>(null);
+  const isCurrentlyInMeeting = useRef<boolean>(true); // Track if user is currently in meeting
+  const lastWindowState = useRef<boolean>(!document.hidden);
   
   // Enhanced activity tracking (Tier 2)
   const activityData = useRef<EnhancedActivityData>({
@@ -71,6 +72,8 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
   // Configuration
   const IDLE_THRESHOLD = 120000; // 2 minutes of no activity = idle
   const HEARTBEAT_INTERVAL = 30000; // Send heartbeat every 30 seconds
+  const ACTIVITY_THROTTLE_MS = 2000; // Throttle activity events to every 2 seconds
+  const WINDOW_HIDDEN_THRESHOLD = 5000; // 5 seconds hidden = leave event
 
   // Track user activity - ENHANCED (Tier 2)
   useEffect(() => {
@@ -82,33 +85,122 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
       }
     };
 
-    // Track mouse activity separately
-    const handleMouseActivity = () => {
+    // Track mouse activity separately and send to backend
+    const handleMouseActivity = (event?: MouseEvent) => {
       activityData.current.mouseActivity++;
       activityData.current.lastMouseMove = Date.now();
       updateActivity();
+      
+      // Throttle activity event sending
+      if (activityThrottle.current === null) {
+        activityThrottle.current = setTimeout(async () => {
+          try {
+            await authServiceV2.trackActivity(attendanceId, 'MOUSE_MOVE', {
+              x: event?.clientX,
+              y: event?.clientY,
+              timestamp: new Date().toISOString(),
+            });
+          } catch (error) {
+            console.error('Failed to track mouse activity:', error);
+          }
+          activityThrottle.current = null;
+        }, ACTIVITY_THROTTLE_MS);
+      }
     };
 
-    // Track keyboard activity separately
-    const handleKeyboardActivity = () => {
+    // Track keyboard activity separately and send to backend
+    const handleKeyboardActivity = (event?: KeyboardEvent) => {
       activityData.current.keyboardActivity++;
       activityData.current.lastKeyPress = Date.now();
       updateActivity();
+      
+      // Send keyboard event immediately (less frequent than mouse)
+      authServiceV2.trackActivity(attendanceId, 'KEYBOARD', {
+        key: event?.key,
+        code: event?.code,
+        timestamp: new Date().toISOString(),
+      }).catch((error) => {
+        console.error('Failed to track keyboard activity:', error);
+      });
     };
 
     // Listen to user interactions
     window.addEventListener('mousemove', handleMouseActivity);
-    window.addEventListener('mousedown', handleMouseActivity);
+    window.addEventListener('mousedown', (e) => {
+      handleMouseActivity(e);
+      // Also send click event
+      authServiceV2.trackActivity(attendanceId, 'CLICK', {
+        button: e.button,
+        x: e.clientX,
+        y: e.clientY,
+        timestamp: new Date().toISOString(),
+      }).catch((error) => {
+        console.error('Failed to track click:', error);
+      });
+    });
     window.addEventListener('keypress', handleKeyboardActivity);
     window.addEventListener('keydown', handleKeyboardActivity);
-    window.addEventListener('scroll', updateActivity);
+    window.addEventListener('scroll', () => {
+      updateActivity();
+      authServiceV2.trackActivity(attendanceId, 'SCROLL', {
+        timestamp: new Date().toISOString(),
+      }).catch((error) => {
+        console.error('Failed to track scroll:', error);
+      });
+    });
     window.addEventListener('touchstart', updateActivity);
 
     // Listen to page visibility and track focus time
-    const handleVisibilityChange = () => {
-      const focused = !document.hidden;
-      setTabFocused(focused);
-      if (focused) {
+    // Also track leave/rejoin events when window visibility changes
+    const handleVisibilityChange = async () => {
+      const isNowVisible = !document.hidden;
+      const wasVisible = lastWindowState.current;
+      
+      setTabFocused(isNowVisible);
+      
+      // Track window state changes for leave/rejoin detection
+      if (!wasVisible && isNowVisible) {
+        // Window was hidden, now visible - potentially rejoined
+        // Wait a bit to see if it's a real rejoin or just a brief flash
+        setTimeout(async () => {
+          if (!document.hidden && isCurrentlyInMeeting.current === false) {
+            console.log('🔄 Window became visible - recording rejoin event');
+            try {
+              const result = await authServiceV2.rejoinMeeting(attendanceId);
+              if (result.success) {
+                isCurrentlyInMeeting.current = true;
+                console.log('✅ Rejoin event recorded successfully');
+              }
+            } catch (error) {
+              console.error('Failed to record rejoin:', error);
+            }
+          }
+        }, 1000);
+      } else if (wasVisible && !isNowVisible) {
+        // Window was visible, now hidden - potentially left
+        // Wait threshold before recording leave (in case it's just a brief blur)
+        setTimeout(async () => {
+          if (document.hidden && isCurrentlyInMeeting.current === true) {
+            console.log('👋 Window hidden for threshold - recording leave event');
+            try {
+              const result = await authServiceV2.leaveMeetingTemp(
+                attendanceId,
+                'Window hidden/tab switched'
+              );
+              if (result.success) {
+                isCurrentlyInMeeting.current = false;
+                console.log('✅ Leave event recorded successfully');
+              }
+            } catch (error) {
+              console.error('Failed to record leave:', error);
+            }
+          }
+        }, WINDOW_HIDDEN_THRESHOLD);
+      }
+      
+      lastWindowState.current = isNowVisible;
+      
+      if (isNowVisible) {
         updateActivity();
       }
     };
@@ -131,8 +223,11 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
       window.removeEventListener('touchstart', updateActivity);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(focusTimeInterval);
+      if (activityThrottle.current) {
+        clearTimeout(activityThrottle.current);
+      }
     };
-  }, [isActive, onActivityChange]);
+  }, [isActive, onActivityChange, attendanceId]);
 
   // Check for idle state
   useEffect(() => {
@@ -154,11 +249,10 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
   }, [lastActivityTime, isActive, onActivityChange]);
 
   // Send heartbeat to backend - ENHANCED (Tier 2)
+  // Uses new track-activity endpoint for consistent activity tracking
   useEffect(() => {
     const sendHeartbeat = async () => {
       try {
-        const headers = { Authorization: `Bearer ${token}` };
-        
         // Enhanced metadata for Tier 2 fraud detection
         const now = Date.now();
         const metadata = {
@@ -178,16 +272,15 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
           // Audio/video status (from user confirmation or detection)
           audioActive: audioOn,
           videoActive: cameraOn,
+          // Meeting state
+          inMeeting: isCurrentlyInMeeting.current,
         };
         
-        await axios.post(
-          `${API_BASE_URL}/participant/activity-heartbeat`,
-          {
-            attendanceId,
-            activityType: isActive ? 'ACTIVE' : 'IDLE',
-            metadata,
-          },
-          { headers }
+        // Send activity status via new track-activity endpoint
+        await authServiceV2.trackActivity(
+          attendanceId,
+          isActive ? 'ACTIVE' : 'IDLE',
+          metadata
         );
 
         console.log(`💓 Enhanced heartbeat sent: ${isActive ? 'ACTIVE' : 'IDLE'}`, {
@@ -196,6 +289,7 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
           focusTime: `${Math.round(metadata.tabFocusTimeMs / 1000)}s`,
           video: cameraOn ? 'ON' : 'OFF',
           audio: audioOn ? 'ON' : 'OFF',
+          inMeeting: isCurrentlyInMeeting.current,
         });
         
         // Reset counters after sending
@@ -217,7 +311,7 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
         clearInterval(heartbeatInterval.current);
       }
     };
-  }, [attendanceId, token, isActive, lastActivityTime, cameraOn, audioOn]);
+  }, [attendanceId, isActive, lastActivityTime, tabFocused, cameraOn, audioOn]);
 
   // Note: Auto-leave detection removed - relies on server-side auto-completion
   // The scheduler will automatically complete meetings after their scheduled window ends

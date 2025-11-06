@@ -167,5 +167,66 @@ export const authServiceV2 = {
       };
     }
   },
+
+  /**
+   * Track activity event (mouse, keyboard, etc.)
+   */
+  async trackActivity(
+    attendanceId: string,
+    eventType: 'MOUSE_MOVE' | 'KEYBOARD' | 'SCROLL' | 'CLICK' | 'IDLE' | 'ACTIVE',
+    metadata?: any
+  ): Promise<ApiResponse> {
+    try {
+      const response = await api.post('/participant/track-activity', {
+        attendanceId,
+        eventType,
+        metadata,
+      });
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to track activity',
+      };
+    }
+  },
+
+  /**
+   * Record temporary leave (user can rejoin)
+   */
+  async leaveMeetingTemp(
+    attendanceId: string,
+    reason?: string
+  ): Promise<ApiResponse<any>> {
+    try {
+      const response = await api.post('/participant/leave-meeting-temp', {
+        attendanceId,
+        reason,
+      });
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to record leave event',
+      };
+    }
+  },
+
+  /**
+   * Record rejoin after temporary leave
+   */
+  async rejoinMeeting(attendanceId: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await api.post('/participant/rejoin-meeting', {
+        attendanceId,
+      });
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to record rejoin event',
+      };
+    }
+  },
 };
 
