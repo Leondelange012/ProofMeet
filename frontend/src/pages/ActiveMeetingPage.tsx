@@ -23,11 +23,9 @@ import {
   Info,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import ActivityMonitor from '../components/ActivityMonitor';
 
 const ActiveMeetingPage: React.FC = () => {
-  const { token } = useAuthStoreV2();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -84,7 +82,6 @@ const ActiveMeetingPage: React.FC = () => {
       {/* Activity Monitor - ALWAYS ACTIVE (doesn't wait for camera confirmation) */}
       <ActivityMonitor
         attendanceId={attendanceId}
-        token={token!}
         initialCameraStatus={cameraOn}
         initialAudioStatus={true}
       />

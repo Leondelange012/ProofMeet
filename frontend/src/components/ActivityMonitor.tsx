@@ -18,7 +18,6 @@ import { authServiceV2 } from '../services/authService-v2';
 
 interface ActivityMonitorProps {
   attendanceId: string;
-  token: string;
   onActivityChange?: (isActive: boolean) => void;
   initialCameraStatus?: boolean; // Allow parent to specify camera status
   initialAudioStatus?: boolean;  // Allow parent to specify audio status
@@ -34,7 +33,6 @@ interface EnhancedActivityData {
 
 const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
   attendanceId,
-  token,
   onActivityChange,
   initialCameraStatus = true,  // Default to true - assume camera is on
   initialAudioStatus = true,   // Default to true - assume audio is on
