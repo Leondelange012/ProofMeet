@@ -162,13 +162,13 @@ export async function finalizePendingMeetings(): Promise<void> {
     
     logger.info('🔍 STEP 2: Processing COMPLETED meetings for court card generation...');
     logger.info(`📅 Searching for meetings from: ${twentyFourHoursAgo.toISOString()}`);
-    logger.info(`🔎 Query filters: status=COMPLETED, courtCard=null, isValid!=false, meetingDate >= 24h ago`);
+    logger.info(`🔎 Query filters: status=COMPLETED, courtCard=null, meetingDate >= 24h ago (includes auto-rejected meetings)`);
     
     const pendingRecords = await prisma.attendanceRecord.findMany({
       where: {
         status: 'COMPLETED', // Only completed (not rejected)
         courtCard: null, // No court card generated yet
-        isValid: { not: false }, // Exclude already-rejected records
+        // Include auto-rejected meetings too (isValid=false) so we can generate court cards with failure details
         meetingDate: {
           gte: twentyFourHoursAgo, // Only recent meetings
         },
@@ -319,55 +319,93 @@ export async function finalizePendingMeetings(): Promise<void> {
           logger.error(`   ❌ Failed to create ledger block: ${error.message}`);
         }
 
-        // Generate court card (if not auto-rejected)
+        // Generate court card (ALWAYS generate, even for auto-rejected meetings)
+        // This ensures Court Reps can see detailed failure reasons
         logger.info(`   📄 Checking if court card should be generated...`);
         let courtCard = record.courtCard;
         
-        if (shouldAutoReject(fraudResult)) {
-          // Auto-reject fraudulent attendance
-          logger.info(`   ❌ AUTO-REJECTING due to fraud detection`);
-          await prisma.attendanceRecord.update({
-            where: { id: record.id },
-            data: {
-              isValid: false, // Mark as invalid to prevent re-processing
-              // status stays 'COMPLETED' for reporting purposes
-              // @ts-ignore
-              metadata: Object.assign(
-                {},
-                (updated as any).metadata || {},
-                {
-                  rejectionReason: fraudResult.reasons.join('; '),
-                  autoRejected: true,
-                  finalizedAt: now.toISOString(),
-                  finalizedBy: 'AUTO_REJECTION',
-                }
-              ),
-            },
-          });
-          
-          logger.warn(`   ❌ Attendance ${record.id} auto-rejected (isValid=false) - will not re-process`);
-        } else {
-          // Generate court card if it doesn't exist
-          logger.info(`   📄 Proceeding with court card generation...`);
-          if (!courtCard) {
-            try {
-              logger.info(`   📄 Calling generateCourtCard()...`);
-              courtCard = await generateCourtCard(record.id);
-              logger.info(`   ✅ Court Card generated successfully: ${courtCard.cardNumber}`);
+        // Generate court card if it doesn't exist (even for auto-rejected meetings)
+        if (!courtCard) {
+          try {
+            logger.info(`   📄 Proceeding with court card generation...`);
+            logger.info(`   📄 Calling generateCourtCard()...`);
+            courtCard = await generateCourtCard(record.id);
+            logger.info(`   ✅ Court Card generated successfully: ${courtCard.cardNumber}`);
+            
+            // Mark as auto-rejected AFTER generating court card (so we can see why it failed)
+            if (shouldAutoReject(fraudResult)) {
+              logger.info(`   ❌ Marking attendance as auto-rejected due to fraud detection`);
+              await prisma.attendanceRecord.update({
+                where: { id: record.id },
+                data: {
+                  isValid: false, // Mark as invalid
+                  // status stays 'COMPLETED' for reporting purposes
+                  // @ts-ignore
+                  metadata: Object.assign(
+                    {},
+                    (updated as any).metadata || {},
+                    {
+                      rejectionReason: fraudResult.reasons.join('; '),
+                      autoRejected: true,
+                      finalizedAt: now.toISOString(),
+                      finalizedBy: 'AUTO_REJECTION',
+                    }
+                  ),
+                },
+              });
               
-              // Queue daily digest for Court Rep
+              // Also update court card to show FAILED status
+              await prisma.courtCard.update({
+                where: { id: courtCard.id },
+                data: {
+                  validationStatus: 'FAILED',
+                },
+              });
+              
+              logger.warn(`   ❌ Attendance ${record.id} auto-rejected (isValid=false) - Court card generated with FAILED status`);
+            } else {
+              // Queue daily digest for Court Rep (only for non-rejected meetings)
               if (record.courtRepId) {
                 logger.info(`   📧 Queuing daily digest for Court Rep ${record.courtRepId}...`);
                 await queueDailyDigest(record.courtRepId, [record.id]);
                 logger.info(`   📧 Daily digest queued successfully`);
               }
-            } catch (error: any) {
-              logger.error(`   ❌ Failed to generate Court Card: ${error.message}`);
-              logger.error(`   ❌ Error stack: ${error.stack}`);
-              throw error; // Re-throw to catch in outer block
             }
-          } else {
-            logger.info(`   ℹ️ Court card already exists: ${courtCard.cardNumber}`);
+          } catch (error: any) {
+            logger.error(`   ❌ Failed to generate Court Card: ${error.message}`);
+            logger.error(`   ❌ Error stack: ${error.stack}`);
+            throw error; // Re-throw to catch in outer block
+          }
+        } else {
+          logger.info(`   ℹ️ Court card already exists: ${courtCard.cardNumber}`);
+          
+          // If court card exists but meeting was auto-rejected, ensure it's marked as failed
+          if (shouldAutoReject(fraudResult)) {
+            logger.info(`   ❌ Marking existing court card as FAILED due to fraud detection`);
+            await prisma.attendanceRecord.update({
+              where: { id: record.id },
+              data: {
+                isValid: false,
+                // @ts-ignore
+                metadata: Object.assign(
+                  {},
+                  (updated as any).metadata || {},
+                  {
+                    rejectionReason: fraudResult.reasons.join('; '),
+                    autoRejected: true,
+                    finalizedAt: now.toISOString(),
+                    finalizedBy: 'AUTO_REJECTION',
+                  }
+                ),
+              },
+            });
+            
+            await prisma.courtCard.update({
+              where: { id: courtCard.id },
+              data: {
+                validationStatus: 'FAILED',
+              },
+            });
           }
         }
 

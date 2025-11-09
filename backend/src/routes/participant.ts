@@ -720,18 +720,27 @@ router.post(
       const { attendanceId, eventType, metadata } = req.body;
 
       // Verify attendance belongs to this participant
+      // Allow tracking for IN_PROGRESS or recently COMPLETED (within 10 minutes) to catch late events
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       const attendance = await prisma.attendanceRecord.findFirst({
         where: {
           id: attendanceId,
           participantId,
-          status: 'IN_PROGRESS',
+          OR: [
+            { status: 'IN_PROGRESS' },
+            {
+              status: 'COMPLETED',
+              updatedAt: { gte: tenMinutesAgo }, // Recently completed - allow late events
+            },
+          ],
         },
       });
 
       if (!attendance) {
+        logger.warn(`Track activity rejected: attendance ${attendanceId} not found or too old for participant ${participantId}`);
         return res.status(404).json({
           success: false,
-          error: 'Attendance record not found or not in progress',
+          error: 'Attendance record not found, not in progress, or too old',
         });
       }
 
@@ -741,6 +750,8 @@ router.post(
         type: eventType as any,
         metadata,
       });
+      
+      logger.debug(`Activity event recorded: ${eventType} for attendance ${attendanceId}`);
 
       res.json({
         success: true,
@@ -778,18 +789,26 @@ router.post(
       const { attendanceId, reason } = req.body;
 
       // Verify attendance belongs to this participant
+      // Allow leave events for IN_PROGRESS or recently COMPLETED (within 10 minutes)
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       const attendance = await prisma.attendanceRecord.findFirst({
         where: {
           id: attendanceId,
           participantId,
-          status: 'IN_PROGRESS',
+          OR: [
+            { status: 'IN_PROGRESS' },
+            {
+              status: 'COMPLETED',
+              updatedAt: { gte: tenMinutesAgo },
+            },
+          ],
         },
       });
 
       if (!attendance) {
         return res.status(404).json({
           success: false,
-          error: 'Attendance record not found or not in progress',
+          error: 'Attendance record not found, not in progress, or too old',
         });
       }
 
@@ -833,18 +852,26 @@ router.post(
       const { attendanceId } = req.body;
 
       // Verify attendance belongs to this participant
+      // Allow rejoin events for IN_PROGRESS or recently COMPLETED (within 10 minutes)
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       const attendance = await prisma.attendanceRecord.findFirst({
         where: {
           id: attendanceId,
           participantId,
-          status: 'IN_PROGRESS',
+          OR: [
+            { status: 'IN_PROGRESS' },
+            {
+              status: 'COMPLETED',
+              updatedAt: { gte: tenMinutesAgo },
+            },
+          ],
         },
       });
 
       if (!attendance) {
         return res.status(404).json({
           success: false,
-          error: 'Attendance record not found or not in progress',
+          error: 'Attendance record not found, not in progress, or too old',
         });
       }
 
