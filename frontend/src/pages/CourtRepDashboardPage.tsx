@@ -121,6 +121,8 @@ const CourtRepDashboardPage: React.FC = () => {
   
   // Pending reasons state
   const [expandedPendingReasons, setExpandedPendingReasons] = useState<string | null>(null);
+  // Expanded failure details state
+  const [expandedFailureDetails, setExpandedFailureDetails] = useState<string | null>(null);
 
   const loadDashboard = async (isBackgroundRefresh = false) => {
     try {
@@ -734,17 +736,33 @@ const CourtRepDashboardPage: React.FC = () => {
                                                 label={validationStatus}
                                                 color={validationStatus === 'PASSED' ? 'success' : validationStatus === 'FAILED' ? 'error' : 'default'}
                                                 size="small"
-                                                onClick={validationStatus === 'PENDING' && pendingReasons.length > 0 ? () => {
-                                                  setExpandedPendingReasons(
-                                                    expandedPendingReasons === meeting.id ? null : meeting.id
-                                                  );
-                                                } : undefined}
-                                                sx={validationStatus === 'PENDING' && pendingReasons.length > 0 ? {
-                                                  cursor: 'pointer',
-                                                  '&:hover': {
-                                                    bgcolor: 'action.hover',
-                                                  },
-                                                } : {}}
+                                                onClick={
+                                                  (validationStatus === 'PENDING' && pendingReasons.length > 0) || 
+                                                  (validationStatus === 'FAILED' && (criticalViolations.length > 0 || warningViolations.length > 0))
+                                                    ? () => {
+                                                        if (validationStatus === 'PENDING') {
+                                                          setExpandedPendingReasons(
+                                                            expandedPendingReasons === meeting.id ? null : meeting.id
+                                                          );
+                                                        } else if (validationStatus === 'FAILED') {
+                                                          setExpandedFailureDetails(
+                                                            expandedFailureDetails === meeting.id ? null : meeting.id
+                                                          );
+                                                        }
+                                                      }
+                                                    : undefined
+                                                }
+                                                sx={
+                                                  ((validationStatus === 'PENDING' && pendingReasons.length > 0) || 
+                                                   (validationStatus === 'FAILED' && (criticalViolations.length > 0 || warningViolations.length > 0)))
+                                                    ? {
+                                                        cursor: 'pointer',
+                                                        '&:hover': {
+                                                          bgcolor: 'action.hover',
+                                                        },
+                                                      }
+                                                    : {}
+                                                }
                                               />
                                               
                                               {/* Pending Reasons - Show on click */}
@@ -761,31 +779,103 @@ const CourtRepDashboardPage: React.FC = () => {
                                                 </Box>
                                               )}
                                               
-                                              {/* Critical Violations */}
-                                              {criticalViolations.length > 0 && (
-                                                <Box sx={{ mt: 1 }}>
-                                                  <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'error.main' }}>
-                                                    CRITICAL:
+                                              {/* FAILED - Detailed Breakdown (Click to expand) */}
+                                              {validationStatus === 'FAILED' && expandedFailureDetails === meeting.id && (
+                                                <Box sx={{ mt: 1, p: 2, bgcolor: 'error.lighter', borderRadius: 1, border: '2px solid', borderColor: 'error.main' }}>
+                                                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.dark', display: 'block', mb: 1.5 }}>
+                                                    ❌ Compliance Failure - Detailed Breakdown
                                                   </Typography>
-                                                  {criticalViolations.map((v: any, idx: number) => (
-                                                    <Typography key={idx} variant="caption" color="error" display="block">
-                                                      • {v.message}
+                                                  
+                                                  {/* Critical Violations */}
+                                                  {criticalViolations.length > 0 && (
+                                                    <Box sx={{ mb: 2 }}>
+                                                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.main', display: 'block', mb: 0.5 }}>
+                                                        🚫 Critical Violations ({criticalViolations.length}):
+                                                      </Typography>
+                                                      {criticalViolations.map((v: any, idx: number) => (
+                                                        <Box key={idx} sx={{ ml: 2, mb: 0.5 }}>
+                                                          <Typography variant="body2" color="error.dark" sx={{ lineHeight: 1.5 }}>
+                                                            {idx + 1}. {v.message}
+                                                          </Typography>
+                                                          {v.type && (
+                                                            <Typography variant="caption" color="text.secondary" sx={{ ml: 2, fontStyle: 'italic' }}>
+                                                              Type: {v.type}
+                                                            </Typography>
+                                                          )}
+                                                        </Box>
+                                                      ))}
+                                                    </Box>
+                                                  )}
+                                                  
+                                                  {/* Warning Violations */}
+                                                  {warningViolations.length > 0 && (
+                                                    <Box sx={{ mb: 2 }}>
+                                                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'warning.dark', display: 'block', mb: 0.5 }}>
+                                                        ⚠️ Warnings ({warningViolations.length}):
+                                                      </Typography>
+                                                      {warningViolations.map((v: any, idx: number) => (
+                                                        <Typography key={idx} variant="body2" color="warning.dark" display="block" sx={{ ml: 2, lineHeight: 1.5 }}>
+                                                          • {v.message}
+                                                        </Typography>
+                                                      ))}
+                                                    </Box>
+                                                  )}
+                                                  
+                                                  {/* Attendance Metrics */}
+                                                  <Box sx={{ mb: 2, p: 1, bgcolor: 'background.paper', borderRadius: 1 }}>
+                                                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.primary', display: 'block', mb: 0.5 }}>
+                                                      📊 Attendance Metrics:
                                                     </Typography>
-                                                  ))}
+                                                    <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                      • Attended: {meeting.duration || meeting.totalDurationMin || 0} min of {meeting.meetingDurationMin || meeting.duration || 0} min scheduled
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                      • Attendance: {meeting.attendancePercent || 0}% (Required: 80%)
+                                                    </Typography>
+                                                    {meeting.activeDuration && (
+                                                      <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                        • Active Time: {meeting.activeDuration} min
+                                                      </Typography>
+                                                    )}
+                                                    {meeting.idleDuration > 0 && (
+                                                      <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                        • Idle Time: {meeting.idleDuration} min
+                                                      </Typography>
+                                                    )}
+                                                  </Box>
+                                                  
+                                                  {/* Additional Info */}
+                                                  {meeting.courtCard && (
+                                                    <Box sx={{ p: 1, bgcolor: 'background.paper', borderRadius: 1 }}>
+                                                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.primary', display: 'block', mb: 0.5 }}>
+                                                        ℹ️ Additional Information:
+                                                      </Typography>
+                                                      <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                        • Court Card: {meeting.courtCard.cardNumber}
+                                                      </Typography>
+                                                      {meeting.courtCard.confidenceLevel && (
+                                                        <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                          • Confidence Level: {meeting.courtCard.confidenceLevel}
+                                                        </Typography>
+                                                      )}
+                                                    </Box>
+                                                  )}
                                                 </Box>
                                               )}
                                               
-                                              {/* Warning Violations */}
-                                              {warningViolations.length > 0 && (
+                                              {/* FAILED - Collapsed View (Show summary) */}
+                                              {validationStatus === 'FAILED' && expandedFailureDetails !== meeting.id && (
                                                 <Box sx={{ mt: 1 }}>
-                                                  <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'warning.main' }}>
-                                                    WARNINGS:
-                                                  </Typography>
-                                                  {warningViolations.map((v: any, idx: number) => (
-                                                    <Typography key={idx} variant="caption" color="warning.main" display="block">
-                                                      • {v.message}
+                                                  {criticalViolations.length > 0 && (
+                                                    <Typography variant="caption" color="error" display="block" sx={{ fontWeight: 'bold' }}>
+                                                      {criticalViolations.length} critical violation{criticalViolations.length > 1 ? 's' : ''} - Click to view details
                                                     </Typography>
-                                                  ))}
+                                                  )}
+                                                  {warningViolations.length > 0 && criticalViolations.length === 0 && (
+                                                    <Typography variant="caption" color="warning.main" display="block">
+                                                      {warningViolations.length} warning{warningViolations.length > 1 ? 's' : ''} - Click to view details
+                                                    </Typography>
+                                                  )}
                                                 </Box>
                                               )}
                                               

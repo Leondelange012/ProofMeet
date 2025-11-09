@@ -40,8 +40,6 @@ const ActiveMeetingPage: React.FC = () => {
   const [meetingUrl] = useState<string>(
     stateData.meetingUrl || sessionStorage.getItem('activeMeetingUrl') || ''
   );
-  const [cameraConfirmed, setCameraConfirmed] = useState(false);
-  const [cameraOn, setCameraOn] = useState(true); // Default to true
 
   // Persist to sessionStorage when data changes
   useEffect(() => {
@@ -79,51 +77,12 @@ const ActiveMeetingPage: React.FC = () => {
 
   return (
     <Container maxWidth="md">
-      {/* Activity Monitor - ALWAYS ACTIVE (doesn't wait for camera confirmation) */}
+      {/* Activity Monitor - ALWAYS ACTIVE */}
       <ActivityMonitor
         attendanceId={attendanceId}
-        initialCameraStatus={cameraOn}
+        initialCameraStatus={true}
         initialAudioStatus={true}
       />
-
-      {/* Camera Status Confirmation - Non-blocking overlay */}
-      {!cameraConfirmed && (
-        <Alert 
-          severity="info" 
-          sx={{ mt: 4, mb: 2 }}
-          action={
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button 
-                color="inherit" 
-                size="small"
-                onClick={() => {
-                  setCameraOn(true);
-                  setCameraConfirmed(true);
-                }}
-              >
-                ✅ Camera ON
-              </Button>
-              <Button 
-                color="inherit" 
-                size="small"
-                onClick={() => {
-                  setCameraOn(false);
-                  setCameraConfirmed(true);
-                }}
-              >
-                ❌ Camera OFF
-              </Button>
-            </Box>
-          }
-        >
-          <Typography variant="body2" fontWeight="bold">
-            📹 Optional: Confirm your camera status
-          </Typography>
-          <Typography variant="body2">
-            This helps improve tracking accuracy. Tracking is already active!
-          </Typography>
-        </Alert>
-      )}
 
       <Box sx={{ mt: 4 }}>
         {/* Header */}
