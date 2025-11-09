@@ -786,6 +786,29 @@ const CourtRepDashboardPage: React.FC = () => {
                                                     ❌ Compliance Failure - Detailed Breakdown
                                                   </Typography>
                                                   
+                                                  {/* Validation Explanation (Full Text) */}
+                                                  {meeting.courtCard?.validationExplanation && (
+                                                    <Box sx={{ mb: 2, p: 1.5, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'error.main' }}>
+                                                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.dark', display: 'block', mb: 1 }}>
+                                                        📋 Complete Failure Explanation:
+                                                      </Typography>
+                                                      <Typography 
+                                                        variant="body2" 
+                                                        color="text.primary" 
+                                                        component="pre"
+                                                        sx={{ 
+                                                          whiteSpace: 'pre-wrap',
+                                                          fontFamily: 'inherit',
+                                                          fontSize: '0.875rem',
+                                                          lineHeight: 1.6,
+                                                          m: 0
+                                                        }}
+                                                      >
+                                                        {meeting.courtCard.validationExplanation}
+                                                      </Typography>
+                                                    </Box>
+                                                  )}
+                                                  
                                                   {/* Critical Violations */}
                                                   {criticalViolations.length > 0 && (
                                                     <Box sx={{ mb: 2 }}>
@@ -799,7 +822,7 @@ const CourtRepDashboardPage: React.FC = () => {
                                                           </Typography>
                                                           {v.type && (
                                                             <Typography variant="caption" color="text.secondary" sx={{ ml: 2, fontStyle: 'italic' }}>
-                                                              Type: {v.type}
+                                                              Type: {v.type} | Severity: {v.severity}
                                                             </Typography>
                                                           )}
                                                         </Box>
@@ -834,15 +857,75 @@ const CourtRepDashboardPage: React.FC = () => {
                                                     </Typography>
                                                     {meeting.activeDuration && (
                                                       <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
-                                                        • Active Time: {meeting.activeDuration} min
+                                                        • Active Time: {meeting.activeDuration} min ({((meeting.activeDuration / (meeting.duration || meeting.totalDurationMin || 1)) * 100).toFixed(1)}% active)
                                                       </Typography>
                                                     )}
                                                     {meeting.idleDuration > 0 && (
                                                       <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
-                                                        • Idle Time: {meeting.idleDuration} min
+                                                        • Idle Time: {meeting.idleDuration} min ({((meeting.idleDuration / (meeting.duration || meeting.totalDurationMin || 1)) * 100).toFixed(1)}% idle)
                                                       </Typography>
                                                     )}
                                                   </Box>
+                                                  
+                                                  {/* Engagement Metrics */}
+                                                  {(meeting.courtCard?.metadata?.engagementScore !== undefined || meeting.courtCard?.metadata?.engagementLevel) && (
+                                                    <Box sx={{ mb: 2, p: 1, bgcolor: 'background.paper', borderRadius: 1 }}>
+                                                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.primary', display: 'block', mb: 0.5 }}>
+                                                        🎥 Engagement Verification:
+                                                      </Typography>
+                                                      {meeting.courtCard.metadata?.engagementScore !== undefined && (
+                                                        <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                          • Engagement Score: {meeting.courtCard.metadata.engagementScore}/100
+                                                        </Typography>
+                                                      )}
+                                                      {meeting.courtCard.metadata?.engagementLevel && (
+                                                        <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                          • Engagement Level: {meeting.courtCard.metadata.engagementLevel}
+                                                        </Typography>
+                                                      )}
+                                                      {meeting.courtCard.metadata?.videoOnPercentage !== undefined && (
+                                                        <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                          • Video Active: {meeting.courtCard.metadata.videoOnPercentage}% of meeting time
+                                                        </Typography>
+                                                      )}
+                                                      {meeting.courtCard.metadata?.activityEvents !== undefined && (
+                                                        <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                          • Activity Events: {meeting.courtCard.metadata.activityEvents} tracked
+                                                        </Typography>
+                                                      )}
+                                                    </Box>
+                                                  )}
+                                                  
+                                                  {/* Fraud Detection */}
+                                                  {(meeting.courtCard?.metadata?.fraudRiskScore !== undefined || meeting.courtCard?.metadata?.fraudReasons?.length > 0) && (
+                                                    <Box sx={{ mb: 2, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'warning.main' }}>
+                                                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'warning.dark', display: 'block', mb: 0.5 }}>
+                                                        🔒 Fraud Detection Analysis:
+                                                      </Typography>
+                                                      {meeting.courtCard.metadata?.fraudRiskScore !== undefined && (
+                                                        <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                          • Risk Score: {meeting.courtCard.metadata.fraudRiskScore}/100
+                                                        </Typography>
+                                                      )}
+                                                      {meeting.courtCard.metadata?.fraudRecommendation && (
+                                                        <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                          • Recommendation: {meeting.courtCard.metadata.fraudRecommendation}
+                                                        </Typography>
+                                                      )}
+                                                      {meeting.courtCard.metadata?.fraudReasons && meeting.courtCard.metadata.fraudReasons.length > 0 && (
+                                                        <Box sx={{ ml: 1, mt: 0.5 }}>
+                                                          <Typography variant="body2" color="text.secondary" display="block" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                                                            Fraud Detection Reasons:
+                                                          </Typography>
+                                                          {meeting.courtCard.metadata.fraudReasons.map((reason: string, idx: number) => (
+                                                            <Typography key={idx} variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                              • {reason}
+                                                            </Typography>
+                                                          ))}
+                                                        </Box>
+                                                      )}
+                                                    </Box>
+                                                  )}
                                                   
                                                   {/* Additional Info */}
                                                   {meeting.courtCard && (
@@ -856,6 +939,11 @@ const CourtRepDashboardPage: React.FC = () => {
                                                       {meeting.courtCard.confidenceLevel && (
                                                         <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
                                                           • Confidence Level: {meeting.courtCard.confidenceLevel}
+                                                        </Typography>
+                                                      )}
+                                                      {meeting.courtCard.verificationMethod && (
+                                                        <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
+                                                          • Verification Method: {meeting.courtCard.verificationMethod}
                                                         </Typography>
                                                       )}
                                                     </Box>
