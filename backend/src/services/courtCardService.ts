@@ -546,15 +546,52 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
     const fraudRiskScore = metadata.fraudRiskScore || 0;
     const fraudRecommendation = metadata.fraudRecommendation || 'APPROVE';
     
-    // Calculate video on percentage from activity timeline
-    const timeline = (attendance.activityTimeline as any)?.events || [];
-    const videoOnEvents = timeline.filter((e: any) => e.data?.videoActive === true);
-    const videoOnPercentage = timeline.length > 0 
-      ? Math.round((videoOnEvents.length / timeline.length) * 100)
-      : 0;
+    // Calculate video on percentage using multiple methods:
+    // 1. Webcam snapshots (if snapshots exist, camera was likely on)
+    // 2. Activity timeline events (if available)
+    // 3. Fallback: assume camera was on if participant was in meeting
+    const timeline = (attendance.activityTimeline as any) || [];
+    const timelineEvents = Array.isArray(timeline) ? timeline : (timeline.events || []);
+    
+    // Method 1: Check webcam snapshots (most reliable indicator)
+    const snapshots = attendance.webcamSnapshots || [];
+    const totalSnapshots = snapshots.length;
+    const snapshotsWithFace = snapshots.filter((s: any) => s.faceDetected === true).length;
+    
+    // Method 2: Check activity timeline for video events
+    const videoOnEvents = timelineEvents.filter((e: any) => 
+      e.data?.videoActive === true || e.type === 'ZOOM_JOINED'
+    );
+    
+    // Calculate video percentage:
+    // - If we have snapshots, use snapshot coverage as proxy for video time
+    // - If we have activity events, use those
+    // - Otherwise, if participant was in meeting, assume camera was on for active time
+    let videoOnPercentage = 0;
+    if (totalSnapshots > 0) {
+      // Use snapshots as indicator: if we have snapshots, camera was on
+      // Estimate: snapshots taken throughout meeting = camera was on
+      const snapshotCoverage = Math.min((totalSnapshots / Math.max(meetingDurationMin / 5, 1)) * 100, 100);
+      videoOnPercentage = Math.round(snapshotCoverage);
+    } else if (timelineEvents.length > 0) {
+      // Use activity timeline events
+      videoOnPercentage = Math.round((videoOnEvents.length / timelineEvents.length) * 100);
+    } else if (activeDurationMin > 0) {
+      // Fallback: if participant was active, assume camera was on during active time
+      videoOnPercentage = Math.round((activeDurationMin / totalDurationMin) * 100);
+    }
     
     // Count total activity events
-    const activityEvents = timeline.length;
+    const activityEvents = timelineEvents.length;
+    
+    // Calculate leave/rejoin periods from activity timeline
+    const { calculateActiveDuration } = await import('./activityTrackingService');
+    const durationCalc = calculateActiveDuration(
+      attendance.joinTime,
+      attendance.leaveTime || new Date(),
+      timelineEvents.length > 0 ? timelineEvents as any : null
+    );
+    const leaveRejoinPeriods = durationCalc.leaveRejoinPeriods || [];
     
     // Generate detailed validation explanation
     const validationExplanation = generateValidationExplanation(
@@ -621,7 +658,7 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
       },
     });
     
-    // Store validation explanation in attendance record metadata (CourtCard doesn't have metadata field)
+    // Store enhanced metrics in attendance record metadata
     await prisma.attendanceRecord.update({
       where: { id: attendanceRecordId },
       data: {
@@ -629,13 +666,33 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         metadata: {
           ...metadata,
           validationExplanation,
-          // These are already in metadata, but we'll ensure they're present
+          // Engagement and fraud metrics
           engagementScore,
           engagementLevel,
           fraudRiskScore,
           fraudRecommendation,
+          // Video and activity metrics
           videoOnPercentage,
           activityEvents,
+          // Snapshot metrics
+          totalSnapshots,
+          snapshotsWithFace,
+          snapshotFaceDetectionRate: totalSnapshots > 0 ? Math.round((snapshotsWithFace / totalSnapshots) * 100) : 0,
+          // Leave/rejoin periods
+          leaveRejoinPeriods: leaveRejoinPeriods.map(period => ({
+            leaveTime: period.leaveTime.toISOString(),
+            rejoinTime: period.rejoinTime ? period.rejoinTime.toISOString() : null,
+            durationMin: period.durationMin,
+          })),
+          // Detailed time breakdown
+          timeBreakdown: {
+            totalDurationMin,
+            activeDurationMin,
+            idleDurationMin,
+            timeAwayMin: durationCalc.idleDurationMin,
+            meetingDurationMin,
+            attendancePercent: Number(attendancePercent),
+          },
         },
       },
     });

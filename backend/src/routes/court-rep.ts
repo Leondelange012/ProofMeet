@@ -844,22 +844,41 @@ router.get('/participant/:participantId/court-card-pdf', async (req: Request, re
     let auditTrail = undefined;
     if (mostRecentAttendance && mostRecentCourtCard) {
       const metadata = (mostRecentAttendance.metadata as any) || {};
-      const timeline = (mostRecentAttendance.activityTimeline as any)?.events || [];
-      const videoOnEvents = timeline.filter((e: any) => e.data?.videoActive === true);
-      const videoOnPercent = timeline.length > 0 ? Math.round((videoOnEvents.length / timeline.length) * 100) : 0;
+      const timeline = (mostRecentAttendance.activityTimeline as any) || [];
+      const timelineEvents = Array.isArray(timeline) ? timeline : (timeline.events || []);
+      
+      // Get enhanced metrics from metadata
+      const videoOnPercentage = metadata.videoOnPercentage || 0;
+      const totalSnapshots = metadata.totalSnapshots || 0;
+      const snapshotsWithFace = metadata.snapshotsWithFace || 0;
+      const leaveRejoinPeriods = metadata.leaveRejoinPeriods || [];
+      const timeBreakdown = metadata.timeBreakdown || {};
       
       auditTrail = {
         startTime: mostRecentAttendance.joinTime,
         endTime: mostRecentAttendance.leaveTime || new Date(),
         activeTimeMinutes: mostRecentAttendance.totalDurationMin || 0,
         idleTimeMinutes: (mostRecentAttendance as any).idleDurationMin || 0,
-        videoOnPercentage: videoOnPercent,
+        videoOnPercentage: videoOnPercentage,
         attendancePercentage: Number(mostRecentAttendance.attendancePercent || 0),
         engagementScore: metadata.engagementScore || null,
         engagementLevel: metadata.engagementLevel || null,
-        activityEvents: timeline.length,
+        activityEvents: timelineEvents.length,
         verificationMethod: mostRecentCourtCard.verificationMethod || 'SCREEN_ACTIVITY',
         confidenceLevel: mostRecentCourtCard.confidenceLevel || 'MEDIUM',
+        // Enhanced metrics
+        totalSnapshots,
+        snapshotsWithFace,
+        snapshotFaceDetectionRate: totalSnapshots > 0 ? Math.round((snapshotsWithFace / totalSnapshots) * 100) : 0,
+        leaveRejoinPeriods,
+        timeBreakdown: {
+          totalDurationMin: timeBreakdown.totalDurationMin || mostRecentAttendance.totalDurationMin || 0,
+          activeDurationMin: timeBreakdown.activeDurationMin || (mostRecentAttendance as any).activeDurationMin || 0,
+          idleDurationMin: timeBreakdown.idleDurationMin || (mostRecentAttendance as any).idleDurationMin || 0,
+          timeAwayMin: timeBreakdown.timeAwayMin || 0,
+          meetingDurationMin: timeBreakdown.meetingDurationMin || mostRecentCourtCard.meetingDurationMin || 0,
+          attendancePercent: timeBreakdown.attendancePercent || Number(mostRecentAttendance.attendancePercent || 0),
+        },
       };
     }
 

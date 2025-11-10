@@ -523,14 +523,22 @@ export async function verifyCourtCardPublic(
     },
   });
 
-  // Calculate video on percentage and other metrics
-  const timeline = (attendanceRecord?.activityTimeline as any)?.events || [];
-  const videoOnEvents = timeline.filter((e: any) => e.data?.videoActive === true);
-  const totalEvents = timeline.length;
-  const videoOnPercent = totalEvents > 0 ? Math.round((videoOnEvents.length / totalEvents) * 100) : 0;
-
-  // Get engagement metadata
+  // Get enhanced metrics from metadata (calculated during court card generation)
   const metadata = (attendanceRecord?.metadata as any) || {};
+  const timeline = (attendanceRecord?.activityTimeline as any) || [];
+  const timelineEvents = Array.isArray(timeline) ? timeline : (timeline.events || []);
+  
+  // Use metadata values if available (more accurate), otherwise calculate
+  const videoOnPercent = metadata.videoOnPercentage !== undefined 
+    ? metadata.videoOnPercentage 
+    : (timelineEvents.length > 0 
+      ? Math.round((timelineEvents.filter((e: any) => e.data?.videoActive === true).length / timelineEvents.length) * 100)
+      : 0);
+  
+  const totalSnapshots = metadata.totalSnapshots || 0;
+  const snapshotsWithFace = metadata.snapshotsWithFace || 0;
+  const leaveRejoinPeriods = metadata.leaveRejoinPeriods || [];
+  const timeBreakdown = metadata.timeBreakdown || {};
   
   // Get validation explanation from attendance record metadata (where it's stored)
   const validationExplanation = metadata.validationExplanation || null;
@@ -556,9 +564,22 @@ export async function verifyCourtCardPublic(
       attendancePercentage: Number(courtCard.attendancePercent),
       engagementScore: metadata.engagementScore || null,
       engagementLevel: metadata.engagementLevel || null,
-      activityEvents: timeline.length,
+      activityEvents: timelineEvents.length,
       verificationMethod: courtCard.verificationMethod,
       confidenceLevel: courtCard.confidenceLevel,
+      // Enhanced metrics
+      totalSnapshots,
+      snapshotsWithFace,
+      snapshotFaceDetectionRate: totalSnapshots > 0 ? Math.round((snapshotsWithFace / totalSnapshots) * 100) : 0,
+      leaveRejoinPeriods,
+      timeBreakdown: {
+        totalDurationMin: timeBreakdown.totalDurationMin || courtCard.totalDurationMin || 0,
+        activeDurationMin: timeBreakdown.activeDurationMin || courtCard.activeDurationMin || 0,
+        idleDurationMin: timeBreakdown.idleDurationMin || courtCard.idleDurationMin || 0,
+        timeAwayMin: timeBreakdown.timeAwayMin || 0,
+        meetingDurationMin: timeBreakdown.meetingDurationMin || courtCard.meetingDurationMin || 0,
+        attendancePercent: timeBreakdown.attendancePercent || Number(courtCard.attendancePercent || 0),
+      },
     },
     // Detailed validation explanation showing why meeting passed/failed
     validationExplanation: validationExplanation,

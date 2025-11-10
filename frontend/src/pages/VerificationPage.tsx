@@ -381,19 +381,149 @@ This certificate confirms that the court card has been verified as authentic.
                   {new Date(auditTrail.endTime).toLocaleString()}
                 </Typography>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Total Active Time
-                </Typography>
-                <Typography variant="body1" fontWeight="bold">
-                  {auditTrail.activeTimeMinutes} minutes (Idle: {auditTrail.idleTimeMinutes} min)
-                </Typography>
+              {/* Enhanced Time Breakdown */}
+              {auditTrail.timeBreakdown && (
+                <>
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 1 }} />
+                    <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      📊 Detailed Time Breakdown
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Duration
+                    </Typography>
+                    <Typography variant="body1" fontWeight="bold">
+                      {auditTrail.timeBreakdown.totalDurationMin} minutes
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Meeting Duration (Scheduled)
+                    </Typography>
+                    <Typography variant="body1" fontWeight="bold">
+                      {auditTrail.timeBreakdown.meetingDurationMin} minutes
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Active Time
+                    </Typography>
+                    <Typography variant="body1" fontWeight="bold" color="success.main">
+                      {auditTrail.timeBreakdown.activeDurationMin} minutes
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Time Away
+                    </Typography>
+                    <Typography variant="body1" fontWeight="bold" color="warning.main">
+                      {auditTrail.timeBreakdown.timeAwayMin} minutes
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Idle Time
+                    </Typography>
+                    <Typography variant="body1" fontWeight="bold">
+                      {auditTrail.timeBreakdown.idleDurationMin} minutes
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Attendance Percentage
+                    </Typography>
+                    <Typography variant="body1" fontWeight="bold" color={auditTrail.timeBreakdown.attendancePercent >= 80 ? 'success.main' : 'error.main'}>
+                      {auditTrail.timeBreakdown.attendancePercent.toFixed(1)}% ({auditTrail.timeBreakdown.activeDurationMin}/{auditTrail.timeBreakdown.meetingDurationMin})
+                    </Typography>
+                  </Grid>
+                </>
+              )}
+              
+              {/* Leave/Rejoin Events */}
+              {auditTrail.leaveRejoinPeriods && auditTrail.leaveRejoinPeriods.length > 0 && (
+                <>
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 1 }} />
+                    <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      🔄 Leave/Rejoin Events
+                    </Typography>
+                  </Grid>
+                  {auditTrail.leaveRejoinPeriods.map((period: any, index: number) => (
+                    <Grid item xs={12} key={index}>
+                      <Box sx={{ p: 1.5, bgcolor: 'background.default', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                        <Typography variant="body2" fontWeight="bold" color="text.primary">
+                          Event {index + 1}:
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Left: {new Date(period.leaveTime).toLocaleString()}
+                        </Typography>
+                        {period.rejoinTime ? (
+                          <>
+                            <Typography variant="body2" color="text.secondary">
+                              Rejoined: {new Date(period.rejoinTime).toLocaleString()}
+                            </Typography>
+                            <Typography variant="body2" color="warning.main" fontWeight="bold">
+                              Time Away: {period.durationMin} minutes
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography variant="body2" color="error.main" fontWeight="bold">
+                            Did not rejoin (Final leave)
+                          </Typography>
+                        )}
+                      </Box>
+                    </Grid>
+                  ))}
+                </>
+              )}
+              
+              {/* Snapshot Statistics */}
+              {auditTrail.totalSnapshots !== undefined && (
+                <>
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 1 }} />
+                    <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      📸 Webcam Snapshot Statistics
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Snapshots Taken
+                    </Typography>
+                    <Typography variant="h5">
+                      {auditTrail.totalSnapshots}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Typography variant="body2" color="text.secondary">
+                      Snapshots with Face Detected
+                    </Typography>
+                    <Typography variant="h5" color={auditTrail.snapshotsWithFace > 0 ? 'success.main' : 'warning.main'}>
+                      {auditTrail.snapshotsWithFace}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Typography variant="body2" color="text.secondary">
+                      Face Detection Rate
+                    </Typography>
+                    <Typography variant="h5" color={auditTrail.snapshotFaceDetectionRate >= 80 ? 'success.main' : 'warning.main'}>
+                      {auditTrail.snapshotFaceDetectionRate}%
+                    </Typography>
+                  </Grid>
+                </>
+              )}
+              
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
               </Grid>
+              
               <Grid item xs={12} md={6}>
                 <Typography variant="body2" color="text.secondary">
                   Video Camera Status
                 </Typography>
-                <Typography variant="body1" fontWeight="bold" color={auditTrail.videoOnPercentage >= 80 ? 'success.main' : 'warning.main'}>
+                <Typography variant="body1" fontWeight="bold" color={auditTrail.videoOnPercentage >= 80 ? 'success.main' : auditTrail.videoOnPercentage > 0 ? 'warning.main' : 'error.main'}>
                   {auditTrail.videoOnPercentage}% of meeting (Camera ON)
                 </Typography>
               </Grid>
@@ -401,7 +531,7 @@ This certificate confirms that the court card has been verified as authentic.
                 <Typography variant="body2" color="text.secondary">
                   Overall Attendance
                 </Typography>
-                <Typography variant="h5" color="success.main">
+                <Typography variant="h5" color={auditTrail.attendancePercentage >= 80 ? 'success.main' : 'error.main'}>
                   {auditTrail.attendancePercentage}%
                 </Typography>
               </Grid>
