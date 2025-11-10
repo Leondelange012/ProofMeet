@@ -517,16 +517,16 @@ This certificate confirms that the court card has been verified as authentic.
                     <Typography variant="body2" color="text.secondary">
                       Snapshots with Face Detected
                     </Typography>
-                    <Typography variant="h5" color={auditTrail.snapshotsWithFace > 0 ? 'success.main' : 'warning.main'}>
-                      {auditTrail.snapshotsWithFace}
+                    <Typography variant="h5" color={(auditTrail.snapshotsWithFace ?? 0) > 0 ? 'success.main' : 'warning.main'}>
+                      {auditTrail.snapshotsWithFace ?? 0}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} md={4}>
                     <Typography variant="body2" color="text.secondary">
                       Face Detection Rate
                     </Typography>
-                    <Typography variant="h5" color={auditTrail.snapshotFaceDetectionRate >= 80 ? 'success.main' : 'warning.main'}>
-                      {auditTrail.snapshotFaceDetectionRate}%
+                    <Typography variant="h5" color={(auditTrail.snapshotFaceDetectionRate ?? 0) >= 80 ? 'success.main' : 'warning.main'}>
+                      {auditTrail.snapshotFaceDetectionRate ?? 0}%
                     </Typography>
                   </Grid>
                 </>
