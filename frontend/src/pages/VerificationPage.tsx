@@ -70,6 +70,23 @@ interface AuditTrail {
   activityEvents: number;
   verificationMethod: string;
   confidenceLevel: string;
+  // Enhanced metrics (optional for backward compatibility)
+  totalSnapshots?: number;
+  snapshotsWithFace?: number;
+  snapshotFaceDetectionRate?: number;
+  leaveRejoinPeriods?: Array<{
+    leaveTime: string;
+    rejoinTime: string | null;
+    durationMin: number;
+  }>;
+  timeBreakdown?: {
+    totalDurationMin: number;
+    activeDurationMin: number;
+    idleDurationMin: number;
+    timeAwayMin: number;
+    meetingDurationMin: number;
+    attendancePercent: number;
+  };
 }
 
 export default function VerificationPage() {
