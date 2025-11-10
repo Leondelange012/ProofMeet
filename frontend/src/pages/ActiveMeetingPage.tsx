@@ -24,6 +24,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ActivityMonitor from '../components/ActivityMonitor';
+import WebcamSnapshotCapture from '../components/WebcamSnapshotCapture';
 
 const ActiveMeetingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -85,6 +86,12 @@ const ActiveMeetingPage: React.FC = () => {
       />
 
       <Box sx={{ mt: 4 }}>
+        {/* Webcam Snapshot Capture - For Video Verification */}
+        <WebcamSnapshotCapture
+          attendanceRecordId={attendanceId}
+          autoCapture={true}
+          captureIntervalMinutes={5}
+        />
         {/* Header */}
         <Card sx={{ mb: 3, bgcolor: 'success.main', color: 'white' }}>
           <CardContent>

@@ -93,13 +93,18 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
       if (activityThrottle.current === null) {
         activityThrottle.current = setTimeout(async () => {
           try {
-            await authServiceV2.trackActivity(attendanceId, 'MOUSE_MOVE', {
+            const result = await authServiceV2.trackActivity(attendanceId, 'MOUSE_MOVE', {
               x: event?.clientX,
               y: event?.clientY,
               timestamp: new Date().toISOString(),
             });
-          } catch (error) {
-            console.error('Failed to track mouse activity:', error);
+            if (!result.success) {
+              console.error('❌ Failed to track mouse activity:', result.error);
+            } else {
+              console.debug('✅ Mouse activity tracked');
+            }
+          } catch (error: any) {
+            console.error('❌ Error tracking mouse activity:', error?.message || error);
           }
           activityThrottle.current = null;
         }, ACTIVITY_THROTTLE_MS);
@@ -117,8 +122,14 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
         key: event?.key,
         code: event?.code,
         timestamp: new Date().toISOString(),
-      }).catch((error) => {
-        console.error('Failed to track keyboard activity:', error);
+      }).then((result) => {
+        if (!result.success) {
+          console.error('❌ Failed to track keyboard activity:', result.error);
+        } else {
+          console.debug('✅ Keyboard activity tracked');
+        }
+      }).catch((error: any) => {
+        console.error('❌ Error tracking keyboard activity:', error?.message || error);
       });
     };
 
@@ -132,8 +143,14 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
         x: e.clientX,
         y: e.clientY,
         timestamp: new Date().toISOString(),
-      }).catch((error) => {
-        console.error('Failed to track click:', error);
+      }).then((result) => {
+        if (!result.success) {
+          console.error('❌ Failed to track click:', result.error);
+        } else {
+          console.debug('✅ Click activity tracked');
+        }
+      }).catch((error: any) => {
+        console.error('❌ Error tracking click:', error?.message || error);
       });
     });
     window.addEventListener('keypress', handleKeyboardActivity);
@@ -142,8 +159,14 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
       updateActivity();
       authServiceV2.trackActivity(attendanceId, 'SCROLL', {
         timestamp: new Date().toISOString(),
-      }).catch((error) => {
-        console.error('Failed to track scroll:', error);
+      }).then((result) => {
+        if (!result.success) {
+          console.error('❌ Failed to track scroll:', result.error);
+        } else {
+          console.debug('✅ Scroll activity tracked');
+        }
+      }).catch((error: any) => {
+        console.error('❌ Error tracking scroll:', error?.message || error);
       });
     });
     window.addEventListener('touchstart', updateActivity);
@@ -293,8 +316,9 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
         // Reset counters after sending
         activityData.current.mouseActivity = 0;
         activityData.current.keyboardActivity = 0;
-      } catch (error) {
-        console.error('Failed to send activity heartbeat:', error);
+      } catch (error: any) {
+        console.error('❌ Failed to send activity heartbeat:', error?.message || error);
+        console.error('❌ Full error:', error);
       }
     };
 
