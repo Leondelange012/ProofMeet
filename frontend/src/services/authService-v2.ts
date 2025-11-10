@@ -74,16 +74,25 @@ const api = axios.create({
 
 // Add auth token to requests
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('proofmeet-auth-v2');
-  if (token) {
-    try {
-      const authData = JSON.parse(token);
-      if (authData.token) {
-        config.headers.Authorization = `Bearer ${authData.token}`;
+  // Try to get token from Zustand persist storage
+  try {
+    const stored = localStorage.getItem('proofmeet-auth-v2');
+    if (stored) {
+      const authData = JSON.parse(stored);
+      // Zustand persist stores the state object directly (not wrapped in 'state')
+      // The partialize function selects which fields to persist
+      const token = authData.token || (authData.state && authData.state.token);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        console.warn('⚠️ No token found in auth storage for request:', config.url);
       }
-    } catch (e) {
-      // Invalid token format, ignore
+    } else {
+      console.warn('⚠️ No auth data found in localStorage for request:', config.url);
     }
+  } catch (e) {
+    // Invalid token format, ignore
+    console.warn('❌ Failed to parse auth token from localStorage:', e);
   }
   return config;
 });

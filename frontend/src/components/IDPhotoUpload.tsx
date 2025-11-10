@@ -136,7 +136,17 @@ export const IDPhotoUpload: React.FC<IDPhotoUploadProps> = ({ onUploadComplete }
       const API_BASE_URL =
         (import.meta as any).env?.VITE_API_BASE_URL ||
         'https://proofmeet-backend-production.up.railway.app/api';
-      const token = localStorage.getItem('token');
+      // Get token from Zustand persist storage
+      let token: string | null = null;
+      try {
+        const stored = localStorage.getItem('proofmeet-auth-v2');
+        if (stored) {
+          const authData = JSON.parse(stored);
+          token = authData.state?.token || authData.token || null;
+        }
+      } catch (e) {
+        console.warn('Failed to get token from localStorage:', e);
+      }
 
       const response = await fetch(`${API_BASE_URL}/verification/id-photo`, {
         method: 'POST',
