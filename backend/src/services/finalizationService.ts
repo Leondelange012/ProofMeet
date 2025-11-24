@@ -48,10 +48,16 @@ async function finalizeAttendanceRecord(attendanceId: string): Promise<boolean> 
     const activityTimeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
     
     // ============================================
-    // ZOOM-ONLY TRACKING: Use Zoom webhook data
+    // ZOOM-ONLY TRACKING: Use Zoom webhook data (PRIMARY SOURCE OF TRUTH)
     // ============================================
-    // If Zoom webhooks provided leave time, use it (most accurate)
-    // Otherwise, estimate based on meeting end time
+    // ProofMeet does NOT require the browser tab to be open.
+    // All attendance tracking is done via Zoom webhooks:
+    //   - participant_joined: records join time
+    //   - participant_left: records leave time AND duration from Zoom
+    // 
+    // This finalization service only runs as a BACKUP for meetings where:
+    //   - Zoom webhooks didn't fire (rare)
+    //   - Meeting ended but participant never explicitly left
     const meetingStart = new Date(attendance.meetingDate);
     const meetingDuration = attendance.externalMeeting?.durationMinutes || 60;
     const meetingEnd = new Date(
@@ -60,14 +66,18 @@ async function finalizeAttendanceRecord(attendanceId: string): Promise<boolean> 
 
     let leaveTime: Date;
     if (attendance.leaveTime) {
-      // Use Zoom-provided leave time (most accurate)
+      // Use Zoom-provided leave time (most accurate - includes Zoom's duration calculation)
       leaveTime = attendance.leaveTime;
       logger.info(`   ✅ Using Zoom webhook leave time: ${leaveTime.toISOString()}`);
+      if (attendance.totalDurationMin) {
+        logger.info(`   ✅ Zoom reported duration: ${attendance.totalDurationMin} minutes`);
+      }
     } else {
-      // No Zoom webhook received yet, estimate conservatively
-      // Use 1 minute as minimum duration (better to underestimate than overestimate)
-      leaveTime = new Date(joinTime.getTime() + 60 * 1000); // 1 minute minimum
-      logger.warn(`   ⚠️ No Zoom leave time - using conservative 1 minute estimate`);
+      // BACKUP: No Zoom webhook received yet (this should be rare)
+      // Wait for Zoom webhook instead of guessing
+      logger.warn(`   ⚠️ No Zoom leave time yet - meeting may still be in progress`);
+      logger.warn(`   ⚠️ This record will be processed when Zoom webhook arrives`);
+      return false; // Don't finalize yet, wait for Zoom
     }
 
     logger.info(`   Join Time: ${joinTime.toISOString()}`);

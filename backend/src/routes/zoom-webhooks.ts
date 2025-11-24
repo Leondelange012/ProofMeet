@@ -307,9 +307,26 @@ async function handleParticipantLeft(event: any) {
   });
   
   if (attendanceRecord) {
-    const duration = Math.floor((leaveTime.getTime() - attendanceRecord.joinTime.getTime()) / (1000 * 60));
+    // IMPORTANT: Use Zoom's reported duration as the source of truth
+    // Zoom provides participant.duration in seconds, which is accurate even if they rejoined
+    const zoomDurationSeconds = participant.duration || 0;
+    const duration = Math.floor(zoomDurationSeconds / 60); // Convert to minutes
+    
+    // Fallback: calculate from join/leave times if Zoom didn't provide duration
+    const calculatedDuration = Math.floor((leaveTime.getTime() - attendanceRecord.joinTime.getTime()) / (1000 * 60));
+    const finalDuration = duration > 0 ? duration : calculatedDuration;
+    
     const expectedDuration = meeting.durationMinutes || 60;
-    const attendancePercent = Math.min((duration / expectedDuration) * 100, 100);
+    const attendancePercent = Math.min((finalDuration / expectedDuration) * 100, 100);
+    
+    logger.info(`📊 Duration calculation:`, {
+      zoomReportedSeconds: zoomDurationSeconds,
+      zoomReportedMinutes: duration,
+      calculatedMinutes: calculatedDuration,
+      finalDurationUsed: finalDuration,
+      expectedDuration,
+      attendancePercent: `${attendancePercent.toFixed(1)}%`,
+    });
     
     // Get existing activity timeline
     const existingTimeline = attendanceRecord.activityTimeline as any || { events: [] };
@@ -322,37 +339,43 @@ async function handleParticipantLeft(event: any) {
       source: 'ZOOM_WEBHOOK',
       data: {
         participantName: participant.user_name,
-        duration: `${participant.duration} seconds`,
+        zoomDurationSeconds: zoomDurationSeconds,
+        zoomDurationMinutes: duration,
       },
     });
     
-    // Calculate active vs idle time from activity timeline
+    // Calculate active vs idle time from activity timeline (OPTIONAL - for engagement scoring only)
     const { activeDurationMin, idleDurationMin } = calculateActivityDurations({ events });
     
-    // If no activity heartbeats received, assume all time was active (fallback)
-    const finalActiveDuration = activeDurationMin > 0 ? activeDurationMin : duration;
+    // TRUST ZOOM DATA: Use Zoom's duration as active time if no browser activity was tracked
+    // This ensures attendance is recorded even if the ProofMeet tab was closed
+    const finalActiveDuration = activeDurationMin > 0 ? activeDurationMin : finalDuration;
     const finalIdleDuration = idleDurationMin > 0 ? idleDurationMin : 0;
     
-    // Update attendance record with REAL leave time from Zoom
+    // Update attendance record with REAL data from Zoom webhook
     const updatedRecord = await prisma.attendanceRecord.update({
       where: { id: attendanceRecord.id },
       data: {
         leaveTime,
-        totalDurationMin: duration,
+        totalDurationMin: finalDuration,
         activeDurationMin: finalActiveDuration,
         idleDurationMin: finalIdleDuration,
         attendancePercent,
         status: 'COMPLETED',
-        verificationMethod: 'BOTH', // Zoom + Activity monitoring
+        verificationMethod: 'ZOOM_WEBHOOK', // Primary source of truth
         activityTimeline: { events },
       },
     });
     
     logger.info(`✅ Attendance completed via Zoom webhook: ${attendanceRecord.id}`, {
-      duration,
+      zoomDuration: `${zoomDurationSeconds}s (${duration} min)`,
+      calculatedDuration: `${calculatedDuration} min`,
+      finalDuration: `${finalDuration} min`,
       activeDuration: finalActiveDuration,
       idleDuration: finalIdleDuration,
-      attendancePercent,
+      attendancePercent: `${attendancePercent.toFixed(1)}%`,
+      joinTime: attendanceRecord.joinTime.toISOString(),
+      leaveTime: leaveTime.toISOString(),
     });
     
     // ========================================
@@ -370,7 +393,7 @@ async function handleParticipantLeft(event: any) {
         await sendAttendanceConfirmation(
           user.email,
           meeting.name,
-          duration,
+          finalDuration,
           Number(attendancePercent),
           courtCard.cardNumber
         );
@@ -381,11 +404,11 @@ async function handleParticipantLeft(event: any) {
       
       // Send WebSocket notifications
       if (user.courtRepId) {
-        websocketService.notifyParticipantLeft(meetingId, user.id, user.courtRepId, duration);
+        websocketService.notifyParticipantLeft(meetingId, user.id, user.courtRepId, finalDuration);
         websocketService.notifyAttendanceUpdated(user.id, user.courtRepId, {
           attendanceRecordId: updatedRecord.id,
           status: 'COMPLETED',
-          duration,
+          duration: finalDuration,
           attendancePercent,
         });
         websocketService.notifyCourtCardUpdated(user.id, user.courtRepId, {

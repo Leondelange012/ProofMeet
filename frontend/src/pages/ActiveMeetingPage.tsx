@@ -122,29 +122,32 @@ const ActiveMeetingPage: React.FC = () => {
             </Typography>
             <Alert severity="success" sx={{ mb: 2 }}>
               <Typography variant="body2" gutterBottom>
-                <strong>✅ Fully Automatic - Zero Manual Actions Required!</strong>
+                <strong>✅ Zoom-Based Tracking - Fully Automatic!</strong>
               </Typography>
               <Typography variant="body2" component="div" sx={{ mt: 1 }}>
                 <strong>How it works:</strong>
                 <br />
-                • <strong>Join:</strong> Detected automatically when you enter Zoom
+                • <strong>Join:</strong> Zoom tells us when you enter the meeting
                 <br />
-                • <strong>Leave:</strong> Detected automatically when you exit Zoom
+                • <strong>Leave:</strong> Zoom tells us when you exit the meeting
                 <br />
-                • <strong>Activity:</strong> Monitored passively while this tab is open
+                • <strong>Duration:</strong> Calculated directly from Zoom timestamps
                 <br />
                 • <strong>Court Card:</strong> Generated automatically after meeting ends
                 <br />
                 <br />
-                <strong>⚠️ Important:</strong> You cannot manually start or stop tracking. 
-                This ensures accuracy and prevents tampering.
+                <strong>✨ New:</strong> You don't need to keep this page open! Tracking happens 
+                entirely through Zoom webhooks. This page is optional for supplementary data only.
               </Typography>
             </Alert>
 
             <Alert severity="info">
               <Typography variant="body2">
                 <strong>What to do:</strong> Simply attend your Zoom meeting as normal. 
-                Everything else is handled by our secure webhook system.
+                Your attendance is tracked directly by Zoom's secure webhook system.
+                <br /><br />
+                <strong>Note:</strong> You can close this page and return to your dashboard. 
+                Tracking will continue automatically via Zoom.
               </Typography>
             </Alert>
           </CardContent>
@@ -183,13 +186,13 @@ const ActiveMeetingPage: React.FC = () => {
             </Typography>
             <Box component="ul" sx={{ pl: 2, mb: 0 }}>
               <Typography component="li" variant="body2" sx={{ mb: 1 }}>
-                <strong>Keep this tab open</strong> for supplementary activity monitoring
-              </Typography>
-              <Typography component="li" variant="body2" sx={{ mb: 1 }}>
                 <strong>Use the same email</strong> in Zoom as your ProofMeet registration
               </Typography>
               <Typography component="li" variant="body2" sx={{ mb: 1 }}>
                 <strong>Must attend 80%+</strong> of meeting duration to pass validation
+              </Typography>
+              <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                <strong>All tracking happens in Zoom</strong> - this page is optional
               </Typography>
               <Typography component="li" variant="body2" sx={{ mb: 1 }}>
                 <strong>Join/leave times</strong> verified via secure Zoom webhooks
@@ -201,14 +204,15 @@ const ActiveMeetingPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* No Manual Controls - Webhook Only */}
-        <Alert severity="warning" sx={{ mb: 3 }}>
+        {/* Zoom-Based Tracking Info */}
+        <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body2" gutterBottom>
-            <strong>🔒 Secure Verification System</strong>
+            <strong>🔒 Zoom-Based Tracking</strong>
           </Typography>
           <Typography variant="body2">
-            You cannot manually start or stop tracking. All attendance data comes directly from 
-            Zoom's secure webhook system. This prevents tampering and ensures court-admissible accuracy.
+            All attendance data comes directly from Zoom's secure webhook system. Your join time, 
+            leave time, and duration are recorded automatically when you attend the Zoom meeting.
+            This ensures court-admissible accuracy and prevents tampering.
           </Typography>
         </Alert>
 
@@ -219,8 +223,8 @@ const ActiveMeetingPage: React.FC = () => {
               📊 View Your Progress
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Return to your dashboard at any time. Your meeting tracking continues automatically 
-              via Zoom webhooks - no need to keep this page open.
+              Return to your dashboard at any time. Your attendance is tracked entirely through 
+              Zoom webhooks, so there's no need to keep this page open while in your meeting.
             </Typography>
             <Button
               variant="contained"
