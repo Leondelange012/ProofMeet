@@ -42,6 +42,7 @@ enum VerificationMethod {
   WEBCAM
   SCREEN_ACTIVITY
   BOTH
+  ZOOM_WEBHOOK
 }
 
 enum DigestStatus {

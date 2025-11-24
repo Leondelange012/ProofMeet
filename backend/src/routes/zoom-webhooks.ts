@@ -229,9 +229,10 @@ async function handleParticipantJoined(event: any) {
     // Create new attendance record if participant joined directly via Zoom
     if (user.courtRepId) {
       // Calculate if they joined late
-      const meetingStart = new Date(meeting.meetingDate);
-      const minutesLate = Math.max(0, Math.floor((joinTime.getTime() - meetingStart.getTime()) / (1000 * 60)));
-      const joinedLate = minutesLate > 5; // More than 5 minutes late
+      // Use current date/time as the meeting date (actual meeting start time)
+      const meetingStart = new Date();
+      const minutesLate = 0; // Can't determine without scheduled meeting time
+      const joinedLate = false;
       
       attendanceRecord = await prisma.attendanceRecord.create({
         data: {
@@ -369,8 +370,9 @@ async function handleParticipantLeft(event: any) {
     const events = Array.isArray(existingTimeline) ? existingTimeline : (existingTimeline.events || []);
     
     // Calculate if they left early
-    const meetingStart = new Date(meeting.meetingDate);
-    const meetingEnd = new Date(meetingStart.getTime() + (meeting.durationMinutes || 60) * 60 * 1000);
+    // Use the join time as the effective start (since we don't have scheduled meeting times)
+    const effectiveMeetingStart = attendanceRecord.joinTime;
+    const meetingEnd = new Date(effectiveMeetingStart.getTime() + (meeting.durationMinutes || 60) * 60 * 1000);
     const minutesEarly = Math.max(0, Math.floor((meetingEnd.getTime() - leaveTime.getTime()) / (1000 * 60)));
     const leftEarly = minutesEarly > 5; // More than 5 minutes early
     

@@ -169,11 +169,12 @@ async function finalizeAttendanceRecord(attendanceId: string): Promise<boolean> 
     }
 
     // Check for excessive idle time (only if idle time > 30% of total)
-    if (durationCalc.idleDurationMin > durationCalc.totalDurationMin * 0.3) {
+    // Note: With Zoom-only tracking, idle time is always 0 (all time in Zoom is considered active)
+    if (idleDurationMin > totalDurationMin * 0.3) {
       fraudDetection.violations.push('EXCESSIVE_IDLE_TIME');
       fraudDetection.recommendation = 'FLAG_FOR_REVIEW';
       fraudDetection.riskScore += 10;
-      fraudDetection.reasons.push(`Idle time: ${durationCalc.idleDurationMin} min (${((durationCalc.idleDurationMin / durationCalc.totalDurationMin) * 100).toFixed(1)}%)`);
+      fraudDetection.reasons.push(`Idle time: ${idleDurationMin} min (${((idleDurationMin / totalDurationMin) * 100).toFixed(1)}%)`);
     }
 
     // BUT: If engagement score is high, override the idle time flag
