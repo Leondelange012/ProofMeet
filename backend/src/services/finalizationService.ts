@@ -46,12 +46,12 @@ async function finalizeAttendanceRecord(attendanceId: string): Promise<boolean> 
 
     const joinTime = attendance.joinTime;
     const activityTimeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
-
-    // Get last activity timestamp
-    const lastActivity = getLastActivityTimestamp(activityTimeline);
     
-    // Calculate leave time: use last activity + 30 seconds grace period
-    // OR use meeting end time, whichever is earlier
+    // ============================================
+    // ZOOM-ONLY TRACKING: Use Zoom webhook data
+    // ============================================
+    // If Zoom webhooks provided leave time, use it (most accurate)
+    // Otherwise, estimate based on meeting end time
     const meetingStart = new Date(attendance.meetingDate);
     const meetingDuration = attendance.externalMeeting?.durationMinutes || 60;
     const meetingEnd = new Date(
@@ -59,43 +59,44 @@ async function finalizeAttendanceRecord(attendanceId: string): Promise<boolean> 
     );
 
     let leaveTime: Date;
-    if (lastActivity) {
-      // Use last activity + 30 seconds, but not after meeting end
-      const lastActivityPlusGrace = new Date(
-        lastActivity.getTime() + 30 * 1000
-      );
-      leaveTime = lastActivityPlusGrace < meetingEnd ? lastActivityPlusGrace : meetingEnd;
+    if (attendance.leaveTime) {
+      // Use Zoom-provided leave time (most accurate)
+      leaveTime = attendance.leaveTime;
+      logger.info(`   ✅ Using Zoom webhook leave time: ${leaveTime.toISOString()}`);
     } else {
-      // No activity tracked, use meeting end
-      leaveTime = meetingEnd;
+      // No Zoom webhook received yet, estimate conservatively
+      // Use 1 minute as minimum duration (better to underestimate than overestimate)
+      leaveTime = new Date(joinTime.getTime() + 60 * 1000); // 1 minute minimum
+      logger.warn(`   ⚠️ No Zoom leave time - using conservative 1 minute estimate`);
     }
 
     logger.info(`   Join Time: ${joinTime.toISOString()}`);
-    logger.info(`   Last Activity: ${lastActivity?.toISOString() || 'None'}`);
-    logger.info(`   Calculated Leave Time: ${leaveTime.toISOString()}`);
+    logger.info(`   Leave Time: ${leaveTime.toISOString()}`);
 
-    // Calculate durations using activity timeline
-    const durationCalc = calculateActiveDuration(
-      joinTime,
-      leaveTime,
-      activityTimeline
+    // Calculate actual duration from Zoom timestamps
+    const totalDurationMin = Math.floor(
+      (leaveTime.getTime() - joinTime.getTime()) / (1000 * 60)
     );
+    
+    // For Zoom-only tracking, all time in meeting is considered active
+    const activeDurationMin = totalDurationMin;
+    const idleDurationMin = 0;
 
-    logger.info(`   Actual Duration: ${durationCalc.totalDurationMin} minutes (NOT scheduled ${meetingDuration} minutes)`);
+    logger.info(`   Actual Duration: ${totalDurationMin} minutes (${meetingDuration} minutes scheduled)`);
 
-    // Calculate engagement metrics
+    // Calculate engagement metrics (optional, for additional context)
     const engagementMetrics = calculateEngagementMetrics(
       activityTimeline,
-      durationCalc.totalDurationMin
+      totalDurationMin
     );
 
     logger.info(
-      `Activity calculation: ${engagementMetrics.mouseMovements + engagementMetrics.keyboardActivity} active events, ${engagementMetrics.idleEvents} idle events`
+      `Optional activity data: ${engagementMetrics.mouseMovements + engagementMetrics.keyboardActivity} active events, ${engagementMetrics.idleEvents} idle events`
     );
 
-    // Calculate attendance percentage
+    // Calculate attendance percentage based on actual Zoom duration
     const attendancePercent = Math.min(
-      (durationCalc.activeDurationMin / meetingDuration) * 100,
+      (totalDurationMin / meetingDuration) * 100,
       100
     );
 
@@ -104,17 +105,17 @@ async function finalizeAttendanceRecord(attendanceId: string): Promise<boolean> 
       where: { id: attendanceId },
       data: {
         leaveTime,
-        totalDurationMin: durationCalc.totalDurationMin,
-        activeDurationMin: durationCalc.activeDurationMin,
-        idleDurationMin: durationCalc.idleDurationMin,
+        totalDurationMin,
+        activeDurationMin,
+        idleDurationMin,
         attendancePercent,
         status: 'COMPLETED',
-        verificationMethod: 'SCREEN_ACTIVITY',
+        verificationMethod: 'ZOOM_WEBHOOK', // Changed from SCREEN_ACTIVITY
       },
     });
 
     logger.info(
-      `   ✅ Auto-completed record ${attendanceId} - Duration: ${durationCalc.totalDurationMin} min (${attendancePercent.toFixed(1)}%)`
+      `   ✅ Auto-completed record ${attendanceId} - Duration: ${totalDurationMin} min (${attendancePercent.toFixed(1)}%)`
     );
 
     // Run engagement analysis (from logs, this seems to exist)
@@ -293,15 +294,13 @@ export async function finalizeStaleMeetings(): Promise<{
         logger.info(`   🔄 Auto-completing stale record: ${meeting.id}`);
         logger.info(`       Meeting: ${meeting.meetingName}`);
         logger.info(`       Join: ${meeting.joinTime.toISOString()}`);
-
-        const activityTimeline = (meeting.activityTimeline as unknown as ActivityEvent[]) || [];
-        const lastActivity = getLastActivityTimestamp(activityTimeline);
-        logger.info(`       Last Activity: ${lastActivity?.toISOString() || 'None'}`);
-
-        const calculatedLeaveTime = lastActivity
-          ? new Date(lastActivity.getTime() + 30 * 1000)
-          : meetingEnd;
-        logger.info(`       Calculated Leave Time: ${calculatedLeaveTime.toISOString()}`);
+        
+        // Check if Zoom webhook already provided leave time
+        if (meeting.leaveTime) {
+          logger.info(`       ✅ Leave time from Zoom webhook: ${meeting.leaveTime.toISOString()}`);
+        } else {
+          logger.warn(`       ⚠️ No Zoom webhook received - will use conservative estimate`);
+        }
 
         const success = await finalizeAttendanceRecord(meeting.id);
         if (success) {
