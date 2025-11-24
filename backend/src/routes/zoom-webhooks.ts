@@ -194,32 +194,45 @@ async function handleParticipantJoined(event: any) {
   });
   
   if (attendanceRecord) {
-    // Update existing record with REAL join time from Zoom
-    await prisma.attendanceRecord.update({
-      where: { id: attendanceRecord.id },
+    // REJOIN: Append to existing timeline (don't replace!)
+    const existingTimeline = attendanceRecord.activityTimeline as any || { events: [] };
+    const events = Array.isArray(existingTimeline) ? existingTimeline : (existingTimeline.events || []);
+    
+    // Add rejoin event
+    events.push({
+      type: 'ZOOM_JOINED',
+      timestamp: joinTime.toISOString(),
+      source: 'ZOOM_WEBHOOK',
       data: {
-        joinTime,
-        activityTimeline: {
-          events: [
-            {
-              type: 'ZOOM_JOINED',
-              timestamp: joinTime.toISOString(),
-              source: 'ZOOM_WEBHOOK',
-              data: {
-                participantName: participant.user_name,
-                participantEmail: participant.email,
-                zoomUserId: participant.user_id,
-              },
-            },
-          ],
-        },
+        participantName: participant.user_name,
+        participantEmail: participant.email,
+        zoomUserId: participant.user_id,
+        isRejoin: true,
+        previousEvents: events.length,
       },
     });
     
-    logger.info(`✅ Updated attendance record with Zoom join time: ${attendanceRecord.id}`);
+    // Update record with appended timeline
+    await prisma.attendanceRecord.update({
+      where: { id: attendanceRecord.id },
+      data: {
+        activityTimeline: { events },
+      },
+    });
+    
+    logger.info(`✅ Recorded REJOIN for ${participant.user_name} (event #${events.length})`, {
+      attendanceId: attendanceRecord.id,
+      joinTime: joinTime.toISOString(),
+      totalEvents: events.length,
+    });
   } else {
     // Create new attendance record if participant joined directly via Zoom
     if (user.courtRepId) {
+      // Calculate if they joined late
+      const meetingStart = new Date(meeting.meetingDate);
+      const minutesLate = Math.max(0, Math.floor((joinTime.getTime() - meetingStart.getTime()) / (1000 * 60)));
+      const joinedLate = minutesLate > 5; // More than 5 minutes late
+      
       attendanceRecord = await prisma.attendanceRecord.create({
         data: {
           participantId: user.id,
@@ -230,7 +243,7 @@ async function handleParticipantJoined(event: any) {
           meetingDate: new Date(),
           joinTime,
           status: 'IN_PROGRESS',
-          verificationMethod: 'SCREEN_ACTIVITY',
+          verificationMethod: 'ZOOM_WEBHOOK',
           activityTimeline: {
             events: [
               {
@@ -240,14 +253,37 @@ async function handleParticipantJoined(event: any) {
                 data: {
                   participantName: participant.user_name,
                   participantEmail: participant.email,
+                  zoomUserId: participant.user_id,
+                  scheduledStart: meetingStart.toISOString(),
+                  actualJoin: joinTime.toISOString(),
+                  minutesLate,
+                  joinedLate,
                 },
               },
             ],
           },
+          // @ts-ignore - Add metadata for punctuality tracking
+          metadata: {
+            scheduledStart: meetingStart.toISOString(),
+            actualJoinTime: joinTime.toISOString(),
+            minutesLate,
+            joinedLate,
+          },
         },
       });
       
-      logger.info(`✅ Created attendance record from Zoom join: ${attendanceRecord.id}`);
+      if (joinedLate) {
+        logger.warn(`⏰ Participant joined ${minutesLate} minutes late: ${participant.user_name}`, {
+          attendanceId: attendanceRecord.id,
+          scheduled: meetingStart.toISOString(),
+          actual: joinTime.toISOString(),
+        });
+      } else {
+        logger.info(`✅ Participant joined on time: ${participant.user_name}`, {
+          attendanceId: attendanceRecord.id,
+          minutesLate,
+        });
+      }
       
       // Send WebSocket notification
       websocketService.notifyParticipantJoined(meetingId, user.id, user.courtRepId);
@@ -330,7 +366,18 @@ async function handleParticipantLeft(event: any) {
     
     // Get existing activity timeline
     const existingTimeline = attendanceRecord.activityTimeline as any || { events: [] };
-    const events = existingTimeline.events || [];
+    const events = Array.isArray(existingTimeline) ? existingTimeline : (existingTimeline.events || []);
+    
+    // Calculate if they left early
+    const meetingStart = new Date(meeting.meetingDate);
+    const meetingEnd = new Date(meetingStart.getTime() + (meeting.durationMinutes || 60) * 60 * 1000);
+    const minutesEarly = Math.max(0, Math.floor((meetingEnd.getTime() - leaveTime.getTime()) / (1000 * 60)));
+    const leftEarly = minutesEarly > 5; // More than 5 minutes early
+    
+    // Count total join/leave pairs
+    const joinEvents = events.filter((e: any) => e.type === 'ZOOM_JOINED').length;
+    const leaveEvents = events.filter((e: any) => e.type === 'ZOOM_LEFT').length;
+    const isTemporaryLeave = joinEvents > leaveEvents + 1; // They might rejoin
     
     // Add leave event
     events.push({
@@ -341,8 +388,22 @@ async function handleParticipantLeft(event: any) {
         participantName: participant.user_name,
         zoomDurationSeconds: zoomDurationSeconds,
         zoomDurationMinutes: duration,
+        scheduledEnd: meetingEnd.toISOString(),
+        actualLeave: leaveTime.toISOString(),
+        minutesEarly,
+        leftEarly,
+        isTemporaryLeave,
+        totalJoins: joinEvents,
+        totalLeaves: leaveEvents + 1,
       },
     });
+    
+    if (leftEarly && !isTemporaryLeave) {
+      logger.warn(`⏰ Participant left ${minutesEarly} minutes early: ${participant.user_name}`, {
+        scheduled: meetingEnd.toISOString(),
+        actual: leaveTime.toISOString(),
+      });
+    }
     
     // Calculate active vs idle time from activity timeline (OPTIONAL - for engagement scoring only)
     const { activeDurationMin, idleDurationMin } = calculateActivityDurations({ events });
