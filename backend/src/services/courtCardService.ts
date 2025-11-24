@@ -36,7 +36,7 @@ interface CourtCardData {
   idleDurationMin: number;
   attendancePercent: number;
   activePeriods: any;
-  verificationMethod: 'WEBCAM' | 'SCREEN_ACTIVITY' | 'BOTH';
+  verificationMethod: 'WEBCAM' | 'SCREEN_ACTIVITY' | 'BOTH' | 'ZOOM_WEBHOOK';
   violations: Violation[];
   validationStatus: 'PASSED' | 'FAILED';
 }
