@@ -90,7 +90,7 @@ const ActiveMeetingPage: React.FC = () => {
         <WebcamSnapshotCapture
           attendanceRecordId={attendanceId}
           autoCapture={true}
-          captureIntervalMinutes={5}
+          expectedMeetingDurationMin={60}
         />
         {/* Header */}
         <Card sx={{ mb: 3, bgcolor: 'success.main', color: 'white' }}>

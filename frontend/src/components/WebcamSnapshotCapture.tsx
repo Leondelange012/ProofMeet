@@ -36,6 +36,7 @@ export const WebcamSnapshotCapture: React.FC<WebcamSnapshotCaptureProps> = ({
   const [captureCount, setCaptureCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [meetingStartTime] = useState<Date>(new Date());
+  const [lastCaptureTime, setLastCaptureTime] = useState<Date | null>(null);
   const [scheduledCaptures] = useState<number[]>(() => {
     // Calculate strategic capture times: early, middle, late
     // Snapshot 1: 2-3 minutes in (early verification)
@@ -210,8 +211,8 @@ export const WebcamSnapshotCapture: React.FC<WebcamSnapshotCaptureProps> = ({
 
       {stream && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Your webcam is being used to verify your attendance. Snapshots are captured every{' '}
-          {captureIntervalMinutes} minutes.
+          Your webcam is being used to verify your attendance. 3 snapshots will be captured 
+          at strategic times during your meeting (early, middle, and late).
         </Alert>
       )}
 
