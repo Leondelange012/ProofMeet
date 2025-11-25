@@ -546,39 +546,97 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
     const fraudRiskScore = metadata.fraudRiskScore || 0;
     const fraudRecommendation = metadata.fraudRecommendation || 'APPROVE';
     
-    // Calculate video on percentage using multiple methods:
-    // 1. Webcam snapshots (if snapshots exist, camera was likely on)
-    // 2. Activity timeline events (if available)
-    // 3. Fallback: assume camera was on if participant was in meeting
+    // Calculate video on percentage using Zoom webhook events (PRIMARY SOURCE)
+    // Zoom sends VIDEO_ON and VIDEO_OFF events throughout the meeting
     const timeline = (attendance.activityTimeline as any) || [];
     const timelineEvents = Array.isArray(timeline) ? timeline : (timeline.events || []);
     
-    // Method 1: Check webcam snapshots (most reliable indicator)
+    // Legacy: Check webcam snapshots (DISABLED - camera conflict)
     const snapshots = attendance.webcamSnapshots || [];
     const totalSnapshots = snapshots.length;
     const snapshotsWithFace = snapshots.filter((s: any) => s.faceDetected === true).length;
     
-    // Method 2: Check activity timeline for video events
-    const videoOnEvents = timelineEvents.filter((e: any) => 
-      e.data?.videoActive === true || e.type === 'ZOOM_JOINED'
-    );
+    // PRIMARY METHOD: Calculate video on duration from Zoom webhook events
+    const videoOnEvents = timelineEvents.filter((e: any) => e.type === 'VIDEO_ON' && e.source === 'ZOOM_WEBHOOK');
+    const videoOffEvents = timelineEvents.filter((e: any) => e.type === 'VIDEO_OFF' && e.source === 'ZOOM_WEBHOOK');
     
-    // Calculate video percentage:
-    // - If we have snapshots, use snapshot coverage as proxy for video time
-    // - If we have activity events, use those
-    // - Otherwise, if participant was in meeting, assume camera was on for active time
     let videoOnPercentage = 0;
-    if (totalSnapshots > 0) {
-      // Use snapshots as indicator: if we have snapshots, camera was on
-      // Estimate: snapshots taken throughout meeting = camera was on
-      const snapshotCoverage = Math.min((totalSnapshots / Math.max(meetingDurationMin / 5, 1)) * 100, 100);
-      videoOnPercentage = Math.round(snapshotCoverage);
-    } else if (timelineEvents.length > 0) {
-      // Use activity timeline events
-      videoOnPercentage = Math.round((videoOnEvents.length / timelineEvents.length) * 100);
-    } else if (activeDurationMin > 0) {
-      // Fallback: if participant was active, assume camera was on during active time
-      videoOnPercentage = Math.round((activeDurationMin / totalDurationMin) * 100);
+    let videoOnDurationMin = 0;
+    let videoOffPeriods: Array<{startTime: string; endTime: string | null; durationMin: number}> = [];
+    
+    if (videoOnEvents.length > 0 || videoOffEvents.length > 0) {
+      // Calculate camera on/off periods from Zoom webhook events
+      const sortedEvents = [...videoOnEvents, ...videoOffEvents].sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      
+      let currentVideoState: 'ON' | 'OFF' = 'OFF'; // Assume camera starts OFF
+      let lastEventTime = attendance.joinTime;
+      let totalVideoOnMs = 0;
+      
+      // Check if participant's camera was on when they joined (first event might be VIDEO_OFF)
+      // If first event is VIDEO_OFF, assume camera was on from join until first OFF event
+      if (sortedEvents.length > 0 && sortedEvents[0].type === 'VIDEO_OFF') {
+        currentVideoState = 'ON';
+      }
+      
+      for (const event of sortedEvents) {
+        const eventTime = new Date(event.timestamp);
+        const duration = eventTime.getTime() - lastEventTime.getTime();
+        
+        if (currentVideoState === 'ON') {
+          // Camera was on, add to total
+          totalVideoOnMs += duration;
+        } else {
+          // Camera was off, track the off period
+          videoOffPeriods.push({
+            startTime: lastEventTime.toISOString(),
+            endTime: eventTime.toISOString(),
+            durationMin: Math.floor(duration / (1000 * 60)),
+          });
+        }
+        
+        // Toggle state
+        currentVideoState = event.type === 'VIDEO_ON' ? 'ON' : 'OFF';
+        lastEventTime = eventTime;
+      }
+      
+      // Handle final period (from last event to meeting end)
+      const meetingEnd = attendance.leaveTime || new Date();
+      const finalDuration = meetingEnd.getTime() - lastEventTime.getTime();
+      
+      if (currentVideoState === 'ON') {
+        totalVideoOnMs += finalDuration;
+      } else {
+        videoOffPeriods.push({
+          startTime: lastEventTime.toISOString(),
+          endTime: null, // Still off at meeting end
+          durationMin: Math.floor(finalDuration / (1000 * 60)),
+        });
+      }
+      
+      // Calculate video on duration in minutes
+      videoOnDurationMin = Math.floor(totalVideoOnMs / (1000 * 60));
+      videoOnPercentage = Math.round((videoOnDurationMin / totalDurationMin) * 100);
+      
+      logger.info(`📹 Video calculation from Zoom webhooks:`, {
+        videoOnEvents: videoOnEvents.length,
+        videoOffEvents: videoOffEvents.length,
+        videoOnDurationMin,
+        totalDurationMin,
+        videoOnPercentage,
+        videoOffPeriods: videoOffPeriods.length,
+      });
+    } else {
+      // FALLBACK: No video events tracked yet (legacy or in-progress meeting)
+      // Assume camera was on for entire meeting (optimistic assumption)
+      videoOnPercentage = 100;
+      videoOnDurationMin = totalDurationMin;
+      
+      logger.warn(`⚠️ No VIDEO_ON/OFF events found, assuming camera was on for entire meeting`, {
+        attendanceId: attendanceRecordId,
+        totalDurationMin,
+      });
     }
     
     // Count total activity events
@@ -671,8 +729,14 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
           engagementLevel,
           fraudRiskScore,
           fraudRecommendation,
-          // Video and activity metrics
+          // Video and activity metrics (from Zoom webhooks)
           videoOnPercentage,
+          videoOnDurationMin,
+          videoOffPeriods: videoOffPeriods.map(period => ({
+            startTime: period.startTime,
+            endTime: period.endTime,
+            durationMin: period.durationMin,
+          })),
           activityEvents,
           // Snapshot metrics
           totalSnapshots,

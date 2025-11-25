@@ -53,6 +53,14 @@ router.post('/zoom', async (req: Request, res: Response) => {
         await handleParticipantLeft(event);
         break;
         
+      case 'meeting.participant_video_on':
+        await handleParticipantVideoOn(event);
+        break;
+        
+      case 'meeting.participant_video_off':
+        await handleParticipantVideoOff(event);
+        break;
+        
       default:
         logger.warn(`⚠️ Unhandled Zoom event type: ${event.event}`);
     }
@@ -511,6 +519,174 @@ async function handleParticipantLeft(event: any) {
         participant: user.email,
       });
     }
+  }
+}
+
+/**
+ * Handle participant video ON event
+ * Tracks when participant turns their camera on
+ */
+async function handleParticipantVideoOn(event: any) {
+  const meetingId = event.payload.object.id.toString();
+  const participant = event.payload.object.participant;
+  const timestamp = new Date(event.event_ts); // Zoom event timestamp
+  
+  logger.info(`📹 Participant video ON: ${participant.user_name}`, {
+    email: participant.email,
+    meetingId,
+    timestamp,
+  });
+  
+  // Find the meeting
+  const meeting = await prisma.externalMeeting.findFirst({
+    where: { zoomId: meetingId },
+  });
+  
+  if (!meeting) {
+    logger.warn(`Meeting not found in database: ${meetingId}`);
+    return;
+  }
+  
+  // Find participant by email
+  const user = await prisma.user.findFirst({
+    where: {
+      email: participant.email?.toLowerCase(),
+      userType: 'PARTICIPANT',
+    },
+  });
+  
+  if (!user) {
+    logger.warn(`Participant not found in database: ${participant.email}`);
+    return;
+  }
+  
+  // Find the in-progress attendance record
+  const attendanceRecord = await prisma.attendanceRecord.findFirst({
+    where: {
+      participantId: user.id,
+      externalMeetingId: meeting.id,
+      status: 'IN_PROGRESS',
+    },
+  });
+  
+  if (attendanceRecord) {
+    // Get existing activity timeline
+    const existingTimeline = attendanceRecord.activityTimeline as any || { events: [] };
+    const events = Array.isArray(existingTimeline) ? existingTimeline : (existingTimeline.events || []);
+    
+    // Add video ON event
+    events.push({
+      type: 'VIDEO_ON',
+      timestamp: timestamp.toISOString(),
+      source: 'ZOOM_WEBHOOK',
+      data: {
+        participantName: participant.user_name,
+        participantEmail: participant.email,
+        zoomUserId: participant.user_id,
+      },
+    });
+    
+    // Update attendance record
+    await prisma.attendanceRecord.update({
+      where: { id: attendanceRecord.id },
+      data: {
+        activityTimeline: { events },
+      },
+    });
+    
+    logger.info(`✅ Video ON event recorded for ${participant.user_name}`, {
+      attendanceId: attendanceRecord.id,
+      totalEvents: events.length,
+    });
+  } else {
+    logger.warn(`No in-progress attendance record found for video ON event`, {
+      participantEmail: participant.email,
+      meetingId,
+    });
+  }
+}
+
+/**
+ * Handle participant video OFF event
+ * Tracks when participant turns their camera off
+ */
+async function handleParticipantVideoOff(event: any) {
+  const meetingId = event.payload.object.id.toString();
+  const participant = event.payload.object.participant;
+  const timestamp = new Date(event.event_ts); // Zoom event timestamp
+  
+  logger.info(`📹 Participant video OFF: ${participant.user_name}`, {
+    email: participant.email,
+    meetingId,
+    timestamp,
+  });
+  
+  // Find the meeting
+  const meeting = await prisma.externalMeeting.findFirst({
+    where: { zoomId: meetingId },
+  });
+  
+  if (!meeting) {
+    logger.warn(`Meeting not found in database: ${meetingId}`);
+    return;
+  }
+  
+  // Find participant by email
+  const user = await prisma.user.findFirst({
+    where: {
+      email: participant.email?.toLowerCase(),
+      userType: 'PARTICIPANT',
+    },
+  });
+  
+  if (!user) {
+    logger.warn(`Participant not found in database: ${participant.email}`);
+    return;
+  }
+  
+  // Find the in-progress attendance record
+  const attendanceRecord = await prisma.attendanceRecord.findFirst({
+    where: {
+      participantId: user.id,
+      externalMeetingId: meeting.id,
+      status: 'IN_PROGRESS',
+    },
+  });
+  
+  if (attendanceRecord) {
+    // Get existing activity timeline
+    const existingTimeline = attendanceRecord.activityTimeline as any || { events: [] };
+    const events = Array.isArray(existingTimeline) ? existingTimeline : (existingTimeline.events || []);
+    
+    // Add video OFF event
+    events.push({
+      type: 'VIDEO_OFF',
+      timestamp: timestamp.toISOString(),
+      source: 'ZOOM_WEBHOOK',
+      data: {
+        participantName: participant.user_name,
+        participantEmail: participant.email,
+        zoomUserId: participant.user_id,
+      },
+    });
+    
+    // Update attendance record
+    await prisma.attendanceRecord.update({
+      where: { id: attendanceRecord.id },
+      data: {
+        activityTimeline: { events },
+      },
+    });
+    
+    logger.info(`✅ Video OFF event recorded for ${participant.user_name}`, {
+      attendanceId: attendanceRecord.id,
+      totalEvents: events.length,
+    });
+  } else {
+    logger.warn(`No in-progress attendance record found for video OFF event`, {
+      participantEmail: participant.email,
+      meetingId,
+    });
   }
 }
 

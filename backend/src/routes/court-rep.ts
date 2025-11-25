@@ -849,6 +849,8 @@ router.get('/participant/:participantId/court-card-pdf', async (req: Request, re
       
       // Get enhanced metrics from metadata
       const videoOnPercentage = metadata.videoOnPercentage || 0;
+      const videoOnDurationMin = metadata.videoOnDurationMin || 0;
+      const videoOffPeriods = metadata.videoOffPeriods || [];
       const totalSnapshots = metadata.totalSnapshots || 0;
       const snapshotsWithFace = metadata.snapshotsWithFace || 0;
       const leaveRejoinPeriods = metadata.leaveRejoinPeriods || [];
@@ -860,6 +862,8 @@ router.get('/participant/:participantId/court-card-pdf', async (req: Request, re
         activeTimeMinutes: mostRecentAttendance.totalDurationMin || 0,
         idleTimeMinutes: (mostRecentAttendance as any).idleDurationMin || 0,
         videoOnPercentage: videoOnPercentage,
+        videoOnDurationMin, // NEW: minutes camera was on
+        videoOffPeriods, // NEW: periods when camera was off
         attendancePercentage: Number(mostRecentAttendance.attendancePercent || 0),
         engagementScore: metadata.engagementScore || null,
         engagementLevel: metadata.engagementLevel || null,

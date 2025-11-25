@@ -59,6 +59,12 @@ export interface VerificationResult {
     activeTimeMinutes: number;
     idleTimeMinutes: number;
     videoOnPercentage: number;
+    videoOnDurationMin?: number; // NEW: minutes camera was on
+    videoOffPeriods?: Array<{ // NEW: periods when camera was off
+      startTime: string;
+      endTime: string | null;
+      durationMin: number;
+    }>;
     attendancePercentage: number;
     engagementScore: number | null;
     engagementLevel: string | null;
@@ -552,6 +558,9 @@ export async function verifyCourtCardPublic(
       ? Math.round((timelineEvents.filter((e: any) => e.data?.videoActive === true).length / timelineEvents.length) * 100)
       : 0);
   
+  const videoOnDurationMin = metadata.videoOnDurationMin || 0;
+  const videoOffPeriods = metadata.videoOffPeriods || [];
+  
   const totalSnapshots = metadata.totalSnapshots || 0;
   const snapshotsWithFace = metadata.snapshotsWithFace || 0;
   const leaveRejoinPeriods = metadata.leaveRejoinPeriods || [];
@@ -578,6 +587,8 @@ export async function verifyCourtCardPublic(
       activeTimeMinutes: courtCard.activeDurationMin,
       idleTimeMinutes: courtCard.idleDurationMin || 0,
       videoOnPercentage: videoOnPercent,
+      videoOnDurationMin,
+      videoOffPeriods,
       attendancePercentage: Number(courtCard.attendancePercent),
       engagementScore: metadata.engagementScore || null,
       engagementLevel: metadata.engagementLevel || null,
