@@ -24,7 +24,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ActivityMonitor from '../components/ActivityMonitor';
-import WebcamSnapshotCapture from '../components/WebcamSnapshotCapture';
+// WebcamSnapshotCapture disabled - conflicts with Zoom camera access
 
 const ActiveMeetingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -86,12 +86,11 @@ const ActiveMeetingPage: React.FC = () => {
       />
 
       <Box sx={{ mt: 4 }}>
-        {/* Webcam Snapshot Capture - For Video Verification */}
-        <WebcamSnapshotCapture
-          attendanceRecordId={attendanceId}
-          autoCapture={true}
-          expectedMeetingDurationMin={60}
-        />
+        {/* Webcam Snapshot Capture - DISABLED
+            Reason: Camera can only be accessed by one app at a time.
+            If ProofMeet captures webcam, Zoom cannot use it for video.
+            Since Zoom webhooks are PRIMARY tracking, webcam snapshots are not needed.
+        */}
         {/* Header */}
         <Card sx={{ mb: 3, bgcolor: 'success.main', color: 'white' }}>
           <CardContent>
@@ -137,7 +136,11 @@ const ActiveMeetingPage: React.FC = () => {
                 <br />
                 <br />
                 <strong>✨ New:</strong> You don't need to keep this page open! Tracking happens 
-                entirely through Zoom webhooks. This page is optional for supplementary data only.
+                entirely through Zoom webhooks. This page is optional for supplementary activity data only.
+                <br />
+                <br />
+                <strong>📹 Camera:</strong> Your camera is free for Zoom! We don't capture webcam 
+                snapshots to avoid conflicts with Zoom's video feature.
               </Typography>
             </Alert>
 
