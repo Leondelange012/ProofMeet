@@ -25,10 +25,8 @@ interface ActivityMonitorProps {
 
 interface EnhancedActivityData {
   mouseActivity: number;
-  keyboardActivity: number;
   tabFocusTime: number;
   lastMouseMove: number;
-  lastKeyPress: number;
 }
 
 const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
@@ -61,10 +59,8 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
   // Enhanced activity tracking (Tier 2)
   const activityData = useRef<EnhancedActivityData>({
     mouseActivity: 0,
-    keyboardActivity: 0,
     tabFocusTime: 0,
     lastMouseMove: Date.now(),
-    lastKeyPress: Date.now(),
   });
 
   // Configuration
@@ -111,64 +107,13 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
       }
     };
 
-    // Track keyboard activity separately and send to backend
-    const handleKeyboardActivity = (event?: KeyboardEvent) => {
-      activityData.current.keyboardActivity++;
-      activityData.current.lastKeyPress = Date.now();
-      updateActivity();
-      
-      // Send keyboard event immediately (less frequent than mouse)
-      authServiceV2.trackActivity(attendanceId, 'KEYBOARD', {
-        key: event?.key,
-        code: event?.code,
-        timestamp: new Date().toISOString(),
-      }).then((result) => {
-        if (!result.success) {
-          console.error('❌ Failed to track keyboard activity:', result.error);
-        } else {
-          console.debug('✅ Keyboard activity tracked');
-        }
-      }).catch((error: any) => {
-        console.error('❌ Error tracking keyboard activity:', error?.message || error);
-      });
-    };
+    // Keyboard tracking removed - not needed for court compliance
 
     // Listen to user interactions
     window.addEventListener('mousemove', handleMouseActivity);
-    window.addEventListener('mousedown', (e) => {
-      handleMouseActivity(e);
-      // Also send click event
-      authServiceV2.trackActivity(attendanceId, 'CLICK', {
-        button: e.button,
-        x: e.clientX,
-        y: e.clientY,
-        timestamp: new Date().toISOString(),
-      }).then((result) => {
-        if (!result.success) {
-          console.error('❌ Failed to track click:', result.error);
-        } else {
-          console.debug('✅ Click activity tracked');
-        }
-      }).catch((error: any) => {
-        console.error('❌ Error tracking click:', error?.message || error);
-      });
-    });
-    window.addEventListener('keypress', handleKeyboardActivity);
-    window.addEventListener('keydown', handleKeyboardActivity);
-    window.addEventListener('scroll', () => {
-      updateActivity();
-      authServiceV2.trackActivity(attendanceId, 'SCROLL', {
-        timestamp: new Date().toISOString(),
-      }).then((result) => {
-        if (!result.success) {
-          console.error('❌ Failed to track scroll:', result.error);
-        } else {
-          console.debug('✅ Scroll activity tracked');
-        }
-      }).catch((error: any) => {
-        console.error('❌ Error tracking scroll:', error?.message || error);
-      });
-    });
+    // Track clicks and scrolls leniently (only update activity, don't send detailed events)
+    window.addEventListener('mousedown', handleMouseActivity);
+    window.addEventListener('scroll', updateActivity);
     window.addEventListener('touchstart', updateActivity);
 
     // Listen to page visibility and track focus time
@@ -238,8 +183,6 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
     return () => {
       window.removeEventListener('mousemove', handleMouseActivity);
       window.removeEventListener('mousedown', handleMouseActivity);
-      window.removeEventListener('keypress', handleKeyboardActivity);
-      window.removeEventListener('keydown', handleKeyboardActivity);
       window.removeEventListener('scroll', updateActivity);
       window.removeEventListener('touchstart', updateActivity);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -281,12 +224,10 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
           pageVisible: !document.hidden,
           tabFocused,
           timeSinceLastActivity: now - lastActivityTime,
-          // Separate mouse/keyboard tracking
+          // Mouse tracking only
           mouseMovement: now - activityData.current.lastMouseMove < 30000,
-          keyboardActivity: now - activityData.current.lastKeyPress < 30000,
           // Engagement metrics
           mouseActivityCount: activityData.current.mouseActivity,
-          keyboardActivityCount: activityData.current.keyboardActivity,
           tabFocusTimeMs: activityData.current.tabFocusTime,
           // Device fingerprinting
           deviceId,
@@ -306,7 +247,6 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
 
         console.log(`💓 Enhanced heartbeat sent: ${isActive ? 'ACTIVE' : 'IDLE'}`, {
           mouse: metadata.mouseActivityCount,
-          keyboard: metadata.keyboardActivityCount,
           focusTime: `${Math.round(metadata.tabFocusTimeMs / 1000)}s`,
           video: cameraOn ? 'ON' : 'OFF',
           audio: audioOn ? 'ON' : 'OFF',
@@ -315,7 +255,6 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
         
         // Reset counters after sending
         activityData.current.mouseActivity = 0;
-        activityData.current.keyboardActivity = 0;
       } catch (error: any) {
         console.error('❌ Failed to send activity heartbeat:', error?.message || error);
         console.error('❌ Full error:', error);

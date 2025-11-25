@@ -18,15 +18,15 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 interface WebcamSnapshotCaptureProps {
   attendanceRecordId: string;
-  autoCapture?: boolean; // Automatically capture snapshots every X minutes
-  captureIntervalMinutes?: number; // How often to capture (default: 10 minutes)
+  autoCapture?: boolean; // Automatically capture 3 snapshots during meeting
+  expectedMeetingDurationMin?: number; // Expected meeting duration for strategic timing
   onSnapshotCaptured?: (snapshotId: string) => void;
 }
 
 export const WebcamSnapshotCapture: React.FC<WebcamSnapshotCaptureProps> = ({
   attendanceRecordId,
   autoCapture = true,
-  captureIntervalMinutes = 10,
+  expectedMeetingDurationMin = 60,
   onSnapshotCaptured,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -36,7 +36,17 @@ export const WebcamSnapshotCapture: React.FC<WebcamSnapshotCaptureProps> = ({
   const [captureCount, setCaptureCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [meetingStartTime] = useState<Date>(new Date());
-  const [lastCaptureTime, setLastCaptureTime] = useState<Date | null>(null);
+  const [scheduledCaptures] = useState<number[]>(() => {
+    // Calculate strategic capture times: early, middle, late
+    // Snapshot 1: 2-3 minutes in (early verification)
+    // Snapshot 2: At midpoint (ongoing presence)
+    // Snapshot 3: 80-90% through (sustained presence)
+    const earlyCapture = Math.min(3, Math.floor(expectedMeetingDurationMin * 0.05)); // 3 min or 5% of meeting
+    const midCapture = Math.floor(expectedMeetingDurationMin * 0.5); // 50% through
+    const lateCapture = Math.floor(expectedMeetingDurationMin * 0.85); // 85% through
+    return [earlyCapture, midCapture, lateCapture];
+  });
+  const captureTimersRef = useRef<NodeJS.Timeout[]>([]);
 
   // Start webcam
   const startWebcam = useCallback(async () => {
@@ -148,25 +158,26 @@ export const WebcamSnapshotCapture: React.FC<WebcamSnapshotCaptureProps> = ({
     }
   }, [attendanceRecordId, isCapturing, meetingStartTime, onSnapshotCaptured]);
 
-  // Auto-capture effect
+  // Auto-capture effect - 3 strategic snapshots
   useEffect(() => {
-    if (!autoCapture || !stream) return;
+    if (!autoCapture || !stream || captureCount >= 3) return;
 
-    const intervalMs = captureIntervalMinutes * 60 * 1000;
-    const interval = setInterval(() => {
-      captureSnapshot();
-    }, intervalMs);
+    // Schedule 3 captures at strategic times
+    scheduledCaptures.forEach((minuteDelay, index) => {
+      const timer = setTimeout(() => {
+        console.log(`📸 Capturing snapshot ${index + 1}/3 at ${minuteDelay} minutes into meeting`);
+        captureSnapshot();
+      }, minuteDelay * 60 * 1000); // Convert minutes to milliseconds
 
-    // Capture first snapshot after 30 seconds
-    const initialTimeout = setTimeout(() => {
-      captureSnapshot();
-    }, 30000);
+      captureTimersRef.current.push(timer);
+    });
 
     return () => {
-      clearInterval(interval);
-      clearTimeout(initialTimeout);
+      // Clear all scheduled timers on cleanup
+      captureTimersRef.current.forEach(timer => clearTimeout(timer));
+      captureTimersRef.current = [];
     };
-  }, [autoCapture, captureIntervalMinutes, stream, captureSnapshot]);
+  }, [autoCapture, stream, captureSnapshot, scheduledCaptures, captureCount]);
 
   // Start webcam on mount
   useEffect(() => {
