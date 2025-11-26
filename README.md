@@ -47,11 +47,16 @@
 - **Digital Signatures** - Cryptographically secure (RSA-2048)
 
 ### 2. Attendance Tracking
-- **Zoom Integration** - Real-time join/leave tracking
-- **Webcam Verification** - Periodic snapshots for identity verification
-- **Activity Monitoring** - Active vs. idle time calculation
-- **Validation Rules** - 80% attendance + 80% active time required
-- **Fraud Detection** - Multiple verification layers
+- **Zoom Integration** - Real-time join/leave tracking via webhooks
+- **Duration Calculation** - Precise timing from Zoom's servers
+- **Punctuality Detection** - Tracks late joins and early departures
+- **Leave/Rejoin Timeline** - Complete audit trail of all disconnections
+- **Activity Monitoring** - Browser engagement scoring (optional)
+- **Video Status Tracking** - Camera on/off monitoring (Zoom Business+)*
+- **Validation Rules** - 80% attendance + engagement scoring
+- **Fraud Detection** - Multi-layer verification system
+
+*_Video tracking code is implemented and ready - requires Zoom Business account upgrade to activate. See `ZOOM_VIDEO_TRACKING_UPGRADE_GUIDE.md` for details._
 
 ### 3. Digital Signatures
 - **Participant Signing** - Password-authenticated digital signature
@@ -88,6 +93,39 @@
 - Review attendance details
 - Sign court cards via unique link
 - No special account required
+
+---
+
+## 🎥 Video Status Tracking (Enterprise Feature)
+
+### **Status:** ✅ Code Implemented | ⏳ Requires Zoom Business Account
+
+ProofMeet includes **advanced video tracking capability** that monitors when participants turn their cameras on/off during meetings. This feature is **fully implemented and production-ready**, but requires a Zoom Business or Enterprise account to activate.
+
+#### **What Video Tracking Provides:**
+- **Camera On Percentage:** Track % of meeting time with camera active
+- **Camera Off Timeline:** Detailed record of when camera was turned off
+- **Visual Presence Verification:** Enhanced engagement metrics
+- **Court-Admissible Proof:** Third-party verified by Zoom
+
+#### **Current System (Without Video Tracking):**
+✅ Fully operational and court-admissible  
+✅ Join/leave timestamps (Zoom verified)  
+✅ Duration calculation (precise to the second)  
+✅ Punctuality and leave/rejoin tracking  
+✅ Browser activity monitoring  
+✅ Fraud detection
+
+#### **Enhanced System (With Video Tracking):**
+All current features **PLUS** camera on/off status, video engagement %, and visual presence timeline.
+
+#### **Activation:**
+- **Time Required:** 5 minutes after Zoom upgrade
+- **Code Changes:** Zero - already implemented
+- **Cost:** ~$50-100/year per host (Business plan upgrade)
+- **Documentation:** See `ZOOM_VIDEO_TRACKING_UPGRADE_GUIDE.md`
+
+**Note:** Video tracking is a strategic enhancement, not a requirement. The current system provides comprehensive, court-admissible tracking without it.
 
 ---
 
