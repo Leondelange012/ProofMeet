@@ -107,14 +107,14 @@ app.use('/api/auth', authLimiter, authV2Routes);
 app.use('/api/v2/court-rep', apiLimiter, courtRepRoutes);
 app.use('/api/v2/participant', apiLimiter, participantRoutes);
 app.use('/api/v2/admin', apiLimiter, adminRoutes);
-app.use('/api/v2/webhooks', apiLimiter, zoomWebhookRoutes);
+app.use('/api/v2/webhooks', zoomWebhookRoutes); // No rate limit for webhooks
 app.use('/api/v2/verify', apiLimiter, verificationRoutes); // Public verification
 
 // Default routes (no version prefix)
 app.use('/api/court-rep', apiLimiter, courtRepRoutes);
 app.use('/api/participant', apiLimiter, participantRoutes);
 app.use('/api/admin', apiLimiter, adminRoutes);
-app.use('/api/webhooks', apiLimiter, zoomWebhookRoutes);
+app.use('/api/webhooks', zoomWebhookRoutes); // No rate limit for webhooks
 app.use('/api/verify', apiLimiter, verificationRoutes); // Public verification
 
 // Error handling middleware
