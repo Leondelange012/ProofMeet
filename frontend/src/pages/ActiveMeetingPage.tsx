@@ -3,6 +3,9 @@
  * Shows active meeting tracking status
  * Tracking is FULLY AUTOMATIC via Zoom webhooks - NO manual controls
  * This page is informational only - participant cannot manually stop tracking
+ * 
+ * WEBCAM CAPTURE: DISABLED (v2.1) - Conflicts with Zoom camera access
+ * Video tracking will be available via Zoom Business webhooks when upgraded
  */
 
 import React, { useState, useEffect } from 'react';
