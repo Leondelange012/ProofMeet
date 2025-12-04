@@ -39,6 +39,30 @@ export interface LeaveRejoinEvent {
 }
 
 /**
+ * Normalize activity timeline to ensure it's always in the correct format
+ * Handles both array format [...] and object format { events: [...] }
+ */
+function normalizeTimeline(activityTimeline: any): any[] {
+  if (!activityTimeline) {
+    return [];
+  }
+  
+  // If it's already an array, return it
+  if (Array.isArray(activityTimeline)) {
+    return activityTimeline;
+  }
+  
+  // If it's an object with an events array, return the events
+  if (activityTimeline && typeof activityTimeline === 'object' && Array.isArray(activityTimeline.events)) {
+    return activityTimeline.events;
+  }
+  
+  // If it's an object without events array, return empty
+  logger.warn(`Unexpected activityTimeline format:`, { type: typeof activityTimeline, keys: Object.keys(activityTimeline || {}) });
+  return [];
+}
+
+/**
  * Add activity event to attendance record
  */
 export async function addActivityEvent(
@@ -55,20 +79,20 @@ export async function addActivityEvent(
       throw new Error('Attendance record not found');
     }
 
-    // Get existing timeline or initialize
-    const timeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
+    // Get existing timeline or initialize - handles both array and object formats
+    const events = normalizeTimeline(attendance.activityTimeline);
     
     // Add new event
-    timeline.push({
+    events.push({
       ...event,
       timestamp: new Date().toISOString(),
     });
 
-    // Update attendance record
+    // Update attendance record - always store in { events: [...] } format for consistency
     await prisma.attendanceRecord.update({
       where: { id: attendanceId },
       data: {
-        activityTimeline: timeline as any,
+        activityTimeline: { events } as any,
         updatedAt: new Date(),
       },
     });
@@ -110,27 +134,11 @@ export async function recordLeaveEvent(
       reason,
     };
 
-    // Add to activity timeline
+    // Add to activity timeline - this will add and save in normalized format
     await addActivityEvent(attendanceId, {
       timestamp: now.toISOString(),
       type: 'LEAVE',
       metadata: { durationAtLeave, reason },
-    });
-
-    // Also track in a separate leave/rejoin events array
-    const timeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
-    const leaveRejoinEvents = timeline.filter(
-      (e) => e.type === 'LEAVE' || e.type === 'REJOIN'
-    ) as any[];
-
-    leaveRejoinEvents.push(leaveEvent);
-
-    await prisma.attendanceRecord.update({
-      where: { id: attendanceId },
-      data: {
-        activityTimeline: timeline as any,
-        updatedAt: now,
-      },
     });
 
     logger.info(`Leave event recorded for ${attendanceId} at ${leaveEvent.timestamp}`);
@@ -172,21 +180,11 @@ export async function recordRejoinEvent(
       durationAtLeave: durationAtRejoin,
     };
 
-    // Add to activity timeline
+    // Add to activity timeline - this will add and save in normalized format
     await addActivityEvent(attendanceId, {
       timestamp: now.toISOString(),
       type: 'REJOIN',
       metadata: { durationAtRejoin },
-    });
-
-    // Update timeline (already done in addActivityEvent, but ensure consistency)
-    const timeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
-    await prisma.attendanceRecord.update({
-      where: { id: attendanceId },
-      data: {
-        activityTimeline: timeline as any,
-        updatedAt: now,
-      },
     });
 
     logger.info(`Rejoin event recorded for ${attendanceId} at ${rejoinEvent.timestamp}`);
@@ -198,20 +196,26 @@ export async function recordRejoinEvent(
   }
 }
 
+// Export normalizeTimeline for use in other services
+export { normalizeTimeline };
+
 /**
  * Calculate active duration from activity timeline
  */
 export function calculateActiveDuration(
   joinTime: Date,
   leaveTime: Date | null,
-  activityTimeline: ActivityEvent[] | null
+  activityTimeline: any
 ): {
   totalDurationMin: number;
   activeDurationMin: number;
   idleDurationMin: number;
   leaveRejoinPeriods: Array<{ leaveTime: Date; rejoinTime: Date | null; durationMin: number }>;
 } {
-  if (!activityTimeline || activityTimeline.length === 0) {
+  // Normalize timeline to always be an array
+  const normalizedTimeline = normalizeTimeline(activityTimeline);
+  
+  if (normalizedTimeline.length === 0) {
     // Fallback: use join to leave time
     const totalMin = leaveTime
       ? Math.floor((leaveTime.getTime() - joinTime.getTime()) / (1000 * 60))
@@ -225,7 +229,7 @@ export function calculateActiveDuration(
   }
 
   // Sort events by timestamp
-  const sortedEvents = [...activityTimeline].sort(
+  const sortedEvents = [...normalizedTimeline].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
@@ -295,15 +299,18 @@ export function calculateActiveDuration(
  * Get last activity timestamp from timeline
  */
 export function getLastActivityTimestamp(
-  activityTimeline: ActivityEvent[] | null
+  activityTimeline: any
 ): Date | null {
-  if (!activityTimeline || activityTimeline.length === 0) {
+  // Normalize timeline to always be an array
+  const normalizedTimeline = normalizeTimeline(activityTimeline);
+  
+  if (normalizedTimeline.length === 0) {
     return null;
   }
 
   // Filter out leave events (they're not "activity")
-  const activeEvents = activityTimeline.filter(
-    (e) => e.type !== 'LEAVE' && e.type !== 'REJOIN'
+  const activeEvents = normalizedTimeline.filter(
+    (e: any) => e.type !== 'LEAVE' && e.type !== 'REJOIN'
   );
 
   if (activeEvents.length === 0) {
@@ -322,7 +329,7 @@ export function getLastActivityTimestamp(
  * Calculate engagement metrics from activity timeline
  */
 export function calculateEngagementMetrics(
-  activityTimeline: ActivityEvent[] | null,
+  activityTimeline: any,
   totalDurationMin: number
 ): {
   activityRate: number; // Events per minute
@@ -331,7 +338,10 @@ export function calculateEngagementMetrics(
   idleEvents: number;
   engagementScore: number; // 0-100
 } {
-  if (!activityTimeline || activityTimeline.length === 0) {
+  // Normalize timeline to always be an array
+  const normalizedTimeline = normalizeTimeline(activityTimeline);
+  
+  if (normalizedTimeline.length === 0) {
     return {
       activityRate: 0,
       mouseMovements: 0,
@@ -342,19 +352,19 @@ export function calculateEngagementMetrics(
   }
 
   // Filter out leave/rejoin events for engagement calculation
-  const engagementEvents = activityTimeline.filter(
-    (e) => e.type !== 'LEAVE' && e.type !== 'REJOIN'
+  const engagementEvents = normalizedTimeline.filter(
+    (e: any) => e.type !== 'LEAVE' && e.type !== 'REJOIN'
   );
 
   const mouseMovements = engagementEvents.filter(
-    (e) => e.type === 'MOUSE_MOVE' || e.type === 'CLICK'
+    (e: any) => e.type === 'MOUSE_MOVE' || e.type === 'CLICK'
   ).length;
 
   const keyboardActivity = engagementEvents.filter(
-    (e) => e.type === 'KEYBOARD'
+    (e: any) => e.type === 'KEYBOARD'
   ).length;
 
-  const idleEvents = engagementEvents.filter((e) => e.type === 'IDLE').length;
+  const idleEvents = engagementEvents.filter((e: any) => e.type === 'IDLE').length;
 
   const activityRate =
     totalDurationMin > 0 ? engagementEvents.length / totalDurationMin : 0;

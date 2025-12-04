@@ -104,6 +104,32 @@ router.post('/zoom', async (req: Request, res: Response) => {
 });
 
 /**
+ * Normalize activity timeline - handles both array format and object { events: [...] } format
+ */
+function normalizeTimeline(activityTimeline: any): any[] {
+  if (!activityTimeline) {
+    return [];
+  }
+  
+  // If it's already an array, return it
+  if (Array.isArray(activityTimeline)) {
+    return activityTimeline;
+  }
+  
+  // If it's an object with an events array, return the events
+  if (activityTimeline && typeof activityTimeline === 'object' && Array.isArray(activityTimeline.events)) {
+    return activityTimeline.events;
+  }
+  
+  // If it's an object without events array, return empty
+  logger.warn(`Unexpected activityTimeline format in webhook:`, { 
+    type: typeof activityTimeline, 
+    keys: Object.keys(activityTimeline || {}) 
+  });
+  return [];
+}
+
+/**
  * Calculate active vs idle duration from activity timeline
  * Uses heartbeat events sent by frontend activity monitor
  */
@@ -111,7 +137,7 @@ export function calculateActivityDurations(activityTimeline: any): {
   activeDurationMin: number;
   idleDurationMin: number;
 } {
-  const events = activityTimeline?.events || [];
+  const events = normalizeTimeline(activityTimeline);
   
   // Count ACTIVE and IDLE events from frontend heartbeats
   const activeEvents = events.filter((e: any) => e.type === 'ACTIVE' && e.source === 'FRONTEND_MONITOR');
@@ -123,7 +149,7 @@ export function calculateActivityDurations(activityTimeline: any): {
   const activeDurationMin = Math.floor((activeEvents.length * HEARTBEAT_DURATION_SECONDS) / 60);
   const idleDurationMin = Math.floor((idleEvents.length * HEARTBEAT_DURATION_SECONDS) / 60);
   
-  logger.info(`Activity calculation: ${activeEvents.length} active events, ${idleEvents.length} idle events`);
+  logger.info(`Activity calculation: ${activeEvents.length} active events, ${idleEvents.length} idle events, total timeline events: ${events.length}`);
   
   return { activeDurationMin, idleDurationMin };
 }
@@ -342,10 +368,15 @@ async function handleParticipantLeft(event: any) {
   const participant = event.payload.object.participant;
   const leaveTime = new Date(event.payload.object.participant.leave_time);
   
+  // Log the full participant object to debug duration issues
   logger.info(`👋 Participant left: ${participant.user_name}`, {
     email: participant.email,
     meetingId,
     leaveTime,
+    // Debug: log all participant fields to see what Zoom sends
+    participantFields: Object.keys(participant),
+    rawDuration: participant.duration,
+    rawDurationType: typeof participant.duration,
   });
   
   // Find the meeting
@@ -383,12 +414,29 @@ async function handleParticipantLeft(event: any) {
   if (attendanceRecord) {
     // IMPORTANT: Use Zoom's reported duration as the source of truth
     // Zoom provides participant.duration in seconds, which is accurate even if they rejoined
-    const zoomDurationSeconds = participant.duration || 0;
+    // However, some Zoom account types may not provide this field, so we need robust fallback
+    
+    // Parse duration carefully - it might be a string, number, or undefined
+    let zoomDurationSeconds = 0;
+    if (participant.duration !== undefined && participant.duration !== null) {
+      zoomDurationSeconds = typeof participant.duration === 'string' 
+        ? parseInt(participant.duration, 10) 
+        : Number(participant.duration);
+      
+      // Handle NaN case
+      if (isNaN(zoomDurationSeconds)) {
+        zoomDurationSeconds = 0;
+      }
+    }
+    
     const duration = Math.floor(zoomDurationSeconds / 60); // Convert to minutes
     
     // Fallback: calculate from join/leave times if Zoom didn't provide duration
-    const calculatedDuration = Math.floor((leaveTime.getTime() - attendanceRecord.joinTime.getTime()) / (1000 * 60));
-    const finalDuration = duration > 0 ? duration : calculatedDuration;
+    const calculatedDuration = Math.max(0, Math.floor((leaveTime.getTime() - attendanceRecord.joinTime.getTime()) / (1000 * 60)));
+    
+    // Use calculated duration as primary if Zoom duration is 0 or very short (less than 1 min)
+    // This handles cases where Zoom's duration field isn't populated
+    const finalDuration = (duration >= 1) ? duration : Math.max(calculatedDuration, 1);
     
     const expectedDuration = meeting.durationMinutes || 60;
     const attendancePercent = Math.min((finalDuration / expectedDuration) * 100, 100);
@@ -396,10 +444,13 @@ async function handleParticipantLeft(event: any) {
     logger.info(`📊 Duration calculation:`, {
       zoomReportedSeconds: zoomDurationSeconds,
       zoomReportedMinutes: duration,
-      calculatedMinutes: calculatedDuration,
+      calculatedFromTimestamps: calculatedDuration,
       finalDurationUsed: finalDuration,
       expectedDuration,
       attendancePercent: `${attendancePercent.toFixed(1)}%`,
+      joinTime: attendanceRecord.joinTime.toISOString(),
+      leaveTime: leaveTime.toISOString(),
+      durationSource: (duration >= 1) ? 'ZOOM_WEBHOOK' : 'CALCULATED_FROM_TIMESTAMPS',
     });
     
     // Get existing activity timeline

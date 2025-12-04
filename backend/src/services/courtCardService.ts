@@ -98,8 +98,15 @@ function validateAttendance(
     }
   }
   
+  // Normalize timeline - handles both array format and object { events: [...] } format
+  const events = (() => {
+    if (!activityTimeline) return [];
+    if (Array.isArray(activityTimeline)) return activityTimeline;
+    if (activityTimeline.events && Array.isArray(activityTimeline.events)) return activityTimeline.events;
+    return [];
+  })();
+  
   // Count activity heartbeats
-  const events = activityTimeline?.events || [];
   const activityEvents = events.filter((e: any) => e.source === 'FRONTEND_MONITOR');
   const activeHeartbeats = events.filter((e: any) => e.type === 'ACTIVE' && e.source === 'FRONTEND_MONITOR').length;
   const idleHeartbeats = events.filter((e: any) => e.type === 'IDLE' && e.source === 'FRONTEND_MONITOR').length;

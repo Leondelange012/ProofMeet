@@ -554,7 +554,15 @@ router.post(
       await recordLeaveEvent(attendanceId, 'Final leave');
 
       // Calculate durations using activity timeline
-      const activityTimeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
+      // Timeline is stored as { events: [...] } - extract the events array
+      const rawTimeline = attendance.activityTimeline as any;
+      const activityTimeline: ActivityEvent[] = (() => {
+        if (!rawTimeline) return [];
+        if (Array.isArray(rawTimeline)) return rawTimeline;
+        if (rawTimeline.events && Array.isArray(rawTimeline.events)) return rawTimeline.events;
+        return [];
+      })();
+      
       const durationCalc = calculateActiveDuration(
         joinTime,
         leaveTime,

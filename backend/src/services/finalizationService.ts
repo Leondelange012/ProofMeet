@@ -45,7 +45,14 @@ async function finalizeAttendanceRecord(attendanceId: string): Promise<boolean> 
     logger.info(`   Participant: ${attendance.participant.email}`);
 
     const joinTime = attendance.joinTime;
-    const activityTimeline = (attendance.activityTimeline as unknown as ActivityEvent[]) || [];
+    // Timeline is stored as { events: [...] } - extract the events array
+    const rawTimeline = attendance.activityTimeline as any;
+    const activityTimeline: ActivityEvent[] = (() => {
+      if (!rawTimeline) return [];
+      if (Array.isArray(rawTimeline)) return rawTimeline;
+      if (rawTimeline.events && Array.isArray(rawTimeline.events)) return rawTimeline.events;
+      return [];
+    })();
     
     // ============================================
     // ZOOM-ONLY TRACKING: Use Zoom webhook data (PRIMARY SOURCE OF TRUTH)
