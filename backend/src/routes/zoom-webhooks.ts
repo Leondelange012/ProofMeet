@@ -5,6 +5,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';
 import { generateCourtCard } from '../services/courtCardService';
@@ -13,12 +14,15 @@ import { websocketService } from '../services/websocketService';
 
 const router = Router();
 
-// Zoom webhook verification endpoint (GET request)
+// Zoom webhook secret token for validation (from Zoom app settings)
+const ZOOM_WEBHOOK_SECRET = process.env.ZOOM_WEBHOOK_SECRET || '';
+
+// Zoom webhook verification endpoint (GET request - legacy method)
 router.get('/zoom', (req: Request, res: Response) => {
   const challenge = req.query.challenge as string;
   
   if (challenge) {
-    logger.info('📞 Zoom webhook verification request received');
+    logger.info('📞 Zoom webhook verification request received (GET/legacy)');
     return res.status(200).json({ challenge });
   }
   
@@ -29,6 +33,31 @@ router.get('/zoom', (req: Request, res: Response) => {
 router.post('/zoom', async (req: Request, res: Response) => {
   try {
     const event = req.body;
+    
+    // Handle Zoom URL validation (new method - POST-based)
+    if (event.event === 'endpoint.url_validation') {
+      logger.info('📞 Zoom webhook URL validation request received (POST/new)');
+      
+      const plainToken = event.payload?.plainToken;
+      
+      if (!plainToken) {
+        logger.error('❌ No plainToken in validation request');
+        return res.status(400).json({ error: 'No plainToken provided' });
+      }
+      
+      // Hash the plainToken using HMAC SHA-256 with webhook secret
+      const hashForValidate = crypto
+        .createHmac('sha256', ZOOM_WEBHOOK_SECRET)
+        .update(plainToken)
+        .digest('hex');
+      
+      logger.info('✅ Responding to Zoom URL validation with encrypted token');
+      
+      return res.status(200).json({
+        plainToken: plainToken,
+        encryptedToken: hashForValidate,
+      });
+    }
     
     logger.info(`📅 Zoom webhook event: ${event.event}`, {
       meetingId: event.payload?.object?.id,
