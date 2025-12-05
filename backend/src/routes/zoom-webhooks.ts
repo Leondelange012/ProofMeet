@@ -256,12 +256,27 @@ async function handleParticipantJoined(event: any) {
     },
   });
   
+  logger.info(`🔍 Attendance record lookup:`, {
+    participantId: user.id,
+    participantEmail: user.email,
+    meetingId: meeting.id,
+    meetingZoomId: meetingId,
+    existingRecordFound: !!attendanceRecord,
+    existingRecordId: attendanceRecord?.id,
+    existingJoinTime: attendanceRecord?.joinTime?.toISOString(),
+    zoomJoinTime: joinTime.toISOString(),
+  });
+  
   if (attendanceRecord) {
-    // REJOIN: Append to existing timeline (don't replace!)
+    // REJOIN or DUPLICATE JOIN: Append to existing timeline (don't replace!)
     const existingTimeline = attendanceRecord.activityTimeline as any || { events: [] };
-    const events = Array.isArray(existingTimeline) ? existingTimeline : (existingTimeline.events || []);
+    const events = normalizeTimeline(existingTimeline);
     
-    // Add rejoin event
+    // Check if this is a rejoin (we have previous ZOOM_LEFT events)
+    const previousLeaveEvents = events.filter((e: any) => e.type === 'ZOOM_LEFT');
+    const isRejoin = previousLeaveEvents.length > 0;
+    
+    // Add join event
     events.push({
       type: 'ZOOM_JOINED',
       timestamp: joinTime.toISOString(),
@@ -270,23 +285,33 @@ async function handleParticipantJoined(event: any) {
         participantName: participant.user_name,
         participantEmail: participant.email,
         zoomUserId: participant.user_id,
-        isRejoin: true,
+        isRejoin,
         previousEvents: events.length,
       },
     });
     
-    // Update record with appended timeline
+    // IMPORTANT: If Zoom's join time is EARLIER than our record's join time,
+    // update the join time to the earlier value (more accurate)
+    const updateData: any = {
+      activityTimeline: { events },
+    };
+    
+    if (joinTime < attendanceRecord.joinTime) {
+      updateData.joinTime = joinTime;
+      logger.info(`📍 Updating joinTime to earlier Zoom time: ${joinTime.toISOString()} (was ${attendanceRecord.joinTime.toISOString()})`);
+    }
+    
+    // Update record with appended timeline and potentially earlier join time
     await prisma.attendanceRecord.update({
       where: { id: attendanceRecord.id },
-      data: {
-        activityTimeline: { events },
-      },
+      data: updateData,
     });
     
-    logger.info(`✅ Recorded REJOIN for ${participant.user_name} (event #${events.length})`, {
+    logger.info(`✅ Recorded ${isRejoin ? 'REJOIN' : 'JOIN'} for ${participant.user_name} (event #${events.length})`, {
       attendanceId: attendanceRecord.id,
       joinTime: joinTime.toISOString(),
       totalEvents: events.length,
+      isRejoin,
     });
   } else {
     // Create new attendance record if participant joined directly via Zoom
@@ -412,6 +437,28 @@ async function handleParticipantLeft(event: any) {
   });
   
   if (attendanceRecord) {
+    // Get existing activity timeline to find the EARLIEST join time
+    const existingTimeline = attendanceRecord.activityTimeline as any || { events: [] };
+    const events = normalizeTimeline(existingTimeline);
+    
+    // Find the earliest ZOOM_JOINED event for accurate join time
+    const joinEvents = events.filter((e: any) => e.type === 'ZOOM_JOINED' && e.source === 'ZOOM_WEBHOOK');
+    let effectiveJoinTime = attendanceRecord.joinTime;
+    
+    if (joinEvents.length > 0) {
+      // Sort join events by timestamp and use the earliest one
+      const sortedJoinEvents = joinEvents.sort((a: any, b: any) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      const firstJoinTimestamp = new Date(sortedJoinEvents[0].timestamp);
+      
+      // Use the earlier of: attendance record joinTime or first Zoom join event
+      if (firstJoinTimestamp < effectiveJoinTime) {
+        effectiveJoinTime = firstJoinTimestamp;
+        logger.info(`📍 Using earlier join time from timeline: ${effectiveJoinTime.toISOString()}`);
+      }
+    }
+    
     // IMPORTANT: Use Zoom's reported duration as the source of truth
     // Zoom provides participant.duration in seconds, which is accurate even if they rejoined
     // However, some Zoom account types may not provide this field, so we need robust fallback
@@ -431,8 +478,8 @@ async function handleParticipantLeft(event: any) {
     
     const duration = Math.floor(zoomDurationSeconds / 60); // Convert to minutes
     
-    // Fallback: calculate from join/leave times if Zoom didn't provide duration
-    const calculatedDuration = Math.max(0, Math.floor((leaveTime.getTime() - attendanceRecord.joinTime.getTime()) / (1000 * 60)));
+    // Fallback: calculate from timestamps using EFFECTIVE join time (earliest known)
+    const calculatedDuration = Math.max(0, Math.floor((leaveTime.getTime() - effectiveJoinTime.getTime()) / (1000 * 60)));
     
     // Use calculated duration as primary if Zoom duration is 0 or very short (less than 1 min)
     // This handles cases where Zoom's duration field isn't populated
@@ -448,8 +495,10 @@ async function handleParticipantLeft(event: any) {
       finalDurationUsed: finalDuration,
       expectedDuration,
       attendancePercent: `${attendancePercent.toFixed(1)}%`,
-      joinTime: attendanceRecord.joinTime.toISOString(),
+      recordJoinTime: attendanceRecord.joinTime.toISOString(),
+      effectiveJoinTime: effectiveJoinTime.toISOString(),
       leaveTime: leaveTime.toISOString(),
+      timelineJoinEvents: joinEvents.length,
       durationSource: (duration >= 1) ? 'ZOOM_WEBHOOK' : 'CALCULATED_FROM_TIMESTAMPS',
     });
     
@@ -504,9 +553,11 @@ async function handleParticipantLeft(event: any) {
     const finalIdleDuration = idleDurationMin > 0 ? idleDurationMin : 0;
     
     // Update attendance record with REAL data from Zoom webhook
+    // Also update joinTime to the effective (earliest) join time for accuracy
     const updatedRecord = await prisma.attendanceRecord.update({
       where: { id: attendanceRecord.id },
       data: {
+        joinTime: effectiveJoinTime, // Use the earliest known join time
         leaveTime,
         totalDurationMin: finalDuration,
         activeDurationMin: finalActiveDuration,
