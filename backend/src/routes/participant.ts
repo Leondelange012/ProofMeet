@@ -106,11 +106,23 @@ router.get('/dashboard', async (req: Request, res: Response) => {
       }
     }
 
-    // Get recent meetings
+    // Get recent meetings with court cards
     const recentMeetings = await prisma.attendanceRecord.findMany({
       where: { participantId },
       orderBy: { meetingDate: 'desc' },
       take: 5,
+      include: {
+        courtCard: {
+          select: {
+            id: true,
+            cardNumber: true,
+            validationStatus: true,
+            confidenceLevel: true,
+            verificationMethod: true,
+            generatedAt: true,
+          },
+        },
+      },
     });
 
     res.json({
@@ -137,14 +149,29 @@ router.get('/dashboard', async (req: Request, res: Response) => {
           meetingsPerWeek: requirement.meetingsPerWeek,
           requiredPrograms: requirement.requiredPrograms,
           minimumDuration: requirement.minimumDurationMinutes,
-        } : null,
+          courtName: participant.courtRep ? `${participant.courtRep.firstName} ${participant.courtRep.lastName}` : 'N/A',
+        } : {
+          meetingsPerWeek: 0,
+          requiredPrograms: [],
+          minimumDuration: 60,
+          courtName: 'N/A',
+        },
         recentMeetings: recentMeetings.map(record => ({
           id: record.id,
           meetingName: record.meetingName,
-          date: record.meetingDate,
-          duration: record.totalDurationMin,
-          attendancePercentage: record.attendancePercent,
+          meetingProgram: record.meetingProgram,
+          meetingDate: record.meetingDate,
+          totalDurationMin: record.totalDurationMin,
+          attendancePercent: record.attendancePercent,
           status: record.status,
+          courtCard: record.courtCard ? {
+            id: record.courtCard.id,
+            cardNumber: record.courtCard.cardNumber,
+            validationStatus: record.courtCard.validationStatus,
+            confidenceLevel: record.courtCard.confidenceLevel,
+            verificationMethod: record.courtCard.verificationMethod,
+            generatedAt: record.courtCard.generatedAt,
+          } : null,
         })),
       },
     });
@@ -947,6 +974,120 @@ router.get('/court-card/:attendanceId', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Get court card error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * GET /api/participant/court-card-pdf/:attendanceId
+ * Download Court Card PDF for a specific attendance record
+ */
+router.get('/court-card-pdf/:attendanceId', async (req: Request, res: Response) => {
+  try {
+    const participantId = req.user!.id;
+    const { attendanceId } = req.params;
+
+    // Verify attendance belongs to this participant
+    const attendance = await prisma.attendanceRecord.findFirst({
+      where: {
+        id: attendanceId,
+        participantId,
+      },
+      include: {
+        courtCard: true,
+        participant: {
+          include: {
+            courtRep: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        error: 'Attendance record not found',
+      });
+    }
+
+    if (!attendance.courtCard) {
+      return res.status(404).json({
+        success: false,
+        error: 'Court Card not yet generated',
+      });
+    }
+
+    // Generate PDF with court card data
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({ margin: 50 });
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="CourtCard_${attendance.courtCard.cardNumber}.pdf"`);
+
+    // Pipe PDF to response
+    doc.pipe(res);
+
+    // Add content
+    doc.fontSize(20).text('ProofMeet Court Card', { align: 'center' });
+    doc.moveDown();
+
+    // Card information
+    doc.fontSize(14).text(`Card Number: ${attendance.courtCard.cardNumber}`, { bold: true });
+    doc.fontSize(12).text(`Participant: ${attendance.courtCard.participantName}`);
+    doc.text(`Case Number: ${attendance.courtCard.caseNumber}`);
+    doc.text(`Court Rep: ${attendance.courtCard.courtRepName}`);
+    doc.moveDown();
+
+    // Meeting information
+    doc.fontSize(14).text('Meeting Details', { underline: true });
+    doc.fontSize(12).text(`Meeting: ${attendance.courtCard.meetingName}`);
+    doc.text(`Program: ${attendance.courtCard.meetingProgram}`);
+    doc.text(`Date: ${new Date(attendance.courtCard.meetingDate).toLocaleDateString()}`);
+    doc.text(`Scheduled Duration: ${attendance.courtCard.meetingDurationMin} minutes`);
+    doc.moveDown();
+
+    // Attendance metrics
+    doc.fontSize(14).text('Attendance Metrics', { underline: true });
+    doc.fontSize(12).text(`Time Joined: ${new Date(attendance.courtCard.joinTime).toLocaleTimeString()}`);
+    doc.text(`Time Left: ${new Date(attendance.courtCard.leaveTime).toLocaleTimeString()}`);
+    doc.text(`Total Duration: ${attendance.courtCard.totalDurationMin} minutes`);
+    doc.text(`Attendance: ${attendance.courtCard.attendancePercent.toFixed(1)}%`);
+    doc.moveDown();
+
+    // Validation status
+    doc.fontSize(14).text('Validation Status', { underline: true });
+    const status = attendance.courtCard.validationStatus === 'PASSED' ? 'COMPLIANT' : 'NON-COMPLIANT';
+    doc.fontSize(12).text(`Status: ${status}`, { 
+      bold: true,
+      color: attendance.courtCard.validationStatus === 'PASSED' ? 'green' : 'red',
+    });
+    doc.text(`Confidence Level: ${attendance.courtCard.confidenceLevel}`);
+    doc.text(`Verification Method: ${attendance.courtCard.verificationMethod}`);
+    doc.moveDown();
+
+    // QR Code and verification
+    doc.fontSize(10).text('Verification URL:', { continued: false });
+    doc.text(attendance.courtCard.verificationUrl, { link: attendance.courtCard.verificationUrl });
+    doc.moveDown();
+
+    doc.fontSize(8).text(`Generated: ${new Date(attendance.courtCard.generatedAt).toLocaleString()}`, { align: 'center' });
+
+    // Finalize PDF
+    doc.end();
+
+    logger.info(`Court Card PDF generated for participant ${participantId}, attendance ${attendanceId}`);
+  } catch (error: any) {
+    logger.error('Generate court card PDF error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

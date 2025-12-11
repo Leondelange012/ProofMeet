@@ -16,11 +16,17 @@ import {
   CircularProgress,
   Alert,
   LinearProgress,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   CheckCircle,
   MeetingRoom,
   TrendingUp,
+  Download,
+  Verified,
+  Warning,
+  Error,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
@@ -98,6 +104,45 @@ const ParticipantDashboardPage: React.FC = () => {
       setError(err.response?.data?.error || err.message || 'Failed to load dashboard');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadCourtCard = async (attendanceId: string, cardNumber: string) => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(
+        `${API_BASE_URL}/participant/court-card-pdf/${attendanceId}`,
+        {
+          headers,
+          responseType: 'blob',
+        }
+      );
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `CourtCard_${cardNumber}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Download court card error:', err);
+      setError('Failed to download court card');
+    }
+  };
+
+  const getValidationStatusIcon = (status: string) => {
+    switch (status) {
+      case 'PASSED':
+        return <Verified sx={{ color: 'success.main', fontSize: 20 }} />;
+      case 'FAILED':
+        return <Error sx={{ color: 'error.main', fontSize: 20 }} />;
+      case 'FLAGGED_FOR_REVIEW':
+        return <Warning sx={{ color: 'warning.main', fontSize: 20 }} />;
+      default:
+        return null;
     }
   };
 
@@ -312,12 +357,12 @@ const ParticipantDashboardPage: React.FC = () => {
 
       </Grid>
 
-      {/* Recent Activity Preview */}
+      {/* Recent Meetings with Court Cards */}
       {recentAttendance.length > 0 && (
         <Card>
           <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">Recent Meetings</Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">Recent Meetings & Court Cards</Typography>
               <Button 
                 size="small" 
                 onClick={() => navigate('/participant/progress')}
@@ -326,42 +371,106 @@ const ParticipantDashboardPage: React.FC = () => {
               </Button>
             </Box>
             <Grid container spacing={2}>
-              {recentAttendance.slice(0, 3).map((record: any) => (
+              {recentAttendance.slice(0, 5).map((record: any) => (
                 <Grid item xs={12} key={record.id}>
                   <Box 
                     sx={{ 
                       p: 2, 
                       bgcolor: 'action.hover', 
                       borderRadius: 2,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
                     }}
                   >
-                    <Box>
-                      <Typography variant="body1" fontWeight="medium">
-                        {record.meetingName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {new Date(record.meetingDate).toLocaleDateString()} • {record.meetingProgram}
-                      </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body1" fontWeight="medium">
+                          {record.meetingName}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {new Date(record.meetingDate).toLocaleDateString()} • {record.meetingProgram}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Duration: {record.totalDurationMin || 0} minutes
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        <Chip 
+                          label={`${record.attendancePercent || 0}%`}
+                          size="small"
+                          color={
+                            Number(record.attendancePercent || 0) >= 90
+                              ? 'success'
+                              : Number(record.attendancePercent || 0) >= 75
+                              ? 'warning'
+                              : 'error'
+                          }
+                        />
+                        {record.status === 'COMPLETED' && (
+                          <CheckCircle sx={{ color: 'success.main', fontSize: 20 }} />
+                        )}
+                      </Box>
                     </Box>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Chip 
-                        label={`${record.attendancePercent || 0}%`}
-                        size="small"
-                        color={
-                          Number(record.attendancePercent || 0) >= 90
-                            ? 'success'
-                            : Number(record.attendancePercent || 0) >= 75
-                            ? 'warning'
-                            : 'error'
-                        }
-                      />
-                      {record.status === 'COMPLETED' && (
-                        <CheckCircle sx={{ color: 'success.main', fontSize: 20 }} />
-                      )}
-                    </Box>
+
+                    {/* Court Card Section */}
+                    {record.courtCard ? (
+                      <Box 
+                        sx={{ 
+                          mt: 2, 
+                          pt: 2, 
+                          borderTop: '1px solid',
+                          borderColor: 'divider',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {getValidationStatusIcon(record.courtCard.validationStatus)}
+                          <Box>
+                            <Typography variant="body2" fontWeight="medium">
+                              Court Card: {record.courtCard.cardNumber}
+                            </Typography>
+                            <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                              <Chip 
+                                label={record.courtCard.validationStatus === 'PASSED' ? 'Compliant' : 'Non-Compliant'}
+                                size="small"
+                                color={record.courtCard.validationStatus === 'PASSED' ? 'success' : 'error'}
+                                sx={{ height: 20, fontSize: '0.7rem' }}
+                              />
+                              <Chip 
+                                label={record.courtCard.confidenceLevel}
+                                size="small"
+                                variant="outlined"
+                                sx={{ height: 20, fontSize: '0.7rem' }}
+                              />
+                            </Box>
+                          </Box>
+                        </Box>
+                        <Tooltip title="Download Court Card PDF">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => downloadCourtCard(record.id, record.courtCard.cardNumber)}
+                          >
+                            <Download />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    ) : (
+                      <Box 
+                        sx={{ 
+                          mt: 2, 
+                          pt: 2, 
+                          borderTop: '1px solid',
+                          borderColor: 'divider',
+                        }}
+                      >
+                        <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                          {record.status === 'IN_PROGRESS' 
+                            ? 'Meeting in progress - Court card will be generated upon completion' 
+                            : 'Court card is being generated...'}
+                        </Typography>
+                      </Box>
+                    )}
                   </Box>
                 </Grid>
               ))}
