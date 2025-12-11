@@ -332,7 +332,7 @@ async function handleParticipantJoined(event: any) {
           meetingDate: new Date(),
           joinTime,
           status: 'IN_PROGRESS',
-          verificationMethod: 'ZOOM_WEBHOOK',
+          verificationMethod: 'ZOOM_WEBHOOKS',
           activityTimeline: {
             events: [
               {
@@ -564,7 +564,7 @@ async function handleParticipantLeft(event: any) {
         idleDurationMin: finalIdleDuration,
         attendancePercent,
         status: 'COMPLETED',
-        verificationMethod: 'ZOOM_WEBHOOK', // Primary source of truth
+        verificationMethod: 'ZOOM_WEBHOOKS', // Primary source of truth
         activityTimeline: { events },
       },
     });
