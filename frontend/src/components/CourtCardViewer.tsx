@@ -93,6 +93,8 @@ const CourtCardViewer: React.FC<CourtCardViewerProps> = ({
       setDownloading(true);
       setError('');
 
+      console.log('Downloading PDF for attendance:', attendanceId);
+
       const headers = { Authorization: `Bearer ${token}` };
       const response = await axios.get(
         `${API_BASE_URL}/participant/court-card-pdf/${attendanceId}`,
@@ -101,6 +103,16 @@ const CourtCardViewer: React.FC<CourtCardViewerProps> = ({
           responseType: 'blob',
         }
       );
+
+      console.log('PDF response received:', response.status, response.headers['content-type']);
+
+      // Check if response is actually a PDF
+      if (response.data.type !== 'application/pdf') {
+        // Might be an error response in JSON format
+        const text = await response.data.text();
+        console.error('Received non-PDF response:', text);
+        throw new Error('Received invalid response from server');
+      }
 
       // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
@@ -111,9 +123,31 @@ const CourtCardViewer: React.FC<CourtCardViewerProps> = ({
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      
+      console.log('PDF download initiated successfully');
     } catch (err: any) {
-      console.error('Download error:', err);
-      setError(err.response?.data?.error || 'Failed to download PDF');
+      console.error('Download error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        headers: err.response?.headers,
+      });
+      
+      // Try to extract error message from blob if it's JSON
+      let errorMessage = 'Failed to download PDF';
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const jsonError = JSON.parse(text);
+          errorMessage = jsonError.error || errorMessage;
+        } catch (parseErr) {
+          // Not JSON, use default message
+        }
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+      
+      setError(errorMessage);
     } finally {
       setDownloading(false);
     }

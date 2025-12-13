@@ -1062,6 +1062,7 @@ router.get('/court-card-pdf/:attendanceId', async (req: Request, res: Response) 
     });
 
     if (!attendance) {
+      logger.warn(`Attendance record not found: ${attendanceId} for participant ${participantId}`);
       return res.status(404).json({
         success: false,
         error: 'Attendance record not found',
@@ -1069,11 +1070,14 @@ router.get('/court-card-pdf/:attendanceId', async (req: Request, res: Response) 
     }
 
     if (!attendance.courtCard) {
+      logger.warn(`Court Card not yet generated for attendance: ${attendanceId}`);
       return res.status(404).json({
         success: false,
         error: 'Court Card not yet generated',
       });
     }
+
+    logger.info(`Generating PDF for court card: ${attendance.courtCard.cardNumber}`);
 
     // Generate PDF with court card data
     const PDFDocument = require('pdfkit');
@@ -1085,6 +1089,11 @@ router.get('/court-card-pdf/:attendanceId', async (req: Request, res: Response) 
 
     // Pipe PDF to response
     doc.pipe(res);
+    
+    // Handle PDF generation errors
+    doc.on('error', (err: any) => {
+      logger.error('PDF generation error:', err);
+    });
 
     // Add content
     doc.fontSize(20).text('ProofMeet Court Card', { align: 'center' });
