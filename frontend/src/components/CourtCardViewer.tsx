@@ -106,14 +106,6 @@ const CourtCardViewer: React.FC<CourtCardViewerProps> = ({
 
       console.log('PDF response received:', response.status, response.headers['content-type']);
 
-      // Check if response is actually a PDF
-      if (response.data.type !== 'application/pdf') {
-        // Might be an error response in JSON format
-        const text = await response.data.text();
-        console.error('Received non-PDF response:', text);
-        throw new Error('Received invalid response from server');
-      }
-
       // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
