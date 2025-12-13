@@ -332,7 +332,7 @@ async function handleParticipantJoined(event: any) {
           meetingDate: new Date(),
           joinTime,
           status: 'IN_PROGRESS',
-          verificationMethod: 'ZOOM_WEBHOOKS',
+          verificationMethod: 'ZOOM_WEBHOOK',
           activityTimeline: {
             events: [
               {
@@ -502,10 +502,6 @@ async function handleParticipantLeft(event: any) {
       durationSource: (duration >= 1) ? 'ZOOM_WEBHOOK' : 'CALCULATED_FROM_TIMESTAMPS',
     });
     
-    // Get existing activity timeline
-    const existingTimeline = attendanceRecord.activityTimeline as any || { events: [] };
-    const events = Array.isArray(existingTimeline) ? existingTimeline : (existingTimeline.events || []);
-    
     // Calculate if they left early
     // Use the join time as the effective start (since we don't have scheduled meeting times)
     const effectiveMeetingStart = attendanceRecord.joinTime;
@@ -513,10 +509,10 @@ async function handleParticipantLeft(event: any) {
     const minutesEarly = Math.max(0, Math.floor((meetingEnd.getTime() - leaveTime.getTime()) / (1000 * 60)));
     const leftEarly = minutesEarly > 5; // More than 5 minutes early
     
-    // Count total join/leave pairs
-    const joinEvents = events.filter((e: any) => e.type === 'ZOOM_JOINED').length;
-    const leaveEvents = events.filter((e: any) => e.type === 'ZOOM_LEFT').length;
-    const isTemporaryLeave = joinEvents > leaveEvents + 1; // They might rejoin
+    // Count total join/leave pairs from the already loaded events
+    const joinEventsCount = events.filter((e: any) => e.type === 'ZOOM_JOINED').length;
+    const leaveEventsCount = events.filter((e: any) => e.type === 'ZOOM_LEFT').length;
+    const isTemporaryLeave = joinEventsCount > leaveEventsCount + 1; // They might rejoin
     
     // Add leave event
     events.push({
@@ -532,8 +528,8 @@ async function handleParticipantLeft(event: any) {
         minutesEarly,
         leftEarly,
         isTemporaryLeave,
-        totalJoins: joinEvents,
-        totalLeaves: leaveEvents + 1,
+        totalJoins: joinEventsCount,
+        totalLeaves: leaveEventsCount + 1,
       },
     });
     
@@ -564,7 +560,7 @@ async function handleParticipantLeft(event: any) {
         idleDurationMin: finalIdleDuration,
         attendancePercent,
         status: 'COMPLETED',
-        verificationMethod: 'ZOOM_WEBHOOKS', // Primary source of truth
+        verificationMethod: 'ZOOM_WEBHOOK', // Primary source of truth
         activityTimeline: { events },
       },
     });
