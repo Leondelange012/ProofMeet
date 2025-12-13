@@ -31,9 +31,6 @@ import {
   CheckCircle,
   Warning,
   Error,
-  Verified,
-  Schedule,
-  Person,
   VideoCall,
   Assessment,
 } from '@mui/icons-material';
