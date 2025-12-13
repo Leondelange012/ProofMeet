@@ -23,7 +23,7 @@ import {
   CheckCircle,
   MeetingRoom,
   TrendingUp,
-  Download,
+  Visibility,
   Verified,
   Warning,
   Error,
@@ -31,6 +31,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import { useWebSocketConnection, useWebSocketEvents } from '../hooks/useWebSocket';
+import CourtCardViewer from '../components/CourtCardViewer';
 import axios from 'axios';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
@@ -43,6 +44,8 @@ const ParticipantDashboardPage: React.FC = () => {
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState('');
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [selectedCourtCard, setSelectedCourtCard] = useState<{ attendanceId: string; cardNumber: string } | null>(null);
 
   // WebSocket connection
   useWebSocketConnection();
@@ -107,30 +110,14 @@ const ParticipantDashboardPage: React.FC = () => {
     }
   };
 
-  const downloadCourtCard = async (attendanceId: string, cardNumber: string) => {
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.get(
-        `${API_BASE_URL}/participant/court-card-pdf/${attendanceId}`,
-        {
-          headers,
-          responseType: 'blob',
-        }
-      );
+  const openCourtCardViewer = (attendanceId: string, cardNumber: string) => {
+    setSelectedCourtCard({ attendanceId, cardNumber });
+    setViewerOpen(true);
+  };
 
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `CourtCard_${cardNumber}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err: any) {
-      console.error('Download court card error:', err);
-      setError('Failed to download court card');
-    }
+  const closeCourtCardViewer = () => {
+    setViewerOpen(false);
+    setSelectedCourtCard(null);
   };
 
   const getValidationStatusIcon = (status: string) => {
@@ -445,13 +432,13 @@ const ParticipantDashboardPage: React.FC = () => {
                             </Box>
                           </Box>
                         </Box>
-                        <Tooltip title="Download Court Card PDF">
+                        <Tooltip title="View Court Card">
                           <IconButton
                             size="small"
                             color="primary"
-                            onClick={() => downloadCourtCard(record.id, record.courtCard.cardNumber)}
+                            onClick={() => openCourtCardViewer(record.id, record.courtCard.cardNumber)}
                           >
-                            <Download />
+                            <Visibility />
                           </IconButton>
                         </Tooltip>
                       </Box>
@@ -477,6 +464,17 @@ const ParticipantDashboardPage: React.FC = () => {
             </Grid>
           </CardContent>
         </Card>
+      )}
+
+      {/* Court Card Viewer Modal */}
+      {selectedCourtCard && (
+        <CourtCardViewer
+          open={viewerOpen}
+          onClose={closeCourtCardViewer}
+          attendanceId={selectedCourtCard.attendanceId}
+          cardNumber={selectedCourtCard.cardNumber}
+          token={token || ''}
+        />
       )}
     </Container>
   );

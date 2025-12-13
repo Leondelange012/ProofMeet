@@ -982,6 +982,53 @@ router.get('/court-card/:attendanceId', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/participant/attendance/:attendanceId
+ * Get attendance record details for viewing court card
+ */
+router.get('/attendance/:attendanceId', async (req: Request, res: Response) => {
+  try {
+    const participantId = req.user!.id;
+    const { attendanceId } = req.params;
+
+    // Get attendance record with court card
+    const attendance = await prisma.attendanceRecord.findFirst({
+      where: {
+        id: attendanceId,
+        participantId,
+      },
+      include: {
+        courtCard: true,
+        participant: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        error: 'Attendance record not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: attendance,
+    });
+  } catch (error: any) {
+    logger.error('Get attendance error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
  * GET /api/participant/court-card-pdf/:attendanceId
  * Download Court Card PDF for a specific attendance record
  */
@@ -989,6 +1036,8 @@ router.get('/court-card-pdf/:attendanceId', async (req: Request, res: Response) 
   try {
     const participantId = req.user!.id;
     const { attendanceId } = req.params;
+
+    logger.info(`PDF download requested for attendance ${attendanceId} by participant ${participantId}`);
 
     // Verify attendance belongs to this participant
     const attendance = await prisma.attendanceRecord.findFirst({

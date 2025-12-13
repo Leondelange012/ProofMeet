@@ -41,6 +41,7 @@
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.16.3",
     "prisma": "^5.4.2",
     "qrcode": "^1.5.3",
     "tsx": "^4.7.0",
