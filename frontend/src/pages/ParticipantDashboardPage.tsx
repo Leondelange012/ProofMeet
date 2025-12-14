@@ -22,7 +22,6 @@ import {
 import {
   CheckCircle,
   MeetingRoom,
-  TrendingUp,
   Visibility,
   Verified,
   Warning,
@@ -300,48 +299,6 @@ const ParticipantDashboardPage: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6}>
-          <Card 
-            elevation={1}
-            sx={{ 
-              height: '100%', 
-              cursor: 'pointer',
-              border: '1px solid',
-              borderColor: 'divider',
-              transition: 'all 0.2s ease',
-              '&:hover': { 
-                boxShadow: 4,
-                borderColor: 'success.main',
-              }
-            }} 
-            onClick={() => navigate('/participant/progress')}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Box
-                  sx={{
-                    backgroundColor: 'success.light',
-                    borderRadius: 2,
-                    p: 1.5,
-                    mr: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <TrendingUp sx={{ fontSize: 32, color: 'success.main' }} />
-                </Box>
-                <Typography variant="h6" fontWeight="600" sx={{ flex: 1 }}>
-                  My Progress
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                View detailed attendance history
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
       </Grid>
 
       {/* Recent Meetings with Court Cards */}
@@ -350,15 +307,9 @@ const ParticipantDashboardPage: React.FC = () => {
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">Recent Meetings & Court Cards</Typography>
-              <Button 
-                size="small" 
-                onClick={() => navigate('/participant/progress')}
-              >
-                View All
-              </Button>
             </Box>
             <Grid container spacing={2}>
-              {recentAttendance.slice(0, 5).map((record: any) => (
+              {recentAttendance.map((record: any) => (
                 <Grid item xs={12} key={record.id}>
                   <Box 
                     sx={{ 
