@@ -206,6 +206,52 @@ const ParticipantDashboardPage: React.FC = () => {
         </Alert>
       )}
 
+      {/* Quick Actions */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6}>
+          <Card 
+            elevation={1}
+            sx={{ 
+              height: '100%', 
+              cursor: 'pointer',
+              border: '1px solid',
+              borderColor: 'divider',
+              transition: 'all 0.2s ease',
+              '&:hover': { 
+                boxShadow: 4,
+                borderColor: 'primary.main',
+              }
+            }} 
+            onClick={() => navigate('/meetings')}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Box
+                  sx={{
+                    backgroundColor: 'primary.light',
+                    borderRadius: 2,
+                    p: 1.5,
+                    mr: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <MeetingRoom sx={{ fontSize: 32, color: 'primary.main' }} />
+                </Box>
+                <Typography variant="h6" fontWeight="600" sx={{ flex: 1 }}>
+                  Browse Meetings
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                Find and join recovery meetings
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+      </Grid>
+
       {/* Progress Card */}
       {requirements && (
         <Card sx={{ mb: 3 }}>
@@ -253,52 +299,6 @@ const ParticipantDashboardPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
-
-      {/* Quick Actions */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6}>
-          <Card 
-            elevation={1}
-            sx={{ 
-              height: '100%', 
-              cursor: 'pointer',
-              border: '1px solid',
-              borderColor: 'divider',
-              transition: 'all 0.2s ease',
-              '&:hover': { 
-                boxShadow: 4,
-                borderColor: 'primary.main',
-              }
-            }} 
-            onClick={() => navigate('/meetings')}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Box
-                  sx={{
-                    backgroundColor: 'primary.light',
-                    borderRadius: 2,
-                    p: 1.5,
-                    mr: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <MeetingRoom sx={{ fontSize: 32, color: 'primary.main' }} />
-                </Box>
-                <Typography variant="h6" fontWeight="600" sx={{ flex: 1 }}>
-                  Browse Meetings
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Find and join recovery meetings
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-      </Grid>
 
       {/* Recent Meetings with Court Cards */}
       {recentAttendance.length > 0 && (
