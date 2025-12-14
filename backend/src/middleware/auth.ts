@@ -36,10 +36,13 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     const token = authHeader.substring(7);
 
     // Verify token
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'dev-secret-change-in-production'
-    ) as { userId: string; userType: string };
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      logger.error('CRITICAL: JWT_SECRET environment variable is not set');
+      throw new Error('Server configuration error');
+    }
+    
+    const decoded = jwt.verify(token, jwtSecret) as { userId: string; userType: string };
 
     // Get user from database
     const user = await prisma.user.findUnique({
@@ -155,10 +158,13 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
 
     const token = authHeader.substring(7);
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'dev-secret-change-in-production'
-    ) as { userId: string; userType: string };
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      logger.error('CRITICAL: JWT_SECRET environment variable is not set');
+      return next(); // Continue without auth for optional auth
+    }
+
+    const decoded = jwt.verify(token, jwtSecret) as { userId: string; userType: string };
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },

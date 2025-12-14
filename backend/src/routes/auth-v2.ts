@@ -19,7 +19,11 @@ const router = Router();
  * Generate JWT token
  */
 function generateToken(userId: string, userType: string): string {
-  const secret: string = process.env['JWT_SECRET'] || 'dev-secret-change-in-production';
+  const secret: string = process.env['JWT_SECRET'];
+  if (!secret) {
+    logger.error('CRITICAL: JWT_SECRET environment variable is not set');
+    throw new Error('Server configuration error - JWT_SECRET is required');
+  }
   return jwt.sign(
     { userId, userType },
     secret,
