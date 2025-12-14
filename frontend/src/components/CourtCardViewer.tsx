@@ -200,9 +200,6 @@ const CourtCardViewer: React.FC<CourtCardViewerProps> = ({
                     <Typography variant="h6">
                       {cardData.courtCard?.validationStatus === 'PASSED' ? 'Compliant' : 'Non-Compliant'}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Verification Method: {cardData.verificationMethod || 'N/A'}
-                    </Typography>
                   </Box>
                   <Chip
                     label={cardData.courtCard?.confidenceLevel || 'MEDIUM'}
