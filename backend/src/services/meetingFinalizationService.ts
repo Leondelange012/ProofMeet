@@ -75,9 +75,13 @@ export async function finalizePendingMeetings(): Promise<void> {
           const timeline = (record.activityTimeline as any)?.events || [];
           
           // Find the last activity event (ACTIVE or IDLE, not just any event)
-          const activityEvents = timeline.filter((e: any) => 
-            e.source === 'FRONTEND_MONITOR' && (e.type === 'ACTIVE' || e.type === 'IDLE')
-          );
+          // Check both e.source and e.metadata.source for backward compatibility
+          const activityEvents = timeline.filter((e: any) => {
+            const source = e.metadata?.source || e.source;
+            const isFromFrontend = !source || source === 'FRONTEND_MONITOR'; // Accept if no source or correct source
+            const isActivityEvent = e.type === 'ACTIVE' || e.type === 'IDLE';
+            return isFromFrontend && isActivityEvent;
+          });
           
           let leaveTime: Date;
           let totalDurationMinutes: number;
