@@ -140,8 +140,22 @@ export function calculateActivityDurations(activityTimeline: any): {
   const events = normalizeTimeline(activityTimeline);
   
   // Count ACTIVE and IDLE events from frontend heartbeats
-  const activeEvents = events.filter((e: any) => e.type === 'ACTIVE' && e.source === 'FRONTEND_MONITOR');
-  const idleEvents = events.filter((e: any) => e.type === 'IDLE' && e.source === 'FRONTEND_MONITOR');
+  // Support both tagged (metadata.source) and untagged events for backward compatibility
+  const activeEvents = events.filter((e: any) => {
+    if (e.type !== 'ACTIVE') return false;
+    // If source exists, it must be FRONTEND_MONITOR
+    // If no source, accept any ACTIVE event (backward compatibility)
+    const source = e.metadata?.source || e.source;
+    return !source || source === 'FRONTEND_MONITOR';
+  });
+  
+  const idleEvents = events.filter((e: any) => {
+    if (e.type !== 'IDLE') return false;
+    // If source exists, it must be FRONTEND_MONITOR
+    // If no source, accept any IDLE event (backward compatibility)
+    const source = e.metadata?.source || e.source;
+    return !source || source === 'FRONTEND_MONITOR';
+  });
   
   // Each heartbeat represents approximately 30 seconds of activity
   const HEARTBEAT_DURATION_SECONDS = 30;

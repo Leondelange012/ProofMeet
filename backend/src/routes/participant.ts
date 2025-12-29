@@ -779,11 +779,14 @@ router.post(
         });
       }
 
-      // Add activity event
+      // Add activity event with source tag for proper counting
       await addActivityEvent(attendanceId, {
         timestamp: new Date().toISOString(),
         type: eventType as any,
-        metadata,
+        metadata: {
+          ...metadata,
+          source: 'FRONTEND_MONITOR', // Tag for activity duration calculation
+        },
       });
       
       logger.debug(`Activity event recorded: ${eventType} for attendance ${attendanceId}`);
