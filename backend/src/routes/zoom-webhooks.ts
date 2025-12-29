@@ -211,15 +211,33 @@ async function handleMeetingEnded(event: any) {
     
     // Auto-complete any records still in progress
     for (const record of inProgressRecords) {
+      // Calculate duration from join to meeting end
+      const totalDurationMin = Math.max(1, Math.floor((endTime.getTime() - record.joinTime.getTime()) / (1000 * 60)));
+      
+      // Calculate active/idle from activity timeline
+      const { activeDurationMin, idleDurationMin } = calculateActivityDurations(record.activityTimeline);
+      
+      // If no activity data, use total duration as active (participant was in meeting)
+      const finalActiveDuration = activeDurationMin > 0 ? activeDurationMin : totalDurationMin;
+      const finalIdleDuration = idleDurationMin > 0 ? idleDurationMin : 0;
+      
+      // Calculate attendance percentage
+      const meetingDuration = meeting.durationMinutes || 60;
+      const attendancePercent = Math.min((totalDurationMin / meetingDuration) * 100, 100);
+      
       await prisma.attendanceRecord.update({
         where: { id: record.id },
         data: {
           leaveTime: endTime,
+          totalDurationMin,
+          activeDurationMin: finalActiveDuration,
+          idleDurationMin: finalIdleDuration,
+          attendancePercent,
           status: 'COMPLETED',
         },
       });
       
-      logger.info(`Auto-completed attendance record for meeting end: ${record.id}`);
+      logger.info(`Auto-completed attendance record for meeting end: ${record.id} - Duration: ${totalDurationMin} min, Active: ${finalActiveDuration} min (${attendancePercent.toFixed(1)}%)`);
     }
   }
 }
