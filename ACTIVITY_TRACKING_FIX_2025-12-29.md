@@ -14,91 +14,82 @@
 
 ## 🔍 **Root Cause Analysis**
 
-### The Bug
-The backend's `calculateActivityDurations()` function in `zoom-webhooks.ts` was filtering activity events with:
+### **TWO Bugs Found:**
 
-```typescript
-const activeEvents = events.filter((e: any) => 
-  e.type === 'ACTIVE' && e.source === 'FRONTEND_MONITOR'
-);
-```
-
-**Problem:** The frontend was sending heartbeat events **without** the `source` field!
-
-### The Data Flow
-1. **Frontend** (`ActivityMonitor.tsx`):
-   - Sends heartbeat every 30 seconds via `authServiceV2.trackActivity()`
-   - Payload: `{ attendanceId, eventType: 'ACTIVE', metadata: {...} }`
-   - ❌ **Missing:** `source: 'FRONTEND_MONITOR'`
-
-2. **Backend** (`participant.ts`):
-   - Receives the event
-   - Stores it in `activityTimeline`
-   - ❌ **Didn't add the source tag**
-
-3. **Duration Calculation** (`zoom-webhooks.ts`):
-   - Filters for events with `source === 'FRONTEND_MONITOR'`
-   - ❌ **Found 0 events** (because no events had this field)
-   - Result: `activeDurationMin = 0`
-
-4. **Fallback Logic**:
-   - System fell back to Zoom's reported duration
-   - Often resulted in only 1-2 minutes being counted
-
----
-
-## ✅ **The Fix**
-
-### 1. Backend: Add Source Tag When Storing Events
+#### **Bug #1: Backend Not Tagging Events with Source** ⚠️
 **File:** `backend/src/routes/participant.ts`
 
-**Before:**
+**Problem:** When storing activity events, the backend wasn't adding the `source: 'FRONTEND_MONITOR'` tag that the duration calculation logic expected.
+
 ```typescript
+// BEFORE (Line 782)
 await addActivityEvent(attendanceId, {
   timestamp: new Date().toISOString(),
   type: eventType as any,
-  metadata,
+  metadata,  // ❌ Missing source tag
 });
-```
 
-**After:**
-```typescript
+// AFTER
 await addActivityEvent(attendanceId, {
   timestamp: new Date().toISOString(),
   type: eventType as any,
   metadata: {
     ...metadata,
-    source: 'FRONTEND_MONITOR', // ✅ Tag for activity duration calculation
+    source: 'FRONTEND_MONITOR', // ✅ Added source tag
   },
 });
 ```
 
-### 2. Backend: Make Filtering More Robust
-**File:** `backend/src/routes/zoom-webhooks.ts`
+#### **Bug #2: Finalization Service Checking Wrong Field** 🚨
+**File:** `backend/src/services/meetingFinalizationService.ts`
 
-**Before:**
+**Problem:** The auto-completion logic was checking `e.source === 'FRONTEND_MONITOR'`, but events store the source in `e.metadata.source`.
+
 ```typescript
-const activeEvents = events.filter((e: any) => 
-  e.type === 'ACTIVE' && e.source === 'FRONTEND_MONITOR'
+// BEFORE (Lines 78-80)
+const activityEvents = timeline.filter((e: any) => 
+  e.source === 'FRONTEND_MONITOR' && // ❌ Wrong field!
+  (e.type === 'ACTIVE' || e.type === 'IDLE')
 );
-```
 
-**After:**
-```typescript
-const activeEvents = events.filter((e: any) => {
-  if (e.type !== 'ACTIVE') return false;
-  // Check both e.metadata.source AND e.source
+// AFTER (Lines 77-83)
+const activityEvents = timeline.filter((e: any) => {
   const source = e.metadata?.source || e.source;
-  // If no source exists, accept any ACTIVE event (backward compatibility)
-  return !source || source === 'FRONTEND_MONITOR';
+  const isFromFrontend = !source || source === 'FRONTEND_MONITOR';
+  const isActivityEvent = e.type === 'ACTIVE' || e.type === 'IDLE';
+  return isFromFrontend && isActivityEvent;
 });
 ```
 
-**Benefits:**
-- ✅ Handles events with `metadata.source`
-- ✅ Handles events with top-level `source`
-- ✅ Backward compatible - accepts ACTIVE/IDLE events without source field
-- ✅ Future-proof - won't break if source tagging is missed
+**Result of Bug #2:**
+- Filter found 0 events (because it was looking in the wrong place)
+- System defaulted to **1-minute conservative estimate**
+- This overrode the correct calculation from `zoom-webhooks.ts`
+
+---
+
+## ✅ **The Fixes**
+
+### **Fix #1: Add Source Tag When Storing** (Commit: 905cd14)
+**File:** `backend/src/routes/participant.ts` (Line 782)
+
+Now adds `source: 'FRONTEND_MONITOR'` to metadata when recording activity events.
+
+### **Fix #2: Check Both Source Locations** (Commit: 86c8157)
+**File:** `backend/src/services/meetingFinalizationService.ts` (Lines 77-83)
+
+Made the filtering logic robust:
+- Checks both `metadata.source` AND top-level `source`
+- Falls back to accepting any ACTIVE/IDLE event if no source field exists
+- Backward compatible with old data
+
+### **Fix #3: Robust Filtering in Duration Calc** (Commit: 905cd14)
+**File:** `backend/src/routes/zoom-webhooks.ts`
+
+Updated `calculateActivityDurations()` function to be more resilient:
+- Checks both `e.metadata.source` and `e.source`
+- Accepts events without source tags (backward compatibility)
+- No longer strictly requires `source === 'FRONTEND_MONITOR'`
 
 ---
 
@@ -216,20 +207,17 @@ WHERE id = '<attendance-id>';
 
 ## 🚀 **Deployment Status**
 
-- ✅ Code committed to GitHub: `905cd14`
-- ✅ Railway auto-deployment triggered
-- ⏳ Waiting for Railway to deploy (typically 1-2 minutes)
-- ⏳ Frontend changes: None needed (no changes to `ActivityMonitor.tsx`)
+- ✅ **Fix #1 Deployed:** Commit `905cd14` (Source tagging + duration calculation)
+- ✅ **Fix #2 Deployed:** Commit `86c8157` (Finalization service filtering)
+- ✅ **Documentation:** Updated `ACTIVITY_TRACKING_FIX_2025-12-29.md`  
+- ⏳ **Railway Deployment:** Auto-deploying now (typically 1-2 minutes)
+- ✅ **Frontend:** No changes needed
 
-### Deployment Commands
-```bash
-# Backend (Railway)
-git push origin main
-# Auto-deploys via Railway GitHub integration
-
-# Frontend (Vercel)
-# No changes needed - backend-only fix
-```
+### Timeline:
+1. **01:14 UTC** - Railway redeployed with Fix #1
+2. **01:21-01:32 UTC** - User's test meeting (showed 1 minute issue)
+3. **Diagnosis** - Found Bug #2 in finalization service
+4. **Now** - Fix #2 committed and deploying
 
 ---
 
