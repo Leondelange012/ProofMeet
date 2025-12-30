@@ -121,11 +121,11 @@ function validateAttendance(
     });
   }
   
-  // Rule 2: Idle time must not exceed 40% (complementary to Rule 1)
-  if (idlePercent > 40) {
+  // Rule 2: Idle time must not exceed 10% (complementary to Rule 1)
+  if (idlePercent > 10) {
     violations.push({
       type: 'EXCESSIVE_IDLE_TIME',
-      message: `Idle for ${idleDurationMin} minutes (${idlePercent.toFixed(1)}% of attendance). Maximum allowed: 40%.`,
+      message: `Idle for ${idleDurationMin} minutes (${idlePercent.toFixed(1)}% of attendance). Maximum allowed: 10%.`,
       severity: 'CRITICAL',
       timestamp: new Date().toISOString(),
     });
