@@ -135,7 +135,10 @@ export function calculateEngagementScore(
   } else if (finalScore >= 50) {
     // Some presence indicators but maybe no video
     level = 'MEDIUM';
-    recommendation = flags.includes('NO_VIDEO') ? 'FLAG_FOR_REVIEW' : 'APPROVE';
+    // Only flag NO_VIDEO for review if there are OTHER concerns (high activity rate, low engagement)
+    // If NO_VIDEO is the ONLY flag and they have good activity, approve it
+    const hasOtherFlags = flags.some(f => f !== 'NO_VIDEO');
+    recommendation = (flags.includes('NO_VIDEO') && hasOtherFlags) ? 'FLAG_FOR_REVIEW' : 'APPROVE';
   } else if (finalScore >= 30) {
     // Minimal engagement
     level = 'LOW';

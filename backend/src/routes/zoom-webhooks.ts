@@ -158,10 +158,22 @@ export function calculateActivityDurations(activityTimeline: any): {
   // Each heartbeat represents approximately 30 seconds of activity
   const HEARTBEAT_DURATION_SECONDS = 30;
   
-  const activeDurationMin = Math.floor((activeEvents.length * HEARTBEAT_DURATION_SECONDS) / 60);
-  const idleDurationMin = Math.floor((idleEvents.length * HEARTBEAT_DURATION_SECONDS) / 60);
+  const rawActiveDurationMin = Math.floor((activeEvents.length * HEARTBEAT_DURATION_SECONDS) / 60);
+  const rawIdleDurationMin = Math.floor((idleEvents.length * HEARTBEAT_DURATION_SECONDS) / 60);
+  
+  // Ensure active + idle doesn't exceed reasonable bounds
+  // Active time can slightly exceed total due to heartbeat granularity, but cap it at reasonable max
+  const totalCalculatedMin = rawActiveDurationMin + rawIdleDurationMin;
+  
+  // Cap active duration to prevent overflow (max 120% of calculated total for safety)
+  const maxActiveDuration = Math.ceil(totalCalculatedMin * 1.2);
+  const activeDurationMin = Math.min(rawActiveDurationMin, maxActiveDuration);
+  
+  // Idle time should never be negative
+  const idleDurationMin = Math.max(0, rawIdleDurationMin);
   
   logger.info(`Activity calculation: ${activeEvents.length} active events, ${idleEvents.length} idle events, total timeline events: ${events.length}`);
+  logger.info(`Duration breakdown: Active=${activeDurationMin}min (raw=${rawActiveDurationMin}min), Idle=${idleDurationMin}min (raw=${rawIdleDurationMin}min)`);
   
   return { activeDurationMin, idleDurationMin };
 }
@@ -216,8 +228,19 @@ async function handleMeetingEnded(event: any) {
       const { activeDurationMin, idleDurationMin } = calculateActivityDurations(record.activityTimeline);
       
       // If no activity data, use total duration as active (participant was in meeting)
-      const finalActiveDuration = activeDurationMin > 0 ? activeDurationMin : totalDurationMin;
-      const finalIdleDuration = idleDurationMin > 0 ? idleDurationMin : 0;
+      let finalActiveDuration = activeDurationMin > 0 ? activeDurationMin : totalDurationMin;
+      let finalIdleDuration = idleDurationMin > 0 ? idleDurationMin : 0;
+      
+      // IMPORTANT: Active + Idle cannot exceed total duration
+      // Cap active duration to total duration (can't be more active than total time in meeting)
+      if (finalActiveDuration > totalDurationMin) {
+        logger.warn(`Active duration (${finalActiveDuration}min) exceeds total (${totalDurationMin}min). Capping to total.`);
+        finalActiveDuration = totalDurationMin;
+        finalIdleDuration = 0; // If active = total, idle must be 0
+      } else {
+        // Recalculate idle as remainder, ensuring it's never negative
+        finalIdleDuration = Math.max(0, totalDurationMin - finalActiveDuration);
+      }
       
       // Calculate attendance percentage
       const meetingDuration = meeting.durationMinutes || 60;
