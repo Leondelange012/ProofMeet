@@ -75,10 +75,10 @@ export async function finalizePendingMeetings(): Promise<void> {
           const timeline = (record.activityTimeline as any)?.events || [];
           
           // Find the last activity event (ACTIVE or IDLE, not just any event)
-          // Check both e.source and e.metadata.source for backward compatibility
+          // STRICT: Only accept events explicitly tagged as FRONTEND_MONITOR heartbeats
           const activityEvents = timeline.filter((e: any) => {
             const source = e.metadata?.source || e.source;
-            const isFromFrontend = !source || source === 'FRONTEND_MONITOR'; // Accept if no source or correct source
+            const isFromFrontend = source === 'FRONTEND_MONITOR'; // MUST have source (no fallback)
             const isActivityEvent = e.type === 'ACTIVE' || e.type === 'IDLE';
             return isFromFrontend && isActivityEvent;
           });
