@@ -272,7 +272,9 @@ const ActivityMonitor: React.FC<ActivityMonitorProps> = ({
         clearInterval(heartbeatInterval.current);
       }
     };
-  }, [attendanceId, isActive, lastActivityTime, tabFocused, cameraOn, audioOn]);
+  }, [attendanceId]); // CRITICAL FIX: Only restart heartbeat when attendanceId changes
+  // Do NOT include isActive, lastActivityTime, etc. - those are READ inside sendHeartbeat()
+  // Including them causes useEffect to re-run on every mouse move, sending duplicate heartbeats!
 
   // Note: Auto-leave detection removed - relies on server-side auto-completion
   // The scheduler will automatically complete meetings after their scheduled window ends
