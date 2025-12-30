@@ -274,29 +274,57 @@ const CourtCardViewer: React.FC<CourtCardViewerProps> = ({
               </Grid>
             </Grid>
 
-            {/* Violations (if any) */}
-            {cardData.courtCard?.violations && (cardData.courtCard.violations as any[]).length > 0 && (
+            {/* Violations (CRITICAL only) */}
+            {cardData.courtCard?.violations && 
+             (cardData.courtCard.violations as any[]).filter((v: any) => v.severity === 'CRITICAL').length > 0 && (
               <>
                 <Divider sx={{ my: 2 }} />
                 <Typography variant="h6" gutterBottom color="error">
                   Violations
                 </Typography>
                 <List dense>
-                  {(cardData.courtCard.violations as any[]).map((violation: any, index: number) => (
-                    <ListItem key={index}>
-                      <ListItemIcon>
-                        {violation.severity === 'CRITICAL' ? (
+                  {(cardData.courtCard.violations as any[])
+                    .filter((v: any) => v.severity === 'CRITICAL')
+                    .map((violation: any, index: number) => (
+                      <ListItem key={index}>
+                        <ListItemIcon>
                           <Error color="error" />
-                        ) : (
-                          <Warning color="warning" />
-                        )}
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={violation.type?.replace(/_/g, ' ')}
-                        secondary={violation.message}
-                      />
-                    </ListItem>
-                  ))}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={violation.type?.replace(/_/g, ' ')}
+                          secondary={violation.message}
+                        />
+                      </ListItem>
+                    ))}
+                </List>
+              </>
+            )}
+
+            {/* Warnings/Notes (non-critical) */}
+            {cardData.courtCard?.violations && 
+             (cardData.courtCard.violations as any[]).filter((v: any) => v.severity === 'WARNING' || v.severity === 'INFO').length > 0 && 
+             cardData.courtCard?.status === 'PASSED' && (
+              <>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="body2" gutterBottom color="text.secondary" sx={{ fontWeight: 600 }}>
+                  Notes
+                </Typography>
+                <List dense>
+                  {(cardData.courtCard.violations as any[])
+                    .filter((v: any) => v.severity === 'WARNING' || v.severity === 'INFO')
+                    .map((violation: any, index: number) => (
+                      <ListItem key={index}>
+                        <ListItemIcon>
+                          <Warning color="info" />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={violation.type?.replace(/_/g, ' ')}
+                          secondary={violation.message}
+                          primaryTypographyProps={{ color: 'text.secondary', variant: 'body2' }}
+                          secondaryTypographyProps={{ color: 'text.secondary', variant: 'caption' }}
+                        />
+                      </ListItem>
+                    ))}
                 </List>
               </>
             )}
