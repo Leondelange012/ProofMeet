@@ -2,6 +2,42 @@
 
 **Status:** All fixes deployed and tested
 
+## Recent Updates (December 30, 2025)
+
+### Participant Meetings Page - Search & Filter Enhancement
+
+**User Request:**
+- Remove "show all meetings" default view
+- Add search functionality by Meeting ID, Category, Date, and Timezone
+- Show 5-10 meetings by default with expand option
+- Display meeting times in user's local timezone
+
+**Implementation:**
+1. **Search Filters:**
+   - Zoom Meeting ID search (partial match)
+   - Category/Program dropdown (AA, NA, TEST, etc.)
+   - Date picker for finding meetings on specific dates
+   - Timezone selector with auto-detection
+
+2. **Display Logic:**
+   - Shows first 10 meetings by default
+   - Filters work together (AND logic)
+   - "Show All Meetings" button to expand
+   - Empty state when no matches found
+
+3. **Timezone Conversion:**
+   - Auto-detects user's timezone
+   - Manual timezone override available
+   - Converts meeting times to user's local time
+   - Handles both test meetings and recurring meetings
+
+**Files Changed:**
+- `frontend/src/pages/MeetingPage.tsx`
+
+---
+
+## Activity Tracking Fixes (December 29, 2025)
+
 ## 🐛 **Critical Issue Discovered**
 
 **Problem:** 5-minute meeting with 2 active participants only showed **1 minute of activity** on court cards.
