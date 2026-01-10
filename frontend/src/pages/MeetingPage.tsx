@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Container,
   Typography,
@@ -17,6 +17,11 @@ import {
   Alert,
   IconButton,
   Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Autocomplete,
 } from '@mui/material';
 import {
   QrCodeScanner,
@@ -25,7 +30,12 @@ import {
   Schedule,
   MeetingRoom,
   Home,
+  Search,
+  FilterList,
+  Public,
 } from '@mui/icons-material';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { aaIntergroupService } from '../services/aaIntergroupService';
 import axios from 'axios';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
@@ -42,14 +52,122 @@ const MeetingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [joiningMeeting, setJoiningMeeting] = useState<string | null>(null);
   const [error, setError] = useState('');
+  
+  // Search/Filter State
+  const [searchZoomId, setSearchZoomId] = useState('');
+  const [selectedProgram, setSelectedProgram] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [showAllMeetings, setShowAllMeetings] = useState(false);
 
 
   // Load available meetings for participants
-  useEffect(() => {
+  const loadAvailableMeetings = async () => {
     loadAvailableMeetings();
   }, []);
 
-  const loadAvailableMeetings = async () => {
+  // Flatten all meetings for filtering
+  const allMeetings = useMemo(() => {
+    const flattened: any[] = [];
+    Object.keys(meetingsByProgram).forEach(program => {
+      meetingsByProgram[program].forEach(meeting => {
+        flattened.push({ ...meeting, program });
+      });
+    });
+    return flattened;
+  }, [meetingsByProgram]);
+
+  // Get available programs for filter dropdown
+  const availablePrograms = useMemo(() => {
+    return Object.keys(meetingsByProgram).sort();
+  }, [meetingsByProgram]);
+
+  // Filter meetings based on search criteria
+  const filteredMeetings = useMemo(() => {
+    let filtered = allMeetings;
+
+    // Filter by Zoom ID (partial match)
+    if (searchZoomId.trim()) {
+      filtered = filtered.filter(m => 
+        m.zoomId?.toString().includes(searchZoomId.trim()) ||
+        m.zoomUrl?.includes(searchZoomId.trim())
+      );
+    }
+
+    // Filter by Program/Category
+    if (selectedProgram) {
+      filtered = filtered.filter(m => m.program === selectedProgram);
+    }
+
+    // Filter by Date
+    if (selectedDate) {
+      filtered = filtered.filter(m => {
+        if (m.startTime) {
+          // For test meetings with specific start times
+          const meetingDate = new Date(m.startTime);
+          return meetingDate.toDateString() === selectedDate.toDateString();
+        }
+        // For recurring meetings, match day of week
+        const dayName = selectedDate.toLocaleDateString('en-US', { weekday: 'long' });
+        return m.day === dayName;
+      });
+    }
+
+    return filtered;
+  }, [allMeetings, searchZoomId, selectedProgram, selectedDate]);
+
+  // Display meetings: Show filtered results, or first 10 if no filters applied
+  const displayMeetings = useMemo(() => {
+    const hasFilters = searchZoomId.trim() || selectedProgram || selectedDate;
+    
+    if (hasFilters) {
+      return filteredMeetings; // Show all filtered results
+    }
+    
+    if (showAllMeetings) {
+      return allMeetings; // Show all meetings
+    }
+    
+    return allMeetings.slice(0, 10); // Show first 10 by default
+  }, [filteredMeetings, allMeetings, searchZoomId, selectedProgram, selectedDate, showAllMeetings]);
+
+  // Group display meetings by program
+  const displayMeetingsByProgram = useMemo(() => {
+    const grouped: { [key: string]: any[] } = {};
+    displayMeetings.forEach(meeting => {
+      if (!grouped[meeting.program]) {
+        grouped[meeting.program] = [];
+      }
+      grouped[meeting.program].push(meeting);
+    });
+    return grouped;
+  }, [displayMeetings]);
+
+  // Convert meeting time to user's timezone
+  const convertToUserTimezone = (meeting: any): string => {
+    if (meeting.startTime) {
+      // For test meetings with actual start times
+      const meetingDate = new Date(meeting.startTime);
+      return meetingDate.toLocaleString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: userTimezone,
+      });
+    }
+    // For recurring meetings
+    return `${meeting.day} at ${meeting.time} (${meeting.timezone})`;
+  };
+
+  const clearFilters = () => {
+    setSearchZoomId('');
+    setSelectedProgram('');
+    setSelectedDate(null);
+    setShowAllMeetings(false);
+  };
     try {
       setLoading(true);
       console.log('🔍 Loading recovery meetings organized by program...');
@@ -190,22 +308,123 @@ const MeetingPage: React.FC = () => {
         <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
           Join court-approved recovery meetings with proof of attendance capability.
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-          {Object.keys(meetingsByProgram).length > 0 && (
-            <>
-              Showing {(Object.values(meetingsByProgram) as any[][]).reduce((sum: number, meetings: any[]) => sum + meetings.length, 0)} meetings 
-              across {Object.keys(meetingsByProgram).length} recovery programs. 
-              <Button 
-                size="small" 
-                onClick={loadAvailableMeetings}
-                sx={{ ml: 1, textTransform: 'none' }}
-              >
-                🔄 Refresh
-              </Button>
-            </>
-          )}
-        </Typography>
       </Box>
+
+      {/* Search and Filter Section */}
+      <Card sx={{ mb: 4, p: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+          <FilterList color="primary" />
+          <Typography variant="h6">
+            Search Meetings
+          </Typography>
+        </Box>
+        
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          {/* Zoom Meeting ID Search */}
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              label="Zoom Meeting ID"
+              placeholder="Search by ID..."
+              value={searchZoomId}
+              onChange={(e) => setSearchZoomId(e.target.value)}
+              InputProps={{
+                startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />,
+              }}
+            />
+          </Grid>
+
+          {/* Program/Category Filter */}
+          <Grid item xs={12} sm={6} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>Category</InputLabel>
+              <Select
+                value={selectedProgram}
+                label="Category"
+                onChange={(e) => setSelectedProgram(e.target.value)}
+              >
+                <MenuItem value="">
+                  <em>All Categories</em>
+                </MenuItem>
+                {availablePrograms.map(program => (
+                  <MenuItem key={program} value={program}>
+                    {program}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          {/* Date Filter */}
+          <Grid item xs={12} sm={6} md={3}>
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                label="Meeting Date"
+                value={selectedDate}
+                onChange={(newDate) => setSelectedDate(newDate)}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                  },
+                  actionBar: {
+                    actions: ['clear', 'today'],
+                  },
+                }}
+              />
+            </LocalizationProvider>
+          </Grid>
+
+          {/* Timezone Selector */}
+          <Grid item xs={12} sm={6} md={3}>
+            <Autocomplete
+              fullWidth
+              options={Intl.supportedValuesOf('timeZone')}
+              value={userTimezone}
+              onChange={(_, newValue) => newValue && setUserTimezone(newValue)}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Your Timezone"
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (
+                      <>
+                        <Public sx={{ mr: 1, color: 'text.secondary' }} />
+                        {params.InputProps.startAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
+            />
+          </Grid>
+        </Grid>
+
+        {/* Filter Actions */}
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Button
+            variant="outlined"
+            onClick={clearFilters}
+            disabled={!searchZoomId && !selectedProgram && !selectedDate}
+          >
+            Clear Filters
+          </Button>
+          <Typography variant="body2" color="text.secondary">
+            {displayMeetings.length === allMeetings.length
+              ? `Showing ${showAllMeetings ? 'all' : 'first 10 of'} ${allMeetings.length} meetings`
+              : `Found ${displayMeetings.length} meeting${displayMeetings.length !== 1 ? 's' : ''}`}
+          </Typography>
+          {!showAllMeetings && displayMeetings.length >= 10 && allMeetings.length > 10 && (
+            <Button
+              variant="text"
+              size="small"
+              onClick={() => setShowAllMeetings(true)}
+            >
+              Show All Meetings
+            </Button>
+          )}
+        </Box>
+      </Card>
 
       {/* Join Meeting by ID */}
       <Card sx={{ mb: 4 }}>
@@ -235,10 +454,27 @@ const MeetingPage: React.FC = () => {
       {/* Recovery Meetings by Program */}
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <Typography>Loading recovery meetings...</Typography>
+          <CircularProgress />
+          <Typography sx={{ ml: 2 }}>Loading recovery meetings...</Typography>
         </Box>
+      ) : displayMeetings.length === 0 ? (
+        <Card sx={{ p: 4, textAlign: 'center' }}>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            No meetings found
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Try adjusting your search criteria or clear filters to see all meetings.
+          </Typography>
+          <Button
+            variant="outlined"
+            onClick={clearFilters}
+            sx={{ mt: 2 }}
+          >
+            Clear Filters
+          </Button>
+        </Card>
       ) : (
-        Object.keys(meetingsByProgram).map((program: string) => (
+        Object.keys(displayMeetingsByProgram).map((program: string) => (
           <Box key={program} sx={{ mb: 4 }}>
             {/* Program Header */}
             <Typography variant="h5" sx={{ mb: 2, color: 'primary.main', fontWeight: 'bold' }}>
@@ -253,7 +489,7 @@ const MeetingPage: React.FC = () => {
             
             {/* Meetings Grid for this Program */}
             <Grid container spacing={3}>
-              {meetingsByProgram[program].map((meeting: any) => (
+              {displayMeetingsByProgram[program].map((meeting: any) => (
                 <Grid item xs={12} md={6} lg={4} key={meeting.id}>
                   <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <CardContent sx={{ flexGrow: 1 }}>
@@ -272,17 +508,7 @@ const MeetingPage: React.FC = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                         <Schedule sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
                         <Typography variant="body2" color="text.secondary">
-                          {meeting.startTime ? (
-                            // For test meetings with actual start times, show formatted date
-                            <>
-                              {new Date(meeting.startTime).toLocaleDateString(undefined, { weekday: 'long' })} at {new Date(meeting.startTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                              <br />
-                              ({new Date(meeting.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})
-                            </>
-                          ) : (
-                            // For recurring meetings, show day and time
-                            `${meeting.day} at ${meeting.time} (${meeting.timezone})`
-                          )}
+                          {convertToUserTimezone(meeting)}
                         </Typography>
                       </Box>
 
