@@ -43,6 +43,25 @@ import { useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://proofmeet-backend-production.up.railway.app/api';
 
+// Common timezones list (fallback for older browsers)
+const COMMON_TIMEZONES = [
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Phoenix',
+  'America/Anchorage',
+  'Pacific/Honolulu',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Asia/Dubai',
+  'Australia/Sydney',
+  'UTC',
+];
+
 const MeetingPage: React.FC = () => {
   const { token } = useAuthStoreV2();
   const navigate = useNavigate();
@@ -59,12 +78,6 @@ const MeetingPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [showAllMeetings, setShowAllMeetings] = useState(false);
-
-
-  // Load available meetings for participants
-  const loadAvailableMeetings = async () => {
-    loadAvailableMeetings();
-  }, []);
 
   // Flatten all meetings for filtering
   const allMeetings = useMemo(() => {
@@ -168,6 +181,9 @@ const MeetingPage: React.FC = () => {
     setSelectedDate(null);
     setShowAllMeetings(false);
   };
+
+  // Load available meetings for participants
+  const loadAvailableMeetings = async () => {
     try {
       setLoading(true);
       console.log('🔍 Loading recovery meetings organized by program...');
@@ -212,6 +228,11 @@ const MeetingPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Load meetings on mount
+  useEffect(() => {
+    loadAvailableMeetings();
+  }, []);
 
   const handleJoinOnlineMeeting = (zoomJoinUrl: string) => {
     // Use the full Zoom join URL
@@ -378,7 +399,7 @@ const MeetingPage: React.FC = () => {
           <Grid item xs={12} sm={6} md={3}>
             <Autocomplete
               fullWidth
-              options={Intl.supportedValuesOf('timeZone')}
+              options={COMMON_TIMEZONES}
               value={userTimezone}
               onChange={(_, newValue) => newValue && setUserTimezone(newValue)}
               renderInput={(params) => (
