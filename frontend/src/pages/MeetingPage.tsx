@@ -22,6 +22,7 @@ import {
   Select,
   MenuItem,
   Autocomplete,
+  Slider,
 } from '@mui/material';
 import {
   QrCodeScanner,
@@ -33,6 +34,7 @@ import {
   Search,
   FilterList,
   Public,
+  AccessTime,
 } from '@mui/icons-material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -77,8 +79,7 @@ const MeetingPage: React.FC = () => {
   const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  const [startTimeRange, setStartTimeRange] = useState<number | ''>(''); // Hour in 24hr format (0-23)
-  const [endTimeRange, setEndTimeRange] = useState<number | ''>(''); // Hour in 24hr format (0-23)
+  const [timeRange, setTimeRange] = useState<number[]>([0, 23]); // Time range slider [start, end] in 24hr format
   const [showAllMeetings, setShowAllMeetings] = useState(false);
 
   // Flatten all meetings for filtering
@@ -177,13 +178,14 @@ const MeetingPage: React.FC = () => {
     }
 
     // Filter by Time Range (in user's selected timezone)
-    if (startTimeRange !== '' || endTimeRange !== '') {
+    // Only apply filter if range is not default (0-23)
+    if (timeRange[0] !== 0 || timeRange[1] !== 23) {
       filtered = filtered.filter(m => {
         const meetingHour = getMeetingStartHourInTimezone(m, userTimezone);
         if (meetingHour === null) return true; // Include if we can't determine time
 
-        const start = startTimeRange !== '' ? startTimeRange : 0;
-        const end = endTimeRange !== '' ? endTimeRange : 23;
+        const start = timeRange[0];
+        const end = timeRange[1];
 
         // Handle wrap-around (e.g., 22:00 to 02:00)
         if (start <= end) {
@@ -196,11 +198,12 @@ const MeetingPage: React.FC = () => {
     }
 
     return filtered;
-  }, [allMeetings, searchZoomId, selectedProgram, selectedDate, startTimeRange, endTimeRange, userTimezone]);
+  }, [allMeetings, searchZoomId, selectedProgram, selectedDate, timeRange, userTimezone]);
 
   // Display meetings: Show filtered results, or first 10 if no filters applied
   const displayMeetings = useMemo(() => {
-    const hasFilters = searchZoomId.trim() || selectedProgram || selectedDate || startTimeRange !== '' || endTimeRange !== '';
+    const hasTimeFilter = timeRange[0] !== 0 || timeRange[1] !== 23;
+    const hasFilters = searchZoomId.trim() || selectedProgram || selectedDate || hasTimeFilter;
     
     if (hasFilters) {
       return filteredMeetings; // Show all filtered results
@@ -211,7 +214,7 @@ const MeetingPage: React.FC = () => {
     }
     
     return allMeetings.slice(0, 10); // Show first 10 by default
-  }, [filteredMeetings, allMeetings, searchZoomId, selectedProgram, selectedDate, startTimeRange, endTimeRange, showAllMeetings]);
+  }, [filteredMeetings, allMeetings, searchZoomId, selectedProgram, selectedDate, timeRange, showAllMeetings]);
 
   // Group display meetings by program
   const displayMeetingsByProgram = useMemo(() => {
@@ -248,8 +251,7 @@ const MeetingPage: React.FC = () => {
     setSearchZoomId('');
     setSelectedProgram('');
     setSelectedDate(null);
-    setStartTimeRange('');
-    setEndTimeRange('');
+    setTimeRange([0, 23]);
     setShowAllMeetings(false);
   };
 
@@ -413,7 +415,7 @@ const MeetingPage: React.FC = () => {
         
         <Grid container spacing={2} sx={{ mb: 2 }}>
           {/* Zoom Meeting ID Search */}
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
               label="Zoom Meeting ID"
@@ -427,7 +429,7 @@ const MeetingPage: React.FC = () => {
           </Grid>
 
           {/* Program/Category Filter */}
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth>
               <InputLabel>Category</InputLabel>
               <Select
@@ -448,7 +450,7 @@ const MeetingPage: React.FC = () => {
           </Grid>
 
           {/* Date Filter */}
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid item xs={12} sm={6} md={3}>
             <LocalizationProvider dateAdapter={AdapterDateFns}>
               <DatePicker
                 label="Meeting Date"
@@ -466,50 +468,8 @@ const MeetingPage: React.FC = () => {
             </LocalizationProvider>
           </Grid>
 
-          {/* Start Time Range */}
-          <Grid item xs={6} sm={3} md={1.2}>
-            <FormControl fullWidth>
-              <InputLabel>Start Time</InputLabel>
-              <Select
-                value={startTimeRange}
-                label="Start Time"
-                onChange={(e) => setStartTimeRange(e.target.value as number | '')}
-              >
-                <MenuItem value="">
-                  <em>Any</em>
-                </MenuItem>
-                {Array.from({ length: 24 }, (_, i) => (
-                  <MenuItem key={i} value={i}>
-                    {i.toString().padStart(2, '0')}:00
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          {/* End Time Range */}
-          <Grid item xs={6} sm={3} md={1.2}>
-            <FormControl fullWidth>
-              <InputLabel>End Time</InputLabel>
-              <Select
-                value={endTimeRange}
-                label="End Time"
-                onChange={(e) => setEndTimeRange(e.target.value as number | '')}
-              >
-                <MenuItem value="">
-                  <em>Any</em>
-                </MenuItem>
-                {Array.from({ length: 24 }, (_, i) => (
-                  <MenuItem key={i} value={i}>
-                    {i.toString().padStart(2, '0')}:00
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
           {/* Timezone Selector */}
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid item xs={12} sm={6} md={3}>
             <Autocomplete
               fullWidth
               options={COMMON_TIMEZONES}
@@ -532,6 +492,35 @@ const MeetingPage: React.FC = () => {
               )}
             />
           </Grid>
+
+          {/* Time Range Slider */}
+          <Grid item xs={12}>
+            <Box sx={{ px: 2, pt: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <AccessTime sx={{ mr: 1, color: 'primary.main' }} />
+                <Typography variant="body2" color="text.secondary">
+                  Meeting Start Time Range: {timeRange[0].toString().padStart(2, '0')}:00 - {timeRange[1].toString().padStart(2, '0')}:00
+                  {timeRange[0] !== 0 || timeRange[1] !== 23 ? ` (${userTimezone.split('/')[1] || userTimezone})` : ' (All times)'}
+                </Typography>
+              </Box>
+              <Slider
+                value={timeRange}
+                onChange={(_, newValue) => setTimeRange(newValue as number[])}
+                valueLabelDisplay="auto"
+                valueLabelFormat={(value) => `${value.toString().padStart(2, '0')}:00`}
+                min={0}
+                max={23}
+                marks={[
+                  { value: 0, label: '00:00' },
+                  { value: 6, label: '06:00' },
+                  { value: 12, label: '12:00' },
+                  { value: 18, label: '18:00' },
+                  { value: 23, label: '23:00' },
+                ]}
+                sx={{ mt: 1 }}
+              />
+            </Box>
+          </Grid>
         </Grid>
 
         {/* Filter Actions */}
@@ -539,7 +528,7 @@ const MeetingPage: React.FC = () => {
           <Button
             variant="outlined"
             onClick={clearFilters}
-            disabled={!searchZoomId && !selectedProgram && !selectedDate && startTimeRange === '' && endTimeRange === ''}
+            disabled={!searchZoomId && !selectedProgram && !selectedDate && timeRange[0] === 0 && timeRange[1] === 23}
           >
             Clear Filters
           </Button>
@@ -548,18 +537,6 @@ const MeetingPage: React.FC = () => {
               ? `Showing ${showAllMeetings ? 'all' : 'first 10 of'} ${allMeetings.length} meetings`
               : `Found ${displayMeetings.length} meeting${displayMeetings.length !== 1 ? 's' : ''}`}
           </Typography>
-          {startTimeRange !== '' && endTimeRange !== '' && (
-            <Chip
-              label={`Time: ${startTimeRange.toString().padStart(2, '0')}:00 - ${endTimeRange.toString().padStart(2, '0')}:00 (${userTimezone.split('/')[1] || userTimezone})`}
-              onDelete={() => {
-                setStartTimeRange('');
-                setEndTimeRange('');
-              }}
-              color="primary"
-              variant="outlined"
-              size="small"
-            />
-          )}
           {!showAllMeetings && displayMeetings.length >= 10 && allMeetings.length > 10 && (
             <Button
               variant="text"
