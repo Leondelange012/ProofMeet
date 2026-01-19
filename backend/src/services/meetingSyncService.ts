@@ -11,15 +11,26 @@ import { logger } from '../utils/logger';
 const prisma = new PrismaClient();
 
 // OFFICIAL AA MEETING GUIDE API
-// This is the official public API maintained by AA that aggregates meetings from all intergroups
-// No proxy needed - designed for public use by recovery apps
-// API Docs: https://github.com/code4recovery/spec
-const AA_MEETING_GUIDE_API = 'https://aaMeetingGuide.org/api/v2/meetings';
+// UPDATE: This API returns HTML redirects - temporarily disabled
+// const AA_MEETING_GUIDE_API = 'https://aaMeetingGuide.org/api/v2/meetings';
 
-// OIAA (Online Intergroup of Alcoholics Anonymous) - aa-intergroup.org
-// Specialized intergroup for online AA meetings - has its own TSML API
-// This is separate from Meeting Guide and focuses exclusively on online meetings
-const OIAA_TSML_API = 'https://aa-intergroup.org/wp-json/tsml/v1/meetings';
+// DIRECT AA INTERGROUP TSML APIs
+// These are individual intergroup WordPress TSML APIs
+// OIAA (Online Intergroup of Alcoholics Anonymous) is the largest online AA source
+const AA_TSML_FEEDS = [
+  { 
+    name: 'OIAA (AA-Intergroup)', 
+    url: 'https://aa-intergroup.org/wp-json/tsml/v1/meetings',
+    perPage: 500,
+    types: 'ONL' // Online meetings only
+  },
+  {
+    name: 'NYC AA',
+    url: 'https://meetings.nyintergroup.org/wp-json/tsml/v1/meetings',
+    perPage: 100,
+    types: 'ONL'
+  },
+];
 
 // BMLT servers for NA (fallback to known working ones)
 const BMLT_ROOT_SERVERS = [
@@ -75,114 +86,39 @@ async function fetchInTheRoomsMeetings(): Promise<ExternalMeeting[]> {
 }
 
 /**
- * Fetch AA meetings from two sources:
- * 1. Official AA Meeting Guide API (aggregates 400+ intergroups)
- * 2. OIAA (aa-intergroup.org) - specialized online-only intergroup
+ * Fetch AA meetings from direct TSML feeds
+ * These are WordPress sites running the TSML plugin
  * 
  * API Docs: https://github.com/code4recovery/spec
  */
 async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
   try {
-    logger.info('🔍 Fetching AA meetings from multiple sources...');
+    logger.info('🔍 Fetching AA meetings from TSML intergroup feeds...');
     
     const meetings: ExternalMeeting[] = [];
     const seenZoomIds = new Set<string>();
     
     // ============================================================
-    // SOURCE 1: Official AA Meeting Guide API (400+ intergroups)
+    // LOOP THROUGH AA TSML FEEDS
     // ============================================================
-    try {
-      logger.info('   📡 Source 1: AA Meeting Guide API');
-      const response = await axios.get(AA_MEETING_GUIDE_API, {
-        timeout: 60000, // 60 second timeout (large dataset)
-        headers: {
-          'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
-          'Accept': 'application/json',
-        },
-      });
-
-    if (response.status === 200) {
-      // Handle both array and object responses
-      let meetingsData = response.data;
-      
-      // If data is wrapped in an object, try to extract the array
-      if (!Array.isArray(meetingsData)) {
-        logger.info(`   📦 Response is not an array, checking for nested data...`);
-        logger.info(`   🔍 Response keys: ${Object.keys(meetingsData || {}).join(', ')}`);
+    for (const feed of AA_TSML_FEEDS) {
+      try {
+        logger.info(`   📡 Fetching from: ${feed.name}`);
         
-        // Common patterns: { meetings: [...] }, { data: [...] }, { results: [...] }
-        if (meetingsData?.meetings) meetingsData = meetingsData.meetings;
-        else if (meetingsData?.data) meetingsData = meetingsData.data;
-        else if (meetingsData?.results) meetingsData = meetingsData.results;
-      }
-      
-      if (Array.isArray(meetingsData)) {
-        logger.info(`   📋 Received ${meetingsData.length} total meetings from Meeting Guide`);
+        // Use CORS proxy to avoid blocking
+        const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(feed.url)}`;
         
-        let onlineMeetings = 0;
-        let withZoom = 0;
-        
-        for (const meeting of meetingsData) {
-          // Check if meeting is online (has conference_url or conference_url_notes)
-          const conferenceUrl = meeting.conference_url || meeting.conference_url_notes;
-          
-          // Only include online meetings with Zoom links
-          if (conferenceUrl && typeof conferenceUrl === 'string' && conferenceUrl.toLowerCase().includes('zoom')) {
-            onlineMeetings++;
-            const zoomId = extractZoomId(conferenceUrl);
-            
-            if (zoomId && !seenZoomIds.has(zoomId)) {
-              seenZoomIds.add(zoomId);
-              withZoom++;
-              
-              meetings.push({
-                externalId: `aa-guide-${meeting.slug || meeting.id || zoomId}`,
-                name: meeting.name || 'AA Meeting',
-                program: 'AA',
-                meetingType: formatMeetingTypes(meeting.types),
-                description: meeting.notes || meeting.location_notes || undefined,
-                dayOfWeek: parseDayOfWeek(meeting.day),
-                time: parseTime(meeting.time),
-                timezone: meeting.timezone || 'America/New_York',
-                durationMinutes: 60,
-                format: 'ONLINE',
-                zoomUrl: conferenceUrl,
-                zoomId: zoomId,
-                zoomPassword: meeting.conference_phone || undefined,
-                tags: parseTags(meeting.types)
-              });
-            }
-          }
-        }
-        
-        logger.info(`   ✅ Meeting Guide: Found ${onlineMeetings} online, added ${withZoom} unique Zoom meetings`);
-      } else {
-        logger.warn(`   ⚠️  Meeting Guide: Could not find meetings array in response`);
-        logger.warn(`   📄 Response type: ${typeof meetingsData}, Sample: ${JSON.stringify(meetingsData).substring(0, 200)}`);
-      }
-    } else {
-      logger.warn(`   ⚠️  Meeting Guide: Unexpected response status ${response.status}`);
-    }
-    } catch (error: any) {
-      logger.error('❌ Meeting Guide API error:', error.message);
-    }
-
-    // ============================================================
-    // SOURCE 2: OIAA (aa-intergroup.org) - Online-only intergroup
-    // ============================================================
-    try {
-      logger.info('   📡 Source 2: OIAA (aa-intergroup.org) - Online Meetings');
-      
-      const response = await axios.get(OIAA_TSML_API, {
-        params: {
-          per_page: 500,  // OIAA has many online meetings
-        },
-        timeout: 30000,
-        headers: {
-          'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
-          'Accept': 'application/json',
-        },
-      });
+        const response = await axios.get(proxiedUrl, {
+          params: {
+            per_page: feed.perPage,
+            types: feed.types || 'ONL', // Online meetings
+          },
+          timeout: 30000,
+          headers: {
+            'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
+            'Accept': 'application/json',
+          },
+        });
 
       if (response.status === 200 || response.status === 202) {
         // Handle both array and object responses
@@ -190,7 +126,7 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
         
         // If data is wrapped in an object, try to extract the array
         if (!Array.isArray(meetingsData)) {
-          logger.info(`   📦 OIAA response is not an array, checking for nested data...`);
+          logger.info(`   📦 Response is not an array, checking for nested data...`);
           logger.info(`   🔍 Response keys: ${Object.keys(meetingsData || {}).join(', ')}`);
           
           // Common patterns: { meetings: [...] }, { data: [...] }, { results: [...] }
@@ -200,22 +136,24 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
         }
         
         if (Array.isArray(meetingsData)) {
-          logger.info(`   📋 OIAA: Received ${meetingsData.length} meetings`);
+          logger.info(`   📋 Received ${meetingsData.length} meetings from ${feed.name}`);
           
-          let addedFromOIAA = 0;
+          let addedFromFeed = 0;
           for (const meeting of meetingsData) {
-            const conferenceUrl = meeting.conference_url || meeting.conference_url_notes;
+            // Check if meeting is online (has conference_url or conference_url_notes)
+            const conferenceUrl = meeting.conference_url || meeting.conference_url_notes || meeting.conference_phone;
             
+            // Only include online meetings with Zoom links
             if (conferenceUrl && typeof conferenceUrl === 'string' && conferenceUrl.toLowerCase().includes('zoom')) {
               const zoomId = extractZoomId(conferenceUrl);
               
               if (zoomId && !seenZoomIds.has(zoomId)) {
                 seenZoomIds.add(zoomId);
-                addedFromOIAA++;
+                addedFromFeed++;
                 
                 meetings.push({
-                  externalId: `oiaa-${meeting.slug || meeting.id || zoomId}`,
-                  name: meeting.name || meeting.post_title || 'AA Online Meeting',
+                  externalId: `aa-${feed.name.toLowerCase().replace(/\s+/g, '-')}-${meeting.slug || meeting.id || zoomId}`,
+                  name: meeting.name || meeting.post_title || `AA Meeting (${feed.name})`,
                   program: 'AA',
                   meetingType: formatMeetingTypes(meeting.types),
                   description: meeting.notes || meeting.location_notes || undefined,
@@ -233,19 +171,20 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
             }
           }
           
-          logger.info(`   ✅ OIAA: Added ${addedFromOIAA} unique Zoom meetings`);
+          logger.info(`   ✅ ${feed.name}: Added ${addedFromFeed} unique Zoom meetings`);
         } else {
-          logger.warn(`   ⚠️  OIAA: Could not find meetings array in response`);
+          logger.warn(`   ⚠️  ${feed.name}: Could not find meetings array in response`);
           logger.warn(`   📄 Response type: ${typeof meetingsData}, Sample: ${JSON.stringify(meetingsData).substring(0, 200)}`);
         }
       } else {
-        logger.warn(`   ⚠️  OIAA: Unexpected response status ${response.status}`);
+        logger.warn(`   ⚠️  ${feed.name}: Unexpected response status ${response.status}`);
       }
-    } catch (error: any) {
-      logger.error('❌ OIAA API error:', error.message);
+      } catch (error: any) {
+        logger.error(`❌ ${feed.name} API error:`, error.message);
+      }
     }
 
-    logger.info(`✅ Total AA meetings fetched: ${meetings.length} (from Meeting Guide + OIAA)`);
+    logger.info(`✅ Total AA meetings fetched: ${meetings.length} (from all TSML feeds)`);
     return meetings;
   } catch (error: any) {
     logger.error('❌ Error in AA meeting fetch:', error.message);
