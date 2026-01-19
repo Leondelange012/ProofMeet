@@ -82,15 +82,11 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     for (const participant of participantsWithRequirements) {
       if (participant.requirements.length > 0) {
         const requirement = participant.requirements[0];
-        const weekStart = new Date();
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week
-        weekStart.setHours(0, 0, 0, 0);
 
-        // ONLY count meetings with PASSED validation (80%+ attendance)
-        const weekAttendanceRecords = await prisma.attendanceRecord.findMany({
+        // Get ALL attendance records with PASSED validation
+        const allAttendanceRecords = await prisma.attendanceRecord.findMany({
           where: {
             participantId: participant.id,
-            meetingDate: { gte: weekStart },
             status: 'COMPLETED',
           },
           include: {
@@ -102,13 +98,30 @@ router.get('/dashboard', async (req: Request, res: Response) => {
           },
         });
 
-        const validMeetings = weekAttendanceRecords.filter(record => {
+        const validMeetings = allAttendanceRecords.filter(record => {
           const validationStatus = (record.courtCard as any)?.validationStatus;
           return validationStatus === 'PASSED';
         });
 
-        if (validMeetings.length >= requirement.meetingsPerWeek) {
-          compliantCount++;
+        // Check compliance based on totalMeetingsRequired OR meetingsPerWeek
+        if (requirement.totalMeetingsRequired && requirement.totalMeetingsRequired > 0) {
+          // Total meetings compliance
+          if (validMeetings.length >= requirement.totalMeetingsRequired) {
+            compliantCount++;
+          }
+        } else {
+          // Weekly compliance (fallback)
+          const weekStart = new Date();
+          weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+          weekStart.setHours(0, 0, 0, 0);
+
+          const validThisWeek = validMeetings.filter(record => {
+            return new Date(record.meetingDate) >= weekStart;
+          });
+
+          if (validThisWeek.length >= requirement.meetingsPerWeek) {
+            compliantCount++;
+          }
         }
       }
     }
@@ -257,15 +270,12 @@ router.get('/participants', async (req: Request, res: Response) => {
     // Calculate compliance for each participant
     const participantsWithStats = await Promise.all(
       participants.map(async (participant) => {
-        // This week stats
-        const weekStart = new Date();
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-        weekStart.setHours(0, 0, 0, 0);
+        const requirement = participant.requirements[0];
 
-        const thisWeekAttendance = await prisma.attendanceRecord.findMany({
+        // Get ALL completed attendance records (for total count compliance)
+        const allTimeAttendance = await prisma.attendanceRecord.findMany({
           where: {
             participantId: participant.id,
-            meetingDate: { gte: weekStart },
             status: 'COMPLETED',
           },
           include: {
@@ -278,37 +288,59 @@ router.get('/participants', async (req: Request, res: Response) => {
         });
 
         // ONLY count meetings with 80%+ attendance (PASSED validation)
-        const validMeetings = thisWeekAttendance.filter(record => {
+        const allValidMeetings = allTimeAttendance.filter(record => {
           const validationStatus = (record.courtCard as any)?.validationStatus;
           return validationStatus === 'PASSED';
         });
 
-        const requirement = participant.requirements[0];
-        const meetingsRequired = requirement?.meetingsPerWeek || 0;
-        const meetingsAttended = validMeetings.length; // Only count VALID meetings
+        // This week stats (for weekly tracking if needed)
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        weekStart.setHours(0, 0, 0, 0);
+
+        const thisWeekAttendance = allTimeAttendance.filter(record => {
+          return new Date(record.meetingDate) >= weekStart;
+        });
+
+        const validThisWeek = allValidMeetings.filter(record => {
+          return new Date(record.meetingDate) >= weekStart;
+        });
+
+        // Determine compliance based on totalMeetingsRequired OR meetingsPerWeek
+        let complianceStatus: 'COMPLIANT' | 'AT_RISK' | 'NON_COMPLIANT' = 'COMPLIANT';
+        let meetingsRequired: number;
+        let meetingsAttended: number;
+
+        if (requirement?.totalMeetingsRequired && requirement.totalMeetingsRequired > 0) {
+          // Use TOTAL meetings compliance
+          meetingsRequired = requirement.totalMeetingsRequired;
+          meetingsAttended = allValidMeetings.length;
+          
+          if (meetingsAttended === 0) {
+            complianceStatus = 'NON_COMPLIANT';
+          } else if (meetingsAttended < meetingsRequired) {
+            complianceStatus = 'AT_RISK';
+          } else {
+            complianceStatus = 'COMPLIANT';
+          }
+        } else {
+          // Fall back to weekly compliance
+          meetingsRequired = requirement?.meetingsPerWeek || 0;
+          meetingsAttended = validThisWeek.length;
+          
+          if (meetingsRequired > 0) {
+            if (meetingsAttended === 0) {
+              complianceStatus = 'NON_COMPLIANT';
+            } else if (meetingsAttended < meetingsRequired) {
+              complianceStatus = 'AT_RISK';
+            }
+          }
+        }
 
         // Calculate average attendance percentage
         const avgAttendance = thisWeekAttendance.length > 0
           ? thisWeekAttendance.reduce((sum, r) => sum + Number(r.attendancePercent || 0), 0) / thisWeekAttendance.length
           : 0;
-
-        // Determine status
-        let complianceStatus: 'COMPLIANT' | 'AT_RISK' | 'NON_COMPLIANT' = 'COMPLIANT';
-        if (meetingsRequired > 0) {
-          if (meetingsAttended === 0) {
-            complianceStatus = 'NON_COMPLIANT';
-          } else if (meetingsAttended < meetingsRequired) {
-            complianceStatus = 'AT_RISK';
-          }
-        }
-
-        // All-time stats
-        const allTimeAttendance = await prisma.attendanceRecord.findMany({
-          where: {
-            participantId: participant.id,
-            status: 'COMPLETED',
-          },
-        });
 
         const totalHours = allTimeAttendance.reduce((sum, r) => sum + (r.totalDurationMin || 0), 0) / 60;
         const allTimeAvgAttendance = allTimeAttendance.length > 0
@@ -397,10 +429,10 @@ router.get('/participants/:participantId', async (req: Request, res: Response) =
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     weekStart.setHours(0, 0, 0, 0);
 
-    const thisWeekAttendance = await prisma.attendanceRecord.findMany({
+    // Get ALL attendance records
+    const allAttendance = await prisma.attendanceRecord.findMany({
       where: {
         participantId,
-        meetingDate: { gte: weekStart },
         status: 'COMPLETED',
       },
       include: {
@@ -412,35 +444,32 @@ router.get('/participants/:participantId', async (req: Request, res: Response) =
       },
     });
 
-    // ONLY count valid meetings (80%+ attendance)
-    const validThisWeek = thisWeekAttendance.filter(record => {
+    // Filter for valid meetings (PASSED validation)
+    const allValidMeetings = allAttendance.filter(record => {
       const validationStatus = (record.courtCard as any)?.validationStatus;
       return validationStatus === 'PASSED';
+    });
+
+    const thisWeekAttendance = allAttendance.filter(record => {
+      return new Date(record.meetingDate) >= weekStart;
+    });
+
+    // ONLY count valid meetings (80%+ attendance)
+    const validThisWeek = allValidMeetings.filter(record => {
+      return new Date(record.meetingDate) >= weekStart;
     });
 
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
 
-    const thisMonthAttendance = await prisma.attendanceRecord.findMany({
-      where: {
-        participantId,
-        meetingDate: { gte: monthStart },
-        status: 'COMPLETED',
-      },
-      include: {
-        courtCard: {
-          select: {
-            validationStatus: true as any,
-          },
-        },
-      },
+    const thisMonthAttendance = allAttendance.filter(record => {
+      return new Date(record.meetingDate) >= monthStart;
     });
 
     // ONLY count valid meetings for the month
-    const validThisMonth = thisMonthAttendance.filter(record => {
-      const validationStatus = (record.courtCard as any)?.validationStatus;
-      return validationStatus === 'PASSED';
+    const validThisMonth = allValidMeetings.filter(record => {
+      return new Date(record.meetingDate) >= monthStart;
     });
 
     // Get recent meetings
@@ -468,12 +497,23 @@ router.get('/participants/:participantId', async (req: Request, res: Response) =
           registeredAt: participant.createdAt,
         },
         requirements: requirement ? {
+          totalMeetingsRequired: requirement.totalMeetingsRequired,
           meetingsPerWeek: requirement.meetingsPerWeek,
           requiredPrograms: requirement.requiredPrograms,
           minimumDuration: requirement.minimumDurationMinutes,
           minimumAttendance: requirement.minimumAttendancePercent,
         } : null,
         compliance: {
+          overall: requirement?.totalMeetingsRequired ? {
+            attended: allValidMeetings.length,
+            required: requirement.totalMeetingsRequired,
+            totalCompleted: allAttendance.length,
+            percentage: requirement.totalMeetingsRequired > 0
+              ? Math.round((allValidMeetings.length / requirement.totalMeetingsRequired) * 100)
+              : 0,
+            status: allValidMeetings.length >= requirement.totalMeetingsRequired ? 'COMPLETED' : 
+                   allValidMeetings.length > 0 ? 'IN_PROGRESS' : 'NOT_STARTED',
+          } : null,
           currentWeek: {
             attended: validThisWeek.length, // Only VALID meetings
             required: requirement?.meetingsPerWeek || 0,
@@ -531,7 +571,8 @@ router.get('/participants/:participantId', async (req: Request, res: Response) =
 router.post(
   '/participants/:participantId/requirements',
   [
-    body('meetingsPerWeek').isInt({ min: 0 }),
+    body('totalMeetingsRequired').optional().isInt({ min: 0 }),
+    body('meetingsPerWeek').optional().isInt({ min: 0 }),
     body('requiredPrograms').optional().isArray(),
     body('minimumDurationMinutes').optional().isInt({ min: 0 }),
     body('minimumAttendancePercentage').optional().isFloat({ min: 0, max: 100 }),
@@ -550,7 +591,8 @@ router.post(
       const courtRepId = req.user!.id;
       const { participantId } = req.params;
       const {
-        meetingsPerWeek,
+        totalMeetingsRequired = 0,
+        meetingsPerWeek = 0,
         requiredPrograms = [],
         minimumDurationMinutes = 60,
         minimumAttendancePercentage = 90,
@@ -587,6 +629,7 @@ router.post(
           participantId,
           courtRepId,
           createdById: courtRepId,
+          totalMeetingsRequired,
           meetingsPerWeek,
           requiredPrograms,
           minimumDurationMinutes,
@@ -602,6 +645,7 @@ router.post(
         data: {
           requirementId: requirement.id,
           participantId,
+          totalMeetingsRequired,
           meetingsPerWeek,
           requiredPrograms,
           createdAt: requirement.createdAt,
@@ -624,6 +668,7 @@ router.post(
 router.put(
   '/participants/:participantId/requirements',
   [
+    body('totalMeetingsRequired').optional().isInt({ min: 0 }),
     body('meetingsPerWeek').optional().isInt({ min: 0 }),
     body('requiredPrograms').optional().isArray(),
     body('minimumDurationMinutes').optional().isInt({ min: 0 }),
@@ -663,6 +708,7 @@ router.put(
       const updated = await prisma.meetingRequirement.update({
         where: { id: currentRequirement.id },
         data: {
+          ...(req.body.totalMeetingsRequired !== undefined && { totalMeetingsRequired: req.body.totalMeetingsRequired }),
           ...(req.body.meetingsPerWeek && { meetingsPerWeek: req.body.meetingsPerWeek }),
           ...(req.body.requiredPrograms && { requiredPrograms: req.body.requiredPrograms }),
           ...(req.body.minimumDurationMinutes && { minimumDurationMinutes: req.body.minimumDurationMinutes }),

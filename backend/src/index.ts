@@ -10,6 +10,7 @@ import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 import { websocketService } from './services/websocketService';
 import { startMeetingFinalizationScheduler } from './services/meetingFinalizationService';
+import { initializeCronJobs } from './services/cronService';
 
 // Routes
 import { authV2Routes } from './routes/auth-v2';
@@ -157,6 +158,10 @@ websocketService.initialize(httpServer);
 
 // Start meeting finalization scheduler (checks every 5 minutes)
 startMeetingFinalizationScheduler();
+
+// Initialize cron jobs (daily meeting sync, etc.)
+// Running initial sync on startup + daily at 2 AM
+initializeCronJobs(true); // Initial sync + daily cron job
 
 // Graceful shutdown
 process.on('SIGINT', async () => {

@@ -503,13 +503,20 @@ const CourtRepDashboardPage: React.FC = () => {
                   <TableCell />
                   <TableCell>Name</TableCell>
                   <TableCell>Case Number</TableCell>
-                  <TableCell>This Week</TableCell>
+                  <TableCell>Progress</TableCell>
                   <TableCell>Compliance</TableCell>
                   <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {participants.map((participant: any) => (
+                {participants.map((participant: any) => {
+                  // Check if using total meetings or weekly tracking
+                  const usingTotalMeetings = participant.allTime && participant.allTime.totalRequired > 0;
+                  const displayProgress = usingTotalMeetings
+                    ? `${participant.allTime.totalMeetings}/${participant.allTime.totalRequired}`
+                    : `${participant.thisWeek.meetingsAttended}/${participant.thisWeek.meetingsRequired || 0} this week`;
+                  
+                  return (
                   <React.Fragment key={participant.id}>
                     <TableRow
                       hover
@@ -530,7 +537,7 @@ const CourtRepDashboardPage: React.FC = () => {
                       </TableCell>
                       <TableCell>{participant.caseNumber}</TableCell>
                       <TableCell>
-                        {participant.thisWeek.meetingsAttended}/{participant.thisWeek.meetingsRequired || 0}
+                        {displayProgress}
                       </TableCell>
                       <TableCell>
                         {participant.thisWeek.averageAttendance}%
@@ -1018,7 +1025,8 @@ const CourtRepDashboardPage: React.FC = () => {
                       </TableCell>
                     </TableRow>
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}

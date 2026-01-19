@@ -44,8 +44,9 @@ async function checkParticipantRequirements() {
           participantId: participant.id,
           courtRepId: participant.courtRepId,
           createdById: participant.courtRepId, // Court rep creates it
-          meetingsPerWeek: 1, // Default to 1 meeting per week
-          meetingsPerMonth: 4,
+          totalMeetingsRequired: 20, // Default to 20 total meetings
+          meetingsPerWeek: 0, // No weekly requirement
+          meetingsPerMonth: 0,
           requiredPrograms: ['AA'], // Default to AA
           minimumDurationMinutes: 60,
           minimumAttendancePercent: 80,
@@ -54,6 +55,7 @@ async function checkParticipantRequirements() {
       });
 
       console.log(`✅ Created meeting requirement:`);
+      console.log(`   Total Meetings Required: ${newRequirement.totalMeetingsRequired}`);
       console.log(`   Meetings Per Week: ${newRequirement.meetingsPerWeek}`);
       console.log(`   Required Programs: ${newRequirement.requiredPrograms.join(', ')}`);
       console.log(`   Minimum Attendance: ${newRequirement.minimumAttendancePercent}%`);
@@ -61,6 +63,7 @@ async function checkParticipantRequirements() {
       const activeReq = participant.requirements.find(r => r.isActive);
       if (activeReq) {
         console.log(`\n✅ Active requirement found:`);
+        console.log(`   Total Meetings Required: ${activeReq.totalMeetingsRequired || 0}`);
         console.log(`   Meetings Per Week: ${activeReq.meetingsPerWeek}`);
         console.log(`   Required Programs: ${activeReq.requiredPrograms.join(', ')}`);
         console.log(`   Minimum Attendance: ${activeReq.minimumAttendancePercent}%`);

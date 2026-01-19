@@ -1,6 +1,12 @@
 /**
  * AA Intergroup Service
- * Integrates with https://aa-intergroup.org/meetings/ to fetch real AA meeting data
+ * NOTE: This service is DEPRECATED and returns empty data
+ * All meetings now come from the backend database (/api/participant/meetings/available)
+ * 
+ * To add real meetings:
+ * 1. Use the Court Rep interface to create meetings
+ * 2. Import meetings into the ExternalMeeting table
+ * 3. Integrate with third-party meeting APIs (AA, NA, SMART, etc.)
  */
 
 // Define interfaces for AA meeting data
@@ -37,11 +43,8 @@ interface ApiResponse<T> {
   totalMeetings?: number;
 }
 
-const AA_INTERGROUP_BASE_URL = 'https://aa-intergroup.org';
-
-// Note: This is a placeholder implementation
-// We need to investigate the actual API structure of aa-intergroup.org
-// Comprehensive meeting data generator for realistic simulation
+// DEPRECATED: Mock data generation removed
+// All meetings now loaded from backend database
 const generateComprehensiveMeetingData = (): AAMeeting[] => {
   const currentDate = new Date().toISOString();
   
@@ -173,108 +176,41 @@ const generateComprehensiveMeetingData = (): AAMeeting[] => {
 
 export const aaIntergroupService = {
   /**
-   * Fetch all available recovery meetings (comprehensive dataset)
-   * Simulates real intergroup data with automatic refresh capability
+   * DEPRECATED: No longer generates mock meetings
+   * All meetings now loaded from backend database
    */
   async getAllMeetings(): Promise<ApiResponse<AAMeeting[]>> {
-    try {
-      console.log('🔄 Generating comprehensive recovery meeting dataset...');
-      
-      // Generate comprehensive meeting data (simulates real API response)
-      const meetings = generateComprehensiveMeetingData();
-      
-      console.log(`✅ Generated ${meetings.length} meetings across all recovery programs`);
-      
-      return {
-        success: true,
-        data: meetings,
-        lastUpdated: new Date().toISOString(),
-        totalMeetings: meetings.length
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || 'Failed to fetch recovery meetings'
-      };
-    }
+    console.log('ℹ️  Mock meeting service is disabled. All meetings now come from backend database.');
+    
+    return {
+      success: true,
+      data: [],
+      lastUpdated: new Date().toISOString(),
+      totalMeetings: 0
+    };
   },
 
   /**
-   * Fetch meetings with proof of attendance capability only
+   * DEPRECATED: Returns empty array
    */
   async getProofOfAttendanceMeetings(): Promise<ApiResponse<AAMeeting[]>> {
-    try {
-      const allMeetingsResponse = await this.getAllMeetings();
-      
-      if (!allMeetingsResponse.success || !allMeetingsResponse.data) {
-        return allMeetingsResponse;
-      }
-
-      const proofMeetings = allMeetingsResponse.data.filter(
-        meeting => meeting.hasProofOfAttendance
-      );
-
-      return {
-        success: true,
-        data: proofMeetings
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || 'Failed to fetch proof of attendance meetings'
-      };
-    }
+    return {
+      success: true,
+      data: []
+    };
   },
 
   /**
-   * Organize meetings by program (AA, NA, SMART, etc.)
+   * DEPRECATED: Returns empty object
+   * All meetings now come from /api/participant/meetings/available
    */
   async getMeetingsByProgram(): Promise<ApiResponse<MeetingsByProgram>> {
-    try {
-      const allMeetingsResponse = await this.getProofOfAttendanceMeetings();
-      if (!allMeetingsResponse.success || !allMeetingsResponse.data) {
-        return {
-          success: false,
-          error: allMeetingsResponse.error || 'Failed to fetch meetings'
-        };
-      }
-
-      const meetingsByProgram: MeetingsByProgram = {};
-      
-      allMeetingsResponse.data.forEach(meeting => {
-        const program = meeting.program;
-        if (!meetingsByProgram[program]) {
-          meetingsByProgram[program] = [];
-        }
-        meetingsByProgram[program].push(meeting);
-      });
-
-      // Sort meetings within each program by day and time
-      Object.keys(meetingsByProgram).forEach(program => {
-        meetingsByProgram[program].sort((a, b) => {
-          const dayOrder = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-          const dayA = dayOrder.indexOf(a.day);
-          const dayB = dayOrder.indexOf(b.day);
-          
-          if (dayA !== dayB) {
-            return dayA - dayB;
-          }
-          
-          // If same day, sort by time
-          return a.time.localeCompare(b.time);
-        });
-      });
-
-      return {
-        success: true,
-        data: meetingsByProgram
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || 'Failed to organize meetings by program'
-      };
-    }
+    console.log('ℹ️  Mock meeting service is disabled. All meetings now come from backend database.');
+    
+    return {
+      success: true,
+      data: {}
+    };
   },
 
   /**

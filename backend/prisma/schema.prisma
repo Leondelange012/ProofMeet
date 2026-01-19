@@ -122,6 +122,7 @@ model MeetingRequirement {
   courtRepId                String   @map("court_rep_id")
   
   // Requirements
+  totalMeetingsRequired     Int?     @default(0) @map("total_meetings_required") // Total meetings to complete
   meetingsPerWeek           Int      @default(0) @map("meetings_per_week")
   meetingsPerMonth          Int      @default(0) @map("meetings_per_month")
   requiredPrograms          String[] @map("required_programs") // ['AA', 'NA', 'SMART']

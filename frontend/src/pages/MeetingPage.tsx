@@ -259,9 +259,10 @@ const MeetingPage: React.FC = () => {
   const loadAvailableMeetings = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Loading recovery meetings organized by program...');
+      console.log('🔍 Loading real recovery meetings from database...');
       
-      // Load from AA Intergroup Service
+      // AA Intergroup Service (currently disabled - returns empty)
+      // To add real meetings, populate the ExternalMeeting table in the database
       const response = await aaIntergroupService.getMeetingsByProgram();
       let allMeetings: { [program: string]: any[] } = {};
       
@@ -269,14 +270,14 @@ const MeetingPage: React.FC = () => {
         allMeetings = { ...response.data };
       }
 
-      // Load from backend API (includes test meetings)
+      // Load from backend database (real meetings only)
       if (token) {
         try {
           const headers = { Authorization: `Bearer ${token}` };
           const backendResponse = await axios.get(`${API_BASE_URL}/participant/meetings/available`, { headers });
           
           if (backendResponse.data.success && backendResponse.data.data) {
-            // Merge backend meetings with AA Intergroup meetings
+            // Merge backend meetings (which are now the primary source)
               const backendMeetings = backendResponse.data.data as { [program: string]: any[] };
               Object.keys(backendMeetings).forEach((program: string) => {
                 if (allMeetings[program]) {
@@ -293,7 +294,7 @@ const MeetingPage: React.FC = () => {
 
       setMeetingsByProgram(allMeetings);
       const totalMeetings = Object.values(allMeetings).reduce((sum: number, meetings: any[]) => sum + meetings.length, 0);
-      console.log(`✅ Loaded ${totalMeetings} meetings across ${Object.keys(allMeetings).length} programs`);
+      console.log(`✅ Loaded ${totalMeetings} real meetings across ${Object.keys(allMeetings).length} programs`);
     } catch (error) {
       console.error('❌ Failed to load recovery meetings:', error);
       setMeetingsByProgram({});

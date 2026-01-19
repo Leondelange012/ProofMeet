@@ -4,6 +4,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../index';
 import { logger } from '../utils/logger';
 import { processPendingDigests } from '../services/emailService';
+import { syncAllMeetings, testMeetingAPIs } from '../services/meetingSyncService';
 
 const router = Router();
 
@@ -267,6 +268,113 @@ router.post('/approved-court-domains', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Add approved domain error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+// ============================================
+// MEETING SYNC MANAGEMENT
+// ============================================
+
+/**
+ * POST /api/admin/sync-meetings
+ * Manually trigger meeting sync from external sources
+ */
+router.post('/sync-meetings', async (req: Request, res: Response) => {
+  try {
+    logger.info('Admin triggered: Manual meeting sync');
+
+    const result = await syncAllMeetings();
+
+    res.json({
+      success: result.success,
+      message: result.success ? 'Meeting sync completed successfully' : 'Meeting sync failed',
+      data: {
+        totalFetched: result.totalFetched,
+        totalSaved: result.totalSaved,
+        totalCleaned: result.totalCleaned,
+        sources: result.sources,
+        errors: result.errors,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Admin sync meetings error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/test-meeting-apis
+ * Test connectivity to external meeting APIs
+ */
+router.get('/test-meeting-apis', async (req: Request, res: Response) => {
+  try {
+    logger.info('Admin triggered: Test meeting APIs');
+
+    await testMeetingAPIs();
+
+    res.json({
+      success: true,
+      message: 'API tests complete - check server logs for results',
+    });
+  } catch (error: any) {
+    logger.error('Admin test meeting APIs error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/meeting-stats
+ * Get statistics about synced meetings
+ */
+router.get('/meeting-stats', async (req: Request, res: Response) => {
+  try {
+    const totalMeetings = await prisma.externalMeeting.count();
+    
+    const meetingsByProgram = await prisma.externalMeeting.groupBy({
+      by: ['program'],
+      _count: true,
+    });
+    
+    const meetingsByFormat = await prisma.externalMeeting.groupBy({
+      by: ['format'],
+      _count: true,
+    });
+    
+    const recentlySynced = await prisma.externalMeeting.count({
+      where: {
+        lastSyncedAt: {
+          gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalMeetings,
+        recentlySynced,
+        byProgram: meetingsByProgram.reduce((acc: any, curr: any) => {
+          acc[curr.program] = curr._count;
+          return acc;
+        }, {}),
+        byFormat: meetingsByFormat.reduce((acc: any, curr: any) => {
+          acc[curr.format] = curr._count;
+          return acc;
+        }, {}),
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get meeting stats error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
