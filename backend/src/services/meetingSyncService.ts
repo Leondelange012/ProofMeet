@@ -94,8 +94,9 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
     const seenZoomIds = new Set<string>();
     
     for (const feedUrl of TSML_FEEDS) {
+      const intergroupName = new URL(feedUrl).hostname.replace('www.', '').split('.')[0];
+      
       try {
-        const intergroupName = new URL(feedUrl).hostname.replace('www.', '').split('.')[0];
         logger.info(`   📡 Querying ${intergroupName} via CORS proxy...`);
         
         // Use CORS proxy to bypass blocking
