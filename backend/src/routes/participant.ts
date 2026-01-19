@@ -232,6 +232,7 @@ router.get('/meetings/available', async (req: Request, res: Response) => {
         duration: meeting.durationMinutes,
         format: meeting.format,
         zoomUrl: meeting.zoomUrl,
+        zoomId: meeting.zoomId, // ✅ ADDED: Required for search functionality
         location: meeting.location,
         address: meeting.address,
         description: meeting.description,
