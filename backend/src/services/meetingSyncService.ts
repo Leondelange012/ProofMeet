@@ -20,10 +20,10 @@ const TSML_FEEDS = [
   'https://www.lacoaa.org/wp-json/tsml/v1/meetings',
   // Chicago AA
   'https://www.chicagoaa.org/wp-json/tsml/v1/meetings',
-  // St. Cloud MN Intergroup  
-  'https://aasaintcloud.org/wp-json/tsml/v1/meetings',
-  // AA Northern Illinois
-  'https://www.aanorthernillinois.org/wp-json/tsml/v1/meetings',
+  // San Francisco AA
+  'https://www.aasf.org/wp-json/tsml/v1/meetings',
+  // Washington DC AA
+  'https://www.aa-dc.org/wp-json/tsml/v1/meetings',
 ];
 
 // BMLT servers for NA (fallback to known working ones)
@@ -34,6 +34,11 @@ const BMLT_ROOT_SERVERS = [
 
 // AA Meeting Guide API (public JSON API)
 const AA_MEETING_GUIDE_API = 'https://aaMeetingGuide.org/api/v2/meetings';
+
+// CORS Proxy for bypassing blocked APIs
+// Free option: https://corsproxy.io (rate limited but functional)
+// Paid options in env: CORS_PROXY_URL (e.g., ScraperAPI, Bright Data)
+const CORS_PROXY = process.env.CORS_PROXY_URL || 'https://corsproxy.io/?';
 
 interface ExternalMeeting {
   externalId: string;
@@ -91,14 +96,17 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
     for (const feedUrl of TSML_FEEDS) {
       try {
         const intergroupName = new URL(feedUrl).hostname.replace('www.', '').split('.')[0];
-        logger.info(`   📡 Querying ${intergroupName}...`);
+        logger.info(`   📡 Querying ${intergroupName} via CORS proxy...`);
         
-        const response = await axios.get(feedUrl, {
+        // Use CORS proxy to bypass blocking
+        const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(feedUrl)}`;
+        
+        const response = await axios.get(proxiedUrl, {
           params: {
             per_page: 100,  // Get up to 100 meetings per feed
             types: 'ONL'    // Online meetings only (if supported)
           },
-          timeout: 15000,
+          timeout: 30000,  // Increased timeout for proxy
           headers: {
             'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
             'Accept': 'application/json',
@@ -108,6 +116,7 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
         if (response.status === 200 && Array.isArray(response.data)) {
           logger.info(`   📋 Got ${response.data.length} meetings from ${intergroupName}`);
           
+          let addedFromThisFeed = 0;
           for (const meeting of response.data) {
             // Look for conference URL (TSML standard field)
             const conferenceUrl = meeting.conference_url || 
@@ -120,6 +129,7 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
               
               if (zoomId && !seenZoomIds.has(zoomId)) {
                 seenZoomIds.add(zoomId);
+                addedFromThisFeed++;
                 
                 meetings.push({
                   externalId: `tsml-${meeting.slug || meeting.id || zoomId}`,
@@ -141,10 +151,12 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
             }
           }
           
-          logger.info(`   ✅ Added ${meetings.length} unique meetings so far`);
+          logger.info(`   ✅ Added ${addedFromThisFeed} online meetings from ${intergroupName} (${meetings.length} total)`);
+        } else {
+          logger.warn(`   ⚠️  ${intergroupName}: Unexpected response format (status ${response.status})`);
         }
       } catch (feedError: any) {
-        logger.warn(`   ⚠️  ${feedUrl}: ${feedError.message}`);
+        logger.warn(`   ⚠️  ${intergroupName}: ${feedError.message}`);
       }
     }
 
