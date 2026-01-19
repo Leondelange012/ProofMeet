@@ -10,23 +10,11 @@ import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
-// REAL WORKING APIs - WordPress TSML (12 Step Meeting List) feeds
-// These AA intergroups use WordPress with TSML plugin which exposes meetings via REST API
-
-const TSML_FEEDS = [
-  // AA Intergroup (main site - user requested)
-  'https://aa-intergroup.org/wp-json/tsml/v1/meetings',
-  // New York City AA Intergroup
-  'https://www.nyintergroup.org/wp-json/tsml/v1/meetings',
-  // Los Angeles AA
-  'https://www.lacoaa.org/wp-json/tsml/v1/meetings',
-  // Chicago AA
-  'https://www.chicagoaa.org/wp-json/tsml/v1/meetings',
-  // San Francisco AA
-  'https://www.aasf.org/wp-json/tsml/v1/meetings',
-  // Washington DC AA
-  'https://www.aa-dc.org/wp-json/tsml/v1/meetings',
-];
+// OFFICIAL AA MEETING GUIDE API
+// This is the official public API maintained by AA that aggregates meetings from all intergroups
+// No proxy needed - designed for public use by recovery apps
+// API Docs: https://github.com/code4recovery/spec
+const AA_MEETING_GUIDE_API = 'https://aaMeetingGuide.org/api/v2/meetings';
 
 // BMLT servers for NA (fallback to known working ones)
 const BMLT_ROOT_SERVERS = [
@@ -85,88 +73,80 @@ async function fetchInTheRoomsMeetings(): Promise<ExternalMeeting[]> {
 }
 
 /**
- * Fetch AA meetings from WordPress TSML (12 Step Meeting List) feeds
- * These are official AA intergroup JSON APIs - fully automated!
+ * Fetch AA meetings from Official AA Meeting Guide API
+ * This is the official public API maintained by AA - no proxy needed!
+ * API Docs: https://github.com/code4recovery/spec
  */
 async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
   try {
-    logger.info('🔍 Fetching AA meetings from TSML WordPress feeds...');
+    logger.info('🔍 Fetching AA meetings from Official Meeting Guide API...');
+    logger.info('   📡 API: https://aaMeetingGuide.org/api/v2/meetings');
     
     const meetings: ExternalMeeting[] = [];
     const seenZoomIds = new Set<string>();
     
-    for (const feedUrl of TSML_FEEDS) {
-      const intergroupName = new URL(feedUrl).hostname.replace('www.', '').split('.')[0];
-      
-      try {
-        logger.info(`   📡 Querying ${intergroupName} via CORS proxy...`);
-        
-        // Use CORS proxy to bypass blocking
-        const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(feedUrl)}`;
-        
-        const response = await axios.get(proxiedUrl, {
-          params: {
-            per_page: 100,  // Get up to 100 meetings per feed
-            types: 'ONL'    // Online meetings only (if supported)
-          },
-          timeout: 30000,  // Increased timeout for proxy
-          headers: {
-            'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
-            'Accept': 'application/json',
-          },
-        });
+    // Fetch from official AA Meeting Guide API (aggregates all intergroups)
+    const response = await axios.get('https://aaMeetingGuide.org/api/v2/meetings', {
+      timeout: 60000, // 60 second timeout (large dataset)
+      headers: {
+        'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
+        'Accept': 'application/json',
+      },
+    });
 
-        if (response.status === 200 && Array.isArray(response.data)) {
-          logger.info(`   📋 Got ${response.data.length} meetings from ${intergroupName}`);
+    if (response.status === 200 && Array.isArray(response.data)) {
+      logger.info(`   📋 Received ${response.data.length} total meetings from Meeting Guide`);
+      
+      let onlineMeetings = 0;
+      let withZoom = 0;
+      
+      for (const meeting of response.data) {
+        // Check if meeting is online (has conference_url or conference_url_notes)
+        const conferenceUrl = meeting.conference_url || meeting.conference_url_notes;
+        
+        // Only include online meetings with Zoom links
+        if (conferenceUrl && typeof conferenceUrl === 'string' && conferenceUrl.toLowerCase().includes('zoom')) {
+          onlineMeetings++;
+          const zoomId = extractZoomId(conferenceUrl);
           
-          let addedFromThisFeed = 0;
-          for (const meeting of response.data) {
-            // Look for conference URL (TSML standard field)
-            const conferenceUrl = meeting.conference_url || 
-                                 meeting.conference_url_notes ||
-                                 meeting.conference_phone;
+          if (zoomId && !seenZoomIds.has(zoomId)) {
+            seenZoomIds.add(zoomId);
+            withZoom++;
             
-            // Only include online meetings with Zoom links
-            if (conferenceUrl && typeof conferenceUrl === 'string' && conferenceUrl.includes('zoom.us')) {
-              const zoomId = extractZoomId(conferenceUrl);
-              
-              if (zoomId && !seenZoomIds.has(zoomId)) {
-                seenZoomIds.add(zoomId);
-                addedFromThisFeed++;
-                
-                meetings.push({
-                  externalId: `tsml-${meeting.slug || meeting.id || zoomId}`,
-                  name: meeting.name || meeting.post_title || 'AA Meeting',
-                  program: 'AA',
-                  meetingType: formatMeetingTypes(meeting.types),
-                  description: meeting.notes || undefined,
-                  dayOfWeek: parseDayOfWeek(meeting.day),
-                  time: parseTime(meeting.time),
-                  timezone: meeting.timezone || 'America/New_York',
-                  durationMinutes: 60,
-                  format: 'ONLINE',
-                  zoomUrl: conferenceUrl,
-                  zoomId: zoomId,
-                  zoomPassword: meeting.conference_phone_notes || undefined,
-                  tags: parseTags(meeting.types)
-                });
-              }
-            }
+            meetings.push({
+              externalId: `aa-guide-${meeting.slug || meeting.id || zoomId}`,
+              name: meeting.name || 'AA Meeting',
+              program: 'AA',
+              meetingType: formatMeetingTypes(meeting.types),
+              description: meeting.notes || meeting.location_notes || undefined,
+              dayOfWeek: parseDayOfWeek(meeting.day),
+              time: parseTime(meeting.time),
+              timezone: meeting.timezone || 'America/New_York',
+              durationMinutes: 60,
+              format: 'ONLINE',
+              zoomUrl: conferenceUrl,
+              zoomId: zoomId,
+              zoomPassword: meeting.conference_phone || undefined,
+              tags: parseTags(meeting.types)
+            });
           }
-          
-          logger.info(`   ✅ Added ${addedFromThisFeed} online meetings from ${intergroupName} (${meetings.length} total)`);
-        } else {
-          logger.warn(`   ⚠️  ${intergroupName}: Unexpected response format (status ${response.status})`);
         }
-      } catch (feedError: any) {
-        logger.warn(`   ⚠️  ${intergroupName}: ${feedError.message}`);
       }
+      
+      logger.info(`   ✅ Found ${onlineMeetings} online meetings`);
+      logger.info(`   ✅ Added ${withZoom} unique Zoom meetings`);
+    } else {
+      logger.warn(`   ⚠️  Unexpected response format (status ${response.status})`);
     }
 
     logger.info(`✅ Total AA meetings fetched: ${meetings.length}`);
     return meetings;
   } catch (error: any) {
-    logger.error('❌ Error fetching AA meetings:', error.message);
+    logger.error('❌ Error fetching AA Meeting Guide:', error.message);
+    if (error.response) {
+      logger.error(`   Status: ${error.response.status}`);
+      logger.error(`   Data: ${JSON.stringify(error.response.data).substring(0, 200)}`);
+    }
     return [];
   }
 }
