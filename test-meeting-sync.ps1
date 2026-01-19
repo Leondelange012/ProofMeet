@@ -1,7 +1,7 @@
 # Test Meeting Sync Script (PowerShell)
 # This script triggers a manual meeting sync and displays the results
 
-$API_URL = "https://proofmeet-api-production.up.railway.app"
+$API_URL = "https://proofmeet-backend-production.up.railway.app"
 $ADMIN_SECRET = $env:ADMIN_SECRET_KEY
 if (-not $ADMIN_SECRET) {
     $ADMIN_SECRET = Read-Host "Enter your ADMIN_SECRET_KEY"
