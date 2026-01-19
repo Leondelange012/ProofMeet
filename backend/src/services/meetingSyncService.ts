@@ -655,24 +655,33 @@ export async function syncAllMeetings(): Promise<{
 export async function testMeetingAPIs(): Promise<void> {
   logger.info('🧪 Testing meeting API connections...');
   
+  // Test OIAA (aa-intergroup.org)
   try {
-    // Test AA Meeting Guide (Public API - No auth needed!)
-    const aaTest = await axios.get(AA_MEETING_GUIDE_API, {
-      params: {
-        latitude: 40.7128,
-        longitude: -74.0060,
-        distance: 10,
-        online: true
-      },
+    const oiaaTest = await axios.get(`${CORS_PROXY}${encodeURIComponent('https://aa-intergroup.org/wp-json/tsml/v1/meetings')}`, {
+      params: { per_page: 1 },
       timeout: 10000,
       headers: {
-        'User-Agent': 'ProofMeet/1.0',
+        'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
         'Accept': 'application/json'
       }
     });
-    logger.info(`✅ AA Meeting Guide API: Status ${aaTest.status}, ${aaTest.data?.length || 0} meetings`);
+    logger.info(`✅ OIAA TSML API: Status ${oiaaTest.status}`);
   } catch (error: any) {
-    logger.error(`❌ AA Meeting Guide API: ${error.message}`);
+    logger.error(`❌ OIAA TSML API: ${error.message}`);
+  }
+  
+  // Test NYC AA Intergroup
+  try {
+    const nycTest = await axios.get(`${CORS_PROXY}${encodeURIComponent('https://meetings.nyintergroup.org/meetings.json')}`, {
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
+        'Accept': 'application/json'
+      }
+    });
+    logger.info(`✅ NYC AA Intergroup: Status ${nycTest.status}`);
+  } catch (error: any) {
+    logger.error(`❌ NYC AA Intergroup: ${error.message}`);
   }
   
   logger.info('ℹ️  Other APIs (NA, SMART, In The Rooms) not yet implemented');
