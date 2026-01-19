@@ -14,6 +14,8 @@ const prisma = new PrismaClient();
 // These AA intergroups use WordPress with TSML plugin which exposes meetings via REST API
 
 const TSML_FEEDS = [
+  // AA Intergroup (main site - user requested)
+  'https://aa-intergroup.org/wp-json/tsml/v1/meetings',
   // New York City AA Intergroup
   'https://www.nyintergroup.org/wp-json/tsml/v1/meetings',
   // Los Angeles AA
