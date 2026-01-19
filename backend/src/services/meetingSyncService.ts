@@ -22,10 +22,7 @@ const BMLT_ROOT_SERVERS = [
   'https://tomato.bmltenabled.org/main_server',  // Another root
 ];
 
-// AA Meeting Guide API (public JSON API)
-const AA_MEETING_GUIDE_API = 'https://aaMeetingGuide.org/api/v2/meetings';
-
-// CORS Proxy for bypassing blocked APIs
+// CORS Proxy for bypassing blocked APIs (currently not needed for AA, but kept for potential future use)
 // Free option: https://corsproxy.io (rate limited but functional)
 // Paid options in env: CORS_PROXY_URL (e.g., ScraperAPI, Bright Data)
 const CORS_PROXY = process.env.CORS_PROXY_URL || 'https://corsproxy.io/?';
