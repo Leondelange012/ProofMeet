@@ -13,6 +13,13 @@ interface AuthenticatedWebSocket extends WebSocket {
   userType?: string;
   courtRepId?: string;
   isAlive?: boolean;
+  // Explicitly declare WebSocket methods to satisfy TypeScript
+  close: WebSocket['close'];
+  on: WebSocket['on'];
+  send: WebSocket['send'];
+  ping: WebSocket['ping'];
+  terminate: WebSocket['terminate'];
+  readyState: WebSocket['readyState'];
 }
 
 interface WebSocketMessage {
