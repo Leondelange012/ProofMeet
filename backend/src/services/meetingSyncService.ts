@@ -16,6 +16,11 @@ const prisma = new PrismaClient();
 // API Docs: https://github.com/code4recovery/spec
 const AA_MEETING_GUIDE_API = 'https://aaMeetingGuide.org/api/v2/meetings';
 
+// OIAA (Online Intergroup of Alcoholics Anonymous) - aa-intergroup.org
+// Specialized intergroup for online AA meetings - has its own TSML API
+// This is separate from Meeting Guide and focuses exclusively on online meetings
+const OIAA_TSML_API = 'https://aa-intergroup.org/wp-json/tsml/v1/meetings';
+
 // BMLT servers for NA (fallback to known working ones)
 const BMLT_ROOT_SERVERS = [
   'https://bmlt.sezf.org/main_server',  // Main worldwide BMLT
@@ -70,26 +75,31 @@ async function fetchInTheRoomsMeetings(): Promise<ExternalMeeting[]> {
 }
 
 /**
- * Fetch AA meetings from Official AA Meeting Guide API
- * This is the official public API maintained by AA - no proxy needed!
+ * Fetch AA meetings from two sources:
+ * 1. Official AA Meeting Guide API (aggregates 400+ intergroups)
+ * 2. OIAA (aa-intergroup.org) - specialized online-only intergroup
+ * 
  * API Docs: https://github.com/code4recovery/spec
  */
 async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
   try {
-    logger.info('🔍 Fetching AA meetings from Official Meeting Guide API...');
-    logger.info('   📡 API: https://aaMeetingGuide.org/api/v2/meetings');
+    logger.info('🔍 Fetching AA meetings from multiple sources...');
     
     const meetings: ExternalMeeting[] = [];
     const seenZoomIds = new Set<string>();
     
-    // Fetch from official AA Meeting Guide API (aggregates all intergroups)
-    const response = await axios.get('https://aaMeetingGuide.org/api/v2/meetings', {
-      timeout: 60000, // 60 second timeout (large dataset)
-      headers: {
-        'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
-        'Accept': 'application/json',
-      },
-    });
+    // ============================================================
+    // SOURCE 1: Official AA Meeting Guide API (400+ intergroups)
+    // ============================================================
+    try {
+      logger.info('   📡 Source 1: AA Meeting Guide API');
+      const response = await axios.get(AA_MEETING_GUIDE_API, {
+        timeout: 60000, // 60 second timeout (large dataset)
+        headers: {
+          'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
+          'Accept': 'application/json',
+        },
+      });
 
     if (response.status === 200 && Array.isArray(response.data)) {
       logger.info(`   📋 Received ${response.data.length} total meetings from Meeting Guide`);
@@ -130,20 +140,77 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
         }
       }
       
-      logger.info(`   ✅ Found ${onlineMeetings} online meetings`);
-      logger.info(`   ✅ Added ${withZoom} unique Zoom meetings`);
+      logger.info(`   ✅ Meeting Guide: Found ${onlineMeetings} online, added ${withZoom} unique Zoom meetings`);
     } else {
-      logger.warn(`   ⚠️  Unexpected response format (status ${response.status})`);
+      logger.warn(`   ⚠️  Meeting Guide: Unexpected response format (status ${response.status})`);
+    }
+    } catch (error: any) {
+      logger.error('❌ Meeting Guide API error:', error.message);
     }
 
-    logger.info(`✅ Total AA meetings fetched: ${meetings.length}`);
+    // ============================================================
+    // SOURCE 2: OIAA (aa-intergroup.org) - Online-only intergroup
+    // ============================================================
+    try {
+      logger.info('   📡 Source 2: OIAA (aa-intergroup.org) - Online Meetings');
+      
+      const response = await axios.get(OIAA_TSML_API, {
+        params: {
+          per_page: 500,  // OIAA has many online meetings
+        },
+        timeout: 30000,
+        headers: {
+          'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (response.status === 200 && Array.isArray(response.data)) {
+        logger.info(`   📋 OIAA: Received ${response.data.length} meetings`);
+        
+        let addedFromOIAA = 0;
+        for (const meeting of response.data) {
+          const conferenceUrl = meeting.conference_url || meeting.conference_url_notes;
+          
+          if (conferenceUrl && typeof conferenceUrl === 'string' && conferenceUrl.toLowerCase().includes('zoom')) {
+            const zoomId = extractZoomId(conferenceUrl);
+            
+            if (zoomId && !seenZoomIds.has(zoomId)) {
+              seenZoomIds.add(zoomId);
+              addedFromOIAA++;
+              
+              meetings.push({
+                externalId: `oiaa-${meeting.slug || meeting.id || zoomId}`,
+                name: meeting.name || meeting.post_title || 'AA Online Meeting',
+                program: 'AA',
+                meetingType: formatMeetingTypes(meeting.types),
+                description: meeting.notes || meeting.location_notes || undefined,
+                dayOfWeek: parseDayOfWeek(meeting.day),
+                time: parseTime(meeting.time),
+                timezone: meeting.timezone || 'America/New_York',
+                durationMinutes: 60,
+                format: 'ONLINE',
+                zoomUrl: conferenceUrl,
+                zoomId: zoomId,
+                zoomPassword: meeting.conference_phone || meeting.conference_phone_notes || undefined,
+                tags: parseTags(meeting.types)
+              });
+            }
+          }
+        }
+        
+        logger.info(`   ✅ OIAA: Added ${addedFromOIAA} unique Zoom meetings`);
+      } else {
+        logger.warn(`   ⚠️  OIAA: Unexpected response format (status ${response.status})`);
+      }
+    } catch (error: any) {
+      logger.error('❌ OIAA API error:', error.message);
+    }
+
+    logger.info(`✅ Total AA meetings fetched: ${meetings.length} (from Meeting Guide + OIAA)`);
     return meetings;
   } catch (error: any) {
-    logger.error('❌ Error fetching AA Meeting Guide:', error.message);
-    if (error.response) {
-      logger.error(`   Status: ${error.response.status}`);
-      logger.error(`   Data: ${JSON.stringify(error.response.data).substring(0, 200)}`);
-    }
+    logger.error('❌ Error in AA meeting fetch:', error.message);
     return [];
   }
 }
