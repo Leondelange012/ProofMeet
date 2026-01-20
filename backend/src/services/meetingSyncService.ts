@@ -164,6 +164,20 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
       logger.info('📄 Got HTML response - parsing with Cheerio');
       const $ = cheerio.load(response.data);
       
+      // DEBUG: Log HTML structure
+      logger.info('🔍 HTML Debug Info:');
+      logger.info(`  - Page title: ${$('title').text()}`);
+      logger.info(`  - Body classes: ${$('body').attr('class')}`);
+      logger.info(`  - All Zoom links found: ${$('a[href*="zoom.us"]').length}`);
+      
+      // Log first few Zoom links for inspection
+      $('a[href*="zoom.us"]').slice(0, 3).each((i, el) => {
+        const $link = $(el);
+        logger.info(`  - Zoom link ${i + 1}: ${$link.attr('href')}`);
+        logger.info(`    Parent: <${$link.parent().prop('tagName')}> class="${$link.parent().attr('class')}"`);
+        logger.info(`    Grandparent: <${$link.parent().parent().prop('tagName')}> class="${$link.parent().parent().attr('class')}"`);
+      });
+      
       // Look for meeting cards or table rows
       // This selector might need adjustment based on actual HTML structure
       const meetingElements = $('.meeting-item, tr.meeting-row, [data-meeting], .tsml-meeting');
