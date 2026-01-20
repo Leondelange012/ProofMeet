@@ -189,6 +189,41 @@ router.get('/dashboard', async (req: Request, res: Response) => {
 // ============================================
 
 /**
+ * GET /api/participant/meetings/programs
+ * Get list of all available meeting programs/categories
+ */
+router.get('/meetings/programs', async (req: Request, res: Response) => {
+  try {
+    // Get distinct programs from meetings with proof capability
+    const programs = await prisma.externalMeeting.findMany({
+      where: {
+        hasProofCapability: true,
+      },
+      distinct: ['program'],
+      select: {
+        program: true,
+      },
+      orderBy: {
+        program: 'asc',
+      },
+    });
+
+    const programList = programs.map(p => p.program);
+
+    res.json({
+      success: true,
+      data: programList,
+    });
+  } catch (error: any) {
+    logger.error('Get available programs error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
  * GET /api/participant/meetings/available
  * Get all available external meetings
  */

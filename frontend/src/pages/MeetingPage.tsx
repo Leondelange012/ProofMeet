@@ -81,6 +81,7 @@ const MeetingPage: React.FC = () => {
   const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [timeRange, setTimeRange] = useState<number[]>([0, 23]); // Time range slider [start, end] in 24hr format
   const [showAllMeetings, setShowAllMeetings] = useState(false);
+  const [allAvailablePrograms, setAllAvailablePrograms] = useState<string[]>([]); // All programs from database
 
   // Debounce search input to avoid excessive API calls
   useEffect(() => {
@@ -99,10 +100,8 @@ const MeetingPage: React.FC = () => {
     );
   }, [meetingsByProgram]);
 
-  // Get available programs for filter dropdown
-  const availablePrograms = useMemo(() => {
-    return Object.keys(meetingsByProgram).sort();
-  }, [meetingsByProgram]);
+  // Use all available programs from database for dropdown (loaded separately)
+  const availablePrograms = allAvailablePrograms;
 
   // Helper function to convert meeting time to user's timezone and get hour
   const getMeetingStartHourInTimezone = (meeting: any, timezone: string): number | null => {
@@ -227,6 +226,23 @@ const MeetingPage: React.FC = () => {
     setShowAllMeetings(false);
   };
 
+  // Load all available programs for dropdown (runs once on mount)
+  const loadAllPrograms = async () => {
+    try {
+      if (!token) return;
+
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_BASE_URL}/participant/meetings/programs`, { headers });
+      
+      if (response.data.success && response.data.data) {
+        setAllAvailablePrograms(response.data.data);
+        console.log(`✅ Loaded ${response.data.data.length} available program categories`);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load programs:', error);
+    }
+  };
+
   // Load available meetings for participants with server-side filtering
   const loadAvailableMeetings = async () => {
     try {
@@ -283,6 +299,11 @@ const MeetingPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Load all available programs on mount (runs once)
+  useEffect(() => {
+    loadAllPrograms();
+  }, [token]);
 
   // Reload meetings when filters change (using debounced search)
   useEffect(() => {
