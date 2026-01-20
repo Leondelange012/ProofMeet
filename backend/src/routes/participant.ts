@@ -197,6 +197,8 @@ router.get('/meetings/available', async (req: Request, res: Response) => {
     const program = req.query.program as string;
     const format = req.query.format as string;
     const day = req.query.day as string;
+    const zoomId = req.query.zoomId as string;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
 
     const where: any = {
       hasProofCapability: true,
@@ -205,6 +207,13 @@ router.get('/meetings/available', async (req: Request, res: Response) => {
     if (program) where.program = program;
     if (format) where.format = format;
     if (day) where.dayOfWeek = day;
+    
+    // Zoom ID search (partial match)
+    if (zoomId) {
+      where.zoomId = {
+        contains: zoomId,
+      };
+    }
 
     const meetings = await prisma.externalMeeting.findMany({
       where,
@@ -213,6 +222,7 @@ router.get('/meetings/available', async (req: Request, res: Response) => {
         { dayOfWeek: 'asc' },
         { time: 'asc' },
       ],
+      take: limit, // Limit results if specified
     });
 
     // Group by program

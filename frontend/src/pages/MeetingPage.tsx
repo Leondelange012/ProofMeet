@@ -38,7 +38,6 @@ import {
 } from '@mui/icons-material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { aaIntergroupService } from '../services/aaIntergroupService';
 import axios from 'axios';
 import { useAuthStoreV2 } from '../hooks/useAuthStore-v2';
 import { useNavigate } from 'react-router-dom';
@@ -76,21 +75,28 @@ const MeetingPage: React.FC = () => {
   
   // Search/Filter State
   const [searchZoomId, setSearchZoomId] = useState('');
+  const [debouncedSearchZoomId, setDebouncedSearchZoomId] = useState(''); // Debounced version for API calls
   const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [timeRange, setTimeRange] = useState<number[]>([0, 23]); // Time range slider [start, end] in 24hr format
   const [showAllMeetings, setShowAllMeetings] = useState(false);
 
-  // Flatten all meetings for filtering
-  const allMeetings = useMemo(() => {
-    const flattened: any[] = [];
-    Object.keys(meetingsByProgram).forEach(program => {
-      meetingsByProgram[program].forEach(meeting => {
-        flattened.push({ ...meeting, program });
-      });
-    });
-    return flattened;
+  // Debounce search input to avoid excessive API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchZoomId(searchZoomId);
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timer);
+  }, [searchZoomId]);
+
+  // Calculate total meeting count for display
+  const totalMeetings = useMemo(() => {
+    return Object.values(meetingsByProgram).reduce(
+      (sum: number, meetings: any[]) => sum + meetings.length,
+      0
+    );
   }, [meetingsByProgram]);
 
   // Get available programs for filter dropdown
@@ -146,87 +152,53 @@ const MeetingPage: React.FC = () => {
     }
   };
 
-  // Filter meetings based on search criteria
-  const filteredMeetings = useMemo(() => {
-    let filtered = allMeetings;
-
-    // Filter by Zoom ID (partial match)
-    if (searchZoomId.trim()) {
-      filtered = filtered.filter(m => 
-        m.zoomId?.toString().includes(searchZoomId.trim()) ||
-        m.zoomUrl?.includes(searchZoomId.trim())
-      );
-    }
-
-    // Filter by Program/Category
-    if (selectedProgram) {
-      filtered = filtered.filter(m => m.program === selectedProgram);
-    }
-
-    // Filter by Date
-    if (selectedDate) {
-      filtered = filtered.filter(m => {
-        if (m.startTime) {
-          // For test meetings with specific start times
-          const meetingDate = new Date(m.startTime);
-          return meetingDate.toDateString() === selectedDate.toDateString();
-        }
-        // For recurring meetings, match day of week
-        const dayName = selectedDate.toLocaleDateString('en-US', { weekday: 'long' });
-        return m.day === dayName;
-      });
-    }
-
-    // Filter by Time Range (in user's selected timezone)
-    // Only apply filter if range is not default (0-23)
-    if (timeRange[0] !== 0 || timeRange[1] !== 23) {
-      filtered = filtered.filter(m => {
-        const meetingHour = getMeetingStartHourInTimezone(m, userTimezone);
-        if (meetingHour === null) return true; // Include if we can't determine time
-
-        const start = timeRange[0];
-        const end = timeRange[1];
-
-        // Handle wrap-around (e.g., 22:00 to 02:00)
-        if (start <= end) {
-          return meetingHour >= start && meetingHour <= end;
-        } else {
-          // Time range wraps around midnight
-          return meetingHour >= start || meetingHour <= end;
-        }
-      });
-    }
-
-    return filtered;
-  }, [allMeetings, searchZoomId, selectedProgram, selectedDate, timeRange, userTimezone]);
-
-  // Display meetings: Show filtered results, or first 9 if no filters applied
-  const displayMeetings = useMemo(() => {
-    const hasTimeFilter = timeRange[0] !== 0 || timeRange[1] !== 23;
-    const hasFilters = searchZoomId.trim() || selectedProgram || selectedDate || hasTimeFilter;
-    
-    if (hasFilters) {
-      return filteredMeetings; // Show all filtered results
-    }
-    
-    if (showAllMeetings) {
-      return allMeetings; // Show all meetings
-    }
-    
-    return allMeetings.slice(0, 9); // Show first 9 by default
-  }, [filteredMeetings, allMeetings, searchZoomId, selectedProgram, selectedDate, timeRange, showAllMeetings]);
-
-  // Group display meetings by program
+  // Apply client-side time range filter (timezone-specific, done after server filtering)
   const displayMeetingsByProgram = useMemo(() => {
-    const grouped: { [key: string]: any[] } = {};
-    displayMeetings.forEach(meeting => {
-      if (!grouped[meeting.program]) {
-        grouped[meeting.program] = [];
-      }
-      grouped[meeting.program].push(meeting);
-    });
-    return grouped;
-  }, [displayMeetings]);
+    const hasTimeFilter = timeRange[0] !== 0 || timeRange[1] !== 23;
+    
+    // Start with server-filtered results (already grouped by program)
+    let resultByProgram = { ...meetingsByProgram };
+    
+    // Apply time range filter if needed (client-side only for timezone conversion)
+    if (hasTimeFilter) {
+      const filteredByProgram: { [key: string]: any[] } = {};
+      
+      Object.keys(resultByProgram).forEach(program => {
+        const meetings = resultByProgram[program];
+        const filtered = meetings.filter(m => {
+          const meetingHour = getMeetingStartHourInTimezone(m, userTimezone);
+          if (meetingHour === null) return true; // Include if we can't determine time
+
+          const start = timeRange[0];
+          const end = timeRange[1];
+
+          // Handle wrap-around (e.g., 22:00 to 02:00)
+          if (start <= end) {
+            return meetingHour >= start && meetingHour <= end;
+          } else {
+            // Time range wraps around midnight
+            return meetingHour >= start || meetingHour <= end;
+          }
+        });
+        
+        if (filtered.length > 0) {
+          filteredByProgram[program] = filtered;
+        }
+      });
+      
+      return filteredByProgram;
+    }
+    
+    return resultByProgram;
+  }, [meetingsByProgram, timeRange, userTimezone]);
+
+  // Calculate displayed meeting count after time filter
+  const displayedMeetingCount = useMemo(() => {
+    return Object.values(displayMeetingsByProgram).reduce(
+      (sum: number, meetings: any[]) => sum + meetings.length,
+      0
+    );
+  }, [displayMeetingsByProgram]);
 
   // Convert meeting time to user's timezone
   const convertToUserTimezone = (meeting: any): string => {
@@ -255,58 +227,67 @@ const MeetingPage: React.FC = () => {
     setShowAllMeetings(false);
   };
 
-  // Load available meetings for participants
+  // Load available meetings for participants with server-side filtering
   const loadAvailableMeetings = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Loading real recovery meetings from database...');
+      console.log('🔍 Loading meetings from database...');
       
-      // AA Intergroup Service (currently disabled - returns empty)
-      // To add real meetings, populate the ExternalMeeting table in the database
-      const response = await aaIntergroupService.getMeetingsByProgram();
-      let allMeetings: { [program: string]: any[] } = {};
-      
-      if (response.success && response.data) {
-        allMeetings = { ...response.data };
+      if (!token) {
+        setMeetingsByProgram({});
+        return;
       }
 
-      // Load from backend database (real meetings only)
-      if (token) {
-        try {
-          const headers = { Authorization: `Bearer ${token}` };
-          const backendResponse = await axios.get(`${API_BASE_URL}/participant/meetings/available`, { headers });
-          
-          if (backendResponse.data.success && backendResponse.data.data) {
-            // Merge backend meetings (which are now the primary source)
-              const backendMeetings = backendResponse.data.data as { [program: string]: any[] };
-              Object.keys(backendMeetings).forEach((program: string) => {
-                if (allMeetings[program]) {
-                  allMeetings[program] = [...allMeetings[program], ...backendMeetings[program]];
-                } else {
-                  allMeetings[program] = backendMeetings[program];
-                }
-              });
-          }
-        } catch (error) {
-          console.error('Failed to load backend meetings:', error);
-        }
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      // Build query parameters for server-side filtering
+      const params = new URLSearchParams();
+      
+      // Add filters
+      if (selectedProgram) {
+        params.append('program', selectedProgram);
       }
-
-      setMeetingsByProgram(allMeetings);
-      const totalMeetings = Object.values(allMeetings).reduce((sum: number, meetings: any[]) => sum + meetings.length, 0);
-      console.log(`✅ Loaded ${totalMeetings} real meetings across ${Object.keys(allMeetings).length} programs`);
+      
+      if (debouncedSearchZoomId.trim()) {
+        params.append('zoomId', debouncedSearchZoomId.trim());
+      }
+      
+      if (selectedDate) {
+        const dayName = selectedDate.toLocaleDateString('en-US', { weekday: 'long' });
+        params.append('day', dayName);
+      }
+      
+      // Determine if we should apply limit
+      const hasFilters = selectedProgram || debouncedSearchZoomId.trim() || selectedDate;
+      if (!hasFilters && !showAllMeetings) {
+        params.append('limit', '9'); // Only show 9 by default when no filters
+      }
+      
+      const url = `${API_BASE_URL}/participant/meetings/available${params.toString() ? `?${params}` : ''}`;
+      const backendResponse = await axios.get(url, { headers });
+      
+      if (backendResponse.data.success && backendResponse.data.data) {
+        const backendMeetings = backendResponse.data.data as { [program: string]: any[] };
+        setMeetingsByProgram(backendMeetings);
+        
+        const totalMeetings = Object.values(backendMeetings).reduce(
+          (sum: number, meetings: any[]) => sum + meetings.length, 
+          0
+        );
+        console.log(`✅ Loaded ${totalMeetings} meetings across ${Object.keys(backendMeetings).length} programs`);
+      }
     } catch (error) {
-      console.error('❌ Failed to load recovery meetings:', error);
+      console.error('❌ Failed to load meetings:', error);
       setMeetingsByProgram({});
     } finally {
       setLoading(false);
     }
   };
 
-  // Load meetings on mount
+  // Reload meetings when filters change (using debounced search)
   useEffect(() => {
     loadAvailableMeetings();
-  }, []);
+  }, [selectedProgram, debouncedSearchZoomId, selectedDate, showAllMeetings]);
 
   const handleJoinOnlineMeeting = (zoomJoinUrl: string) => {
     // Use the full Zoom join URL
@@ -534,11 +515,11 @@ const MeetingPage: React.FC = () => {
             Clear Filters
           </Button>
           <Typography variant="body2" color="text.secondary">
-            {displayMeetings.length === allMeetings.length
-              ? `Showing ${showAllMeetings ? 'all' : 'first 9 of'} ${allMeetings.length} meetings`
-              : `Found ${displayMeetings.length} meeting${displayMeetings.length !== 1 ? 's' : ''}`}
+            {displayedMeetingCount === 0
+              ? 'No meetings found'
+              : `Showing ${displayedMeetingCount} meeting${displayedMeetingCount !== 1 ? 's' : ''}`}
           </Typography>
-          {!showAllMeetings && displayMeetings.length >= 9 && allMeetings.length > 9 && (
+          {!showAllMeetings && totalMeetings > 9 && displayedMeetingCount >= 9 && (
             <Button
               variant="text"
               size="small"
@@ -579,9 +560,9 @@ const MeetingPage: React.FC = () => {
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress />
-          <Typography sx={{ ml: 2 }}>Loading recovery meetings...</Typography>
+          <Typography sx={{ ml: 2 }}>Loading meetings...</Typography>
         </Box>
-      ) : displayMeetings.length === 0 ? (
+      ) : displayedMeetingCount === 0 ? (
         <Card sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
             No meetings found
