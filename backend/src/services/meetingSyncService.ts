@@ -142,35 +142,66 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
     
     logger.info(`📋 Got ${data.length} meetings from OIAA JSON feed`);
     
+    // Get current time for filtering
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getTime() - (180 * 24 * 60 * 60 * 1000)); // 180 days ago
+    
+    let skippedInactive = 0;
+    let skippedNoZoom = 0;
+    
     // Parse each meeting
     for (const meeting of data) {
       // Only include meetings with Zoom links
-      if (meeting.conference_url && meeting.conference_url.includes('zoom.us')) {
-        const zoomMatch = meeting.conference_url.match(/zoom\.us\/j\/(\d+)/);
-        const zoomId = zoomMatch ? zoomMatch[1] : undefined;
-        
-        if (zoomId) {
-          meetings.push({
-            externalId: `aa-oiaa-${meeting.slug || zoomId}`,
-            name: meeting.name || 'AA Meeting',
-            program: 'AA',
-            meetingType: 'RECOVERY',
-            description: meeting.notes || meeting.conference_url_notes || undefined,
-            dayOfWeek: parseDayOfWeek(meeting.day),
-            time: parseTime(meeting.time),
-            timezone: meeting.timezone || 'America/New_York',
-            durationMinutes: 60,
-            format: 'ONLINE',
-            zoomUrl: meeting.conference_url,
-            zoomId: zoomId,
-            zoomPassword: extractPasswordFromNotes(meeting.conference_url_notes),
-            tags: Array.isArray(meeting.types) ? meeting.types : [],
-          });
+      if (!meeting.conference_url || !meeting.conference_url.includes('zoom.us')) {
+        skippedNoZoom++;
+        continue;
+      }
+      
+      const zoomMatch = meeting.conference_url.match(/zoom\.us\/j\/(\d+)/);
+      const zoomId = zoomMatch ? zoomMatch[1] : undefined;
+      
+      if (!zoomId) {
+        skippedNoZoom++;
+        continue;
+      }
+      
+      // Skip meetings that haven't been updated in 6+ months (likely inactive)
+      if (meeting.updated) {
+        try {
+          const updatedDate = new Date(meeting.updated);
+          if (updatedDate < sixMonthsAgo) {
+            skippedInactive++;
+            continue;
+          }
+        } catch (error) {
+          // If date parsing fails, keep the meeting (benefit of the doubt)
         }
       }
+      
+      const dayOfWeek = parseDayOfWeek(meeting.day);
+      const meetingTime = parseTime(meeting.time);
+      const meetingTimezone = meeting.timezone || 'America/New_York';
+      
+      meetings.push({
+        externalId: `aa-oiaa-${meeting.slug || zoomId}`,
+        name: meeting.name || 'AA Meeting',
+        program: 'AA',
+        meetingType: 'RECOVERY',
+        description: meeting.notes || meeting.conference_url_notes || undefined,
+        dayOfWeek: dayOfWeek,
+        time: meetingTime,
+        timezone: meetingTimezone,
+        durationMinutes: 60,
+        format: 'ONLINE',
+        zoomUrl: meeting.conference_url,
+        zoomId: zoomId,
+        zoomPassword: extractPasswordFromNotes(meeting.conference_url_notes),
+        tags: Array.isArray(meeting.types) ? meeting.types : [],
+      });
     }
     
     logger.info(`✅ Total AA meetings fetched: ${meetings.length} from OIAA`);
+    logger.info(`   📊 Skipped ${skippedInactive} inactive meetings (not updated in 6+ months), ${skippedNoZoom} without Zoom links`);
     return meetings;
     
   } catch (error: any) {
