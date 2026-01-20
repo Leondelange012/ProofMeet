@@ -429,46 +429,6 @@ const MeetingPage: React.FC = () => {
             />
           </Grid>
 
-          {/* Program/Category Filter */}
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Category</InputLabel>
-              <Select
-                value={selectedProgram}
-                label="Category"
-                onChange={(e) => setSelectedProgram(e.target.value)}
-              >
-                <MenuItem value="">
-                  <em>All Categories</em>
-                </MenuItem>
-                {availablePrograms.map(program => (
-                  <MenuItem key={program} value={program}>
-                    {program}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          {/* Date Filter */}
-          <Grid item xs={12} sm={6} md={3}>
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-              <DatePicker
-                label="Meeting Date"
-                value={selectedDate}
-                onChange={(newDate) => setSelectedDate(newDate)}
-                slotProps={{
-                  textField: {
-                    fullWidth: true,
-                  },
-                  actionBar: {
-                    actions: ['clear', 'today'],
-                  },
-                }}
-              />
-            </LocalizationProvider>
-          </Grid>
-
           {/* Timezone Selector */}
           <Grid item xs={12} sm={6} md={3}>
             <Autocomplete
@@ -492,6 +452,46 @@ const MeetingPage: React.FC = () => {
                 />
               )}
             />
+          </Grid>
+
+          {/* Date Filter */}
+          <Grid item xs={12} sm={6} md={3}>
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                label="Meeting Date"
+                value={selectedDate}
+                onChange={(newDate) => setSelectedDate(newDate)}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                  },
+                  actionBar: {
+                    actions: ['clear', 'today'],
+                  },
+                }}
+              />
+            </LocalizationProvider>
+          </Grid>
+
+          {/* Program/Category Filter */}
+          <Grid item xs={12} sm={6} md={3}>
+            <FormControl fullWidth>
+              <InputLabel>Category</InputLabel>
+              <Select
+                value={selectedProgram}
+                label="Category"
+                onChange={(e) => setSelectedProgram(e.target.value)}
+              >
+                <MenuItem value="">
+                  <em>All Categories</em>
+                </MenuItem>
+                {availablePrograms.map(program => (
+                  <MenuItem key={program} value={program}>
+                    {program}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Grid>
 
           {/* Time Range Slider */}
