@@ -38,8 +38,8 @@ const BMLT_ROOT_SERVERS = [
   'https://tomato.bmltenabled.org/main_server',  // Another root
 ];
 
-// ScraperAPI configuration for bypassing CAPTCHA protection
-// Get API key from environment variable
+// ScraperAPI configuration for bypassing CAPTCHA protection on AA meeting sources
+// Get API key from environment variable (set in Railway)
 const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY;
 
 /**
