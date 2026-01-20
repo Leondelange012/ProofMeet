@@ -2,7 +2,7 @@
 # Updated for Railway backend
 
 $API_BASE_URL = "https://proofmeet-backend-production.up.railway.app/api"
-$ADMIN_SECRET = "pMU4DZdgIRh5s9oWiHvuKtLaOeVANrB0"  # ⚠️ YOU MUST UPDATE THIS!
+$ADMIN_SECRET = "pMU4DZdgIRh5s9oWiHvuKtLaOeVANrB0"
 
 Write-Host "================================" -ForegroundColor Cyan
 Write-Host "MANUAL MEETING SYNC TRIGGER" -ForegroundColor Cyan
@@ -11,15 +11,7 @@ Write-Host ""
 
 # Step 1: Check if admin secret is set
 if ($ADMIN_SECRET -eq "REPLACE_WITH_YOUR_ADMIN_SECRET_KEY") {
-    Write-Host "⚠️  ERROR: You need to update ADMIN_SECRET in this script!" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "To get your ADMIN_SECRET_KEY:" -ForegroundColor Yellow
-    Write-Host "1. Go to Railway dashboard: https://railway.app" -ForegroundColor Yellow
-    Write-Host "2. Click on your ProofMeet backend service" -ForegroundColor Yellow
-    Write-Host "3. Go to 'Variables' tab" -ForegroundColor Yellow
-    Write-Host "4. Find ADMIN_SECRET_KEY and copy its value" -ForegroundColor Yellow
-    Write-Host "5. Paste it in line 5 of this script (replace the placeholder)" -ForegroundColor Yellow
-    Write-Host ""
+    Write-Host "ERROR: You need to update ADMIN_SECRET in this script!" -ForegroundColor Red
     exit 1
 }
 
@@ -37,7 +29,7 @@ try {
     $response = Invoke-RestMethod -Uri $syncUrl -Method Post -Headers $headers -TimeoutSec 120
     
     if ($response.success) {
-        Write-Host "   ✓ Sync triggered successfully!" -ForegroundColor Green
+        Write-Host "   [SUCCESS] Sync triggered successfully!" -ForegroundColor Green
         Write-Host ""
         Write-Host "   Results:" -ForegroundColor Cyan
         Write-Host "   - Total fetched: $($response.totalFetched)" -ForegroundColor White
@@ -59,13 +51,13 @@ try {
             }
         }
     } else {
-        Write-Host "   ✗ Sync failed: $($response.error)" -ForegroundColor Red
+        Write-Host "   [ERROR] Sync failed: $($response.error)" -ForegroundColor Red
     }
 } catch {
-    Write-Host "   ✗ Error: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "   [ERROR] $($_.Exception.Message)" -ForegroundColor Red
     if ($_.Exception.Response.StatusCode -eq 403) {
         Write-Host ""
-        Write-Host "   ⚠️  403 Forbidden - Your ADMIN_SECRET_KEY is incorrect!" -ForegroundColor Yellow
+        Write-Host "   403 Forbidden - Your ADMIN_SECRET_KEY is incorrect!" -ForegroundColor Yellow
         Write-Host "   Please double-check the value in Railway Variables tab." -ForegroundColor Yellow
     }
     exit 1
@@ -78,7 +70,7 @@ try {
     $statsUrl = "$API_BASE_URL/admin/meeting-stats"
     $stats = Invoke-RestMethod -Uri $statsUrl -Method Get -Headers $headers
     
-    Write-Host "   ✓ Stats retrieved" -ForegroundColor Green
+    Write-Host "   [SUCCESS] Stats retrieved" -ForegroundColor Green
     Write-Host ""
     Write-Host "   Total meetings in database: $($stats.total)" -ForegroundColor Cyan
     Write-Host ""
@@ -89,7 +81,7 @@ try {
         Write-Host "   - $($prog.Name): $count meetings" -ForegroundColor $color
     }
 } catch {
-    Write-Host "   ✗ Error getting stats: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "   [ERROR] getting stats: $($_.Exception.Message)" -ForegroundColor Red
 }
 
 # Step 4: Test specific meeting search
@@ -100,14 +92,14 @@ try {
     $searchResult = Invoke-RestMethod -Uri $searchUrl -Method Get
     
     if ($searchResult.data -and $searchResult.data.Count -gt 0) {
-        Write-Host "   ✓ FOUND! Meeting 88113069602 exists" -ForegroundColor Green
+        Write-Host "   [FOUND] Meeting 88113069602 exists!" -ForegroundColor Green
         Write-Host "   Name: $($searchResult.data[0].name)" -ForegroundColor White
         Write-Host "   Program: $($searchResult.data[0].program)" -ForegroundColor White
     } else {
-        Write-Host "   ✗ NOT FOUND: Meeting 88113069602 not in database" -ForegroundColor Red
+        Write-Host "   [NOT FOUND] Meeting 88113069602 not in database" -ForegroundColor Red
     }
 } catch {
-    Write-Host "   ✗ Error searching: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "   [ERROR] searching: $($_.Exception.Message)" -ForegroundColor Red
 }
 
 Write-Host ""

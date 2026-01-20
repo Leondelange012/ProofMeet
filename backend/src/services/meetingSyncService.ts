@@ -38,10 +38,23 @@ const BMLT_ROOT_SERVERS = [
   'https://tomato.bmltenabled.org/main_server',  // Another root
 ];
 
-// CORS Proxy for bypassing blocked APIs (currently not needed for AA, but kept for potential future use)
-// Free option: https://corsproxy.io (rate limited but functional)
-// Paid options in env: CORS_PROXY_URL (e.g., ScraperAPI, Bright Data)
-const CORS_PROXY = process.env.CORS_PROXY_URL || 'https://corsproxy.io/?';
+// ScraperAPI configuration for bypassing CAPTCHA protection
+// Get API key from environment variable
+const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY;
+
+/**
+ * Build proxy URL for external API calls
+ * Uses ScraperAPI if key is available, otherwise falls back to corsproxy.io
+ */
+function buildProxyUrl(targetUrl: string): string {
+  if (SCRAPERAPI_KEY) {
+    // ScraperAPI format: https://api.scraperapi.com?api_key=YOUR_KEY&url=TARGET_URL
+    return `https://api.scraperapi.com?api_key=${SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}`;
+  } else {
+    // Fallback to free CORS proxy (may be blocked by CAPTCHA)
+    return `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+  }
+}
 
 interface ExternalMeeting {
   externalId: string;
@@ -105,8 +118,14 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
       try {
         logger.info(`   📡 Fetching from: ${feed.name}`);
         
-        // Use CORS proxy to avoid blocking
-        const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(feed.url)}`;
+        // Use ScraperAPI or CORS proxy to bypass CAPTCHA protection
+        const proxiedUrl = buildProxyUrl(feed.url);
+        
+        if (SCRAPERAPI_KEY) {
+          logger.info(`   🔐 Using ScraperAPI to bypass CAPTCHA protection`);
+        } else {
+          logger.warn(`   ⚠️  No ScraperAPI key - using free proxy (may fail due to CAPTCHA)`);
+        }
         
         const response = await axios.get(proxiedUrl, {
           params: {
@@ -657,7 +676,8 @@ export async function testMeetingAPIs(): Promise<void> {
   
   // Test OIAA (aa-intergroup.org)
   try {
-    const oiaaTest = await axios.get(`${CORS_PROXY}${encodeURIComponent('https://aa-intergroup.org/wp-json/tsml/v1/meetings')}`, {
+    const oiaaUrl = buildProxyUrl('https://aa-intergroup.org/wp-json/tsml/v1/meetings');
+    const oiaaTest = await axios.get(oiaaUrl, {
       params: { per_page: 1 },
       timeout: 10000,
       headers: {
@@ -672,7 +692,8 @@ export async function testMeetingAPIs(): Promise<void> {
   
   // Test NYC AA Intergroup
   try {
-    const nycTest = await axios.get(`${CORS_PROXY}${encodeURIComponent('https://meetings.nyintergroup.org/meetings.json')}`, {
+    const nycUrl = buildProxyUrl('https://meetings.nyintergroup.org/meetings.json');
+    const nycTest = await axios.get(nycUrl, {
       timeout: 10000,
       headers: {
         'User-Agent': 'ProofMeet/1.0 (Court Compliance System)',

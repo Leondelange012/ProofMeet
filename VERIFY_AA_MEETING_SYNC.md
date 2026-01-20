@@ -1,186 +1,169 @@
-# Verify AA Meeting Sync
+# How to Verify AA Meeting Sync is Working
 
-## Problem Summary
-Searching for AA meeting ID **88113069602** from `aa-intergroup.org` returned no results in ProofMeet.
+## Problem
+AA meetings are not appearing in ProofMeet, even though the code has been deployed.
 
-## Fixes Applied
+## Root Cause Analysis
+The Railway logs you provided show **routine operations only**, but no meeting sync activity. This means either:
+1. The initial sync hasn't run yet (server was already running when logs captured)
+2. The sync failed silently
+3. The latest code hasn't been deployed to Railway
 
-### 1. Backend API Missing `zoomId` Field (Commit `07c1861`)
-**Issue**: The `/api/participant/meetings/available` endpoint wasn't returning the `zoomId` field, so frontend search couldn't match meetings by Zoom ID.
+## ✅ Solution Steps
 
-**Fix**: Added `zoomId: meeting.zoomId` to the response payload in `backend/src/routes/participant.ts`.
+### Step 1: Check Railway Deployment Status
 
-### 2. Missing AA Intergroup Source (Commit `a405246`)
-**Issue**: The meeting sync service was only querying these AA intergroups:
-- NY Intergroup (`nyintergroup.org`)
-- LA Intergroup (`lacoaa.org`)
-- Chicago AA (`chicagoaa.org`)
-- San Francisco AA (`aasf.org`)
-- Washington DC AA (`aa-dc.org`)
+1. Go to **Railway dashboard**: https://railway.app
+2. Click on your **ProofMeet Backend** service
+3. Click on **"Deployments"** tab
+4. Look for the most recent deployment
 
-But the user's meeting (ID 88113069602) is from `aa-intergroup.org`, which wasn't in our sync list.
+**What to check:**
+- Is the latest deployment **"Active"** (green)?
+- What commit is it running? Should be `11ac38d` or newer
+- Click on the deployment and check "Build Logs" for errors
 
-**Fix**: Added `https://aa-intergroup.org/wp-json/tsml/v1/meetings` to the `TSML_FEEDS` array.
+### Step 2: Get FULL Startup Logs
 
----
+We need to see the logs from when the server **starts up**, not just runtime logs.
 
-## How to Verify the Fixes
-
-### Step 1: Set Up Admin Secret in Railway
-
-1. Go to your Railway project: https://railway.app/project/97a9164d-9cf6-474e-acb5-e1aaccd0f5c0
-2. Click on your **backend service**
-3. Go to **Variables** tab
-4. Verify that `ADMIN_SECRET_KEY` is set
-5. If not set, add a new variable:
-   - **Key**: `ADMIN_SECRET_KEY`
-   - **Value**: A secure random string (e.g., `your-secure-admin-secret-2026`)
-6. Redeploy if you added the variable
-
-### Step 2: Manually Trigger Meeting Sync
-
-Open PowerShell and run:
-
-```powershell
-# Set your admin secret (from Railway)
-$env:ADMIN_SECRET_KEY = "your-secure-admin-secret-2026"
-
-# Trigger sync
-$API_BASE_URL = "https://proofmeet-backend-production.up.railway.app/api"
-$syncResponse = Invoke-RestMethod -Uri "$API_BASE_URL/admin/sync-meetings" `
-    -Method POST `
-    -Headers @{ 'x-admin-secret' = $env:ADMIN_SECRET_KEY } `
-    -TimeoutSec 120
-
-# Display results
-Write-Host "`nSYNC RESULTS:" -ForegroundColor Green
-$syncResponse | ConvertTo-Json -Depth 5
-```
-
-### Step 3: Check Meeting Statistics
-
-```powershell
-$statsResponse = Invoke-RestMethod -Uri "$API_BASE_URL/admin/meeting-stats" `
-    -Method GET `
-    -Headers @{ 'x-admin-secret' = $env:ADMIN_SECRET_KEY }
-
-Write-Host "`nMEETING STATS:" -ForegroundColor Cyan
-$statsResponse | ConvertTo-Json -Depth 3
-```
-
-### Step 4: Search for the Meeting in ProofMeet
-
-1. Go to ProofMeet: https://proofmeet.vercel.app/participant/meetings
-2. In the **Zoom Meeting ID** search field, enter: `88113069602`
-3. Click **Search**
-4. The meeting should now appear!
-
----
-
-## Expected Results
-
-### Successful Sync Response:
-```json
-{
-  "success": true,
-  "message": "Meeting sync completed successfully",
-  "data": {
-    "totalFetched": 150,  // Total meetings fetched from all sources
-    "created": 145,        // New meetings added to database
-    "updated": 5,          // Existing meetings updated
-    "sources": {
-      "AA": 120,
-      "NA": 30,
-      "SMART": 0,
-      "InTheRooms": 0
-    }
-  }
-}
-```
-
-### Meeting Stats Response:
-```json
-{
-  "success": true,
-  "data": {
-    "totalMeetings": 145,
-    "byProgram": {
-      "AA": 120,
-      "NA": 25
-    },
-    "byFormat": {
-      "ONLINE": 145,
-      "IN_PERSON": 0,
-      "HYBRID": 0
-    },
-    "withZoomUrls": 145,
-    "lastSync": "2026-01-19T20:15:00.000Z"
-  }
-}
-```
-
----
-
-## Troubleshooting
-
-### If `totalFetched: 0` for AA Meetings
-
-This means the AA intergroup APIs are blocking requests. Check Railway logs for errors like:
-- `403 Forbidden`
-- `CORS error`
-- `Timeout`
-
-**Solution**: The CORS proxy is already configured in the code (`https://corsproxy.io/?`). If the free proxy is rate-limited, you can upgrade to a paid proxy:
-
-1. Sign up for ScraperAPI: https://www.scraperapi.com/
-2. Get your API key
-3. Add to Railway environment variables:
+**Option A: Download from Railway Dashboard**
+1. Click on your backend service in Railway
+2. Click "Deployments" → Latest deployment
+3. Click "View Logs"
+4. **Scroll to the very top** (or filter by time to deployment start)
+5. Look for these messages within the first 2 minutes:
    ```
-   CORS_PROXY_URL=https://api.scraperapi.com?api_key=YOUR_KEY&url=
+   🚀 Server running on port 8080
+   🚀 Running initial meeting sync on startup...
+   🔍 Fetching AA meetings from TSML feeds...
+   ✅ Total AA meetings fetched: X
+   ✅ Initial sync complete: X meetings saved
    ```
-4. Redeploy backend
 
-### If Meeting Still Not Found
+**Option B: Use Railway CLI**
+```powershell
+# Install Railway CLI if you haven't
+npm install -g @railway/cli
 
-1. **Check if the API endpoint exists**:
+# Login
+railway login
+
+# Link to your project
+railway link
+
+# View logs from the last 30 minutes
+railway logs --environment production
+```
+
+### Step 3: Manual Sync (RECOMMENDED)
+
+This will force a sync right now and show you the results immediately.
+
+1. **Get your ADMIN_SECRET_KEY from Railway:**
+   - Railway dashboard → Backend service → "Variables" tab
+   - Copy the value of `ADMIN_SECRET_KEY`
+
+2. **Update the test script:**
+   - Open `test-meeting-sync.ps1`
+   - Line 5: Replace `REPLACE_WITH_YOUR_ADMIN_SECRET_KEY` with your actual secret
+
+3. **Run the script:**
    ```powershell
-   Invoke-RestMethod -Uri "https://aa-intergroup.org/wp-json/tsml/v1/meetings" -Method GET
+   cd C:\Users\leond\OneDrive\Documents\ProofMeet
+   .\test-meeting-sync.ps1
    ```
+
+**Expected output:**
+```
+Step 1: Triggering manual meeting sync...
+   ✓ Sync triggered successfully!
    
-   If this returns an error, `aa-intergroup.org` might not use the standard TSML WordPress plugin.
+   Results:
+   - Total fetched: 250
+   - Saved to DB: 200
+   - Already exist: 50
+   
+   Details by source:
+   - AA: 150 meetings  ✓ GREEN (success)
+   - NA: 50 meetings
+   
+Step 2: Checking meeting statistics...
+   ✓ Stats retrieved
+   
+   Total meetings in database: 203
+   
+   By program:
+   - AA: 150 meetings  ✓ GREEN
+   - NA: 50 meetings
+   - TEST: 3 meetings
 
-2. **Check the actual meeting page**:
-   - Visit: https://aa-intergroup.org/meetings/
-   - Find the meeting with ID 88113069602
-   - Check if it's listed as an **online Zoom meeting**
-   - Our sync only fetches meetings with `conference_url` containing "zoom.us"
+Step 3: Searching for meeting 88113069602...
+   ✓ FOUND! Meeting 88113069602 exists
+   Name: OIAA Meeting
+   Program: AA
+```
 
-3. **Verify the Zoom ID format**:
-   - Some meetings use different ID formats
-   - Check if the meeting page shows the full Zoom URL (e.g., `https://zoom.us/j/88113069602`)
-   - Our sync extracts the numeric ID from the URL
+### Step 4: Check Frontend
 
----
+After sync completes:
+1. Go to: https://proof-meet-frontend.vercel.app
+2. Login as participant
+3. Go to "Meetings" page
+4. Select **"AA"** from the Category dropdown
+5. You should see AA meetings listed
 
-## Alternative: Check if aa-intergroup.org Uses Different API
+### Step 5: Search for Specific Meeting
 
-If the TSML API doesn't work, `aa-intergroup.org` might use a different meeting directory system. In that case:
+1. In the frontend Meetings page:
+2. Enter Zoom Meeting ID: `88113069602`
+3. Click "Search"
+4. You should see the OIAA meeting appear
 
-1. Check Railway logs after sync to see the specific error
-2. We may need to add a custom scraper for `aa-intergroup.org`
-3. Share the error logs and we can implement a custom solution
+## 🚨 Troubleshooting
 
----
+### If manual sync shows "403 Forbidden"
+- Your `ADMIN_SECRET_KEY` in the script is wrong
+- Double-check the value in Railway Variables tab
 
-## Contact
+### If manual sync shows "0 AA meetings fetched"
+- The CORS proxy might be blocking
+- Check Railway logs for error messages like:
+  - `❌ OIAA API error:`
+  - `⚠️ OIAA: Unexpected response`
+- We may need to use a paid proxy service
 
-If you encounter issues, share:
-1. Railway deployment logs (after sync runs)
-2. The sync response from the admin endpoint
-3. Any error messages
+### If sync succeeds but meetings don't appear in frontend
+- Clear browser cache
+- Check if frontend is using the correct API URL
+- Verify the `/api/participant/meetings/available?program=AA` endpoint returns data
 
-This will help diagnose if:
-- The API endpoint is correct
-- The CORS proxy is working
-- The meeting is being fetched but not saved
-- The meeting is saved but not appearing in search
+## 📊 What Success Looks Like
+
+**Railway Logs (startup):**
+```
+🚀 Server running on port 8080
+🔍 Fetching AA meetings from TSML feeds...
+   📡 Fetching from OIAA (Online Intergroup): https://aa-intergroup.org/...
+   📋 Got 100 meetings from OIAA
+   ✅ Added 85 unique Zoom meetings from OIAA
+   📡 Fetching from NYC AA Intergroup: https://meetings.nyintergroup.org/...
+   📋 Got 200 meetings from NYC AA Intergroup
+   ✅ Added 150 unique Zoom meetings from NYC AA Intergroup
+✅ Total AA meetings fetched: 235 (from TSML feeds)
+✅ Initial sync complete: 485 meetings saved
+```
+
+**Frontend:**
+- AA category shows 200+ meetings
+- Search by Zoom ID `88113069602` returns results
+- Meetings display with correct names, times, and Zoom links
+
+## Next Steps
+
+Please run **Step 3 (Manual Sync)** and share:
+1. The output from `test-meeting-sync.ps1`
+2. If it fails, the error message
+3. If it succeeds, whether AA meetings now appear in the frontend
+
+This will tell us exactly what's happening!
