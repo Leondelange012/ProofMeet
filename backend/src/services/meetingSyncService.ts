@@ -7,7 +7,6 @@
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
 import { logger } from '../utils/logger';
-import * as cheerio from 'cheerio';
 
 const prisma = new PrismaClient();
 
@@ -104,178 +103,16 @@ async function fetchInTheRoomsMeetings(): Promise<ExternalMeeting[]> {
  */
 async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
   try {
-    logger.info('🕷️  Fetching AA meetings via WEB SCRAPING...');
-    logger.info('   📌 Note: All AA APIs returned 404, using web scraping as final solution');
+    logger.info('🔍 Fetching AA meetings...');
+    logger.warn('   ⚠️  AA meeting APIs are not accessible (404 errors)');
+    logger.warn('   📌 Alternative solutions needed:');
+    logger.warn('      - Manual import of AA meetings');
+    logger.warn('      - Contact AA Intergroup for data access');
+    logger.warn('      - Upgrade to Node.js 20+ for web scraping capability');
     
-    const meetings: ExternalMeeting[] = [];
-    const seenZoomIds = new Set<string>();
-    
-    // ============================================================
-    // WEB SCRAPING AA-INTERGROUP.ORG
-    // This is the ONLY way to get AA meetings since all APIs are broken
-    // Using ScraperAPI to bypass CAPTCHA/anti-bot protection
-    // ============================================================
-    
-    const targetUrl = 'https://aa-intergroup.org/meetings/';
-    logger.info(`   📡 Scraping: ${targetUrl}`);
-    
-    try {
-      // Build ScraperAPI URL
-      const scraperApiKey = process.env.SCRAPERAPI_KEY;
-      let fetchUrl: string;
-      
-      if (scraperApiKey) {
-        logger.info(`   🔐 Using ScraperAPI to bypass protection`);
-        fetchUrl = `https://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(targetUrl)}`;
-      } else {
-        logger.warn(`   ⚠️  No ScraperAPI key - using direct fetch (may fail)`);
-        fetchUrl = targetUrl;
-      }
-      
-      const response = await axios.get(fetchUrl, {
-        timeout: 90000, // Long timeout for scraping
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'text/html',
-        },
-      });
-
-      if (response.status === 200 && typeof response.data === 'string') {
-        logger.info(`   ✅ HTML fetched successfully (${response.data.length} characters)`);
-        
-        // Parse HTML with Cheerio
-        const $ = cheerio.load(response.data);
-        
-        // Try multiple common WordPress TSML selectors
-        const meetingSelectors = [
-          '.meeting-item',
-          '.meeting',
-          'article.meeting',
-          '[data-meeting-id]',
-          '.tsml-meeting',
-        ];
-        
-        let meetingsFound = false;
-        
-        for (const selector of meetingSelectors) {
-          const elements = $(selector);
-          
-          if (elements.length > 0) {
-            logger.info(`   🎯 Found ${elements.length} meetings using selector: ${selector}`);
-            meetingsFound = true;
-            
-            elements.each((index, element) => {
-              try {
-                const $meeting = $(element);
-                
-                // Extract meeting details
-                const name = $meeting.find('.meeting-name, h3, h4, .title').first().text().trim() || 
-                            $meeting.find('[class*="name"]').first().text().trim() ||
-                            'AA Meeting';
-                
-                // Find Zoom links in the meeting element
-                const links = $meeting.find('a[href*="zoom"]').toArray();
-                
-                for (const link of links) {
-                  const href = $(link).attr('href');
-                  
-                  if (href && href.includes('zoom')) {
-                    const zoomId = extractZoomId(href);
-                    
-                    if (zoomId && !seenZoomIds.has(zoomId)) {
-                      seenZoomIds.add(zoomId);
-                      
-                      // Extract time and day
-                      const timeText = $meeting.find('.time, [class*="time"]').text().trim();
-                      const dayText = $meeting.find('.day, [class*="day"]').text().trim();
-                      
-                      meetings.push({
-                        externalId: `aa-scraped-${zoomId}`,
-                        name: name,
-                        program: 'AA',
-                        meetingType: 'Open',
-                        description: $meeting.find('.description, .notes').text().trim() || undefined,
-                        dayOfWeek: parseDayOfWeek(dayText),
-                        time: parseTime(timeText),
-                        timezone: 'America/New_York', // Default, AA-Intergroup is US-based
-                        durationMinutes: 60,
-                        format: 'ONLINE',
-                        zoomUrl: href,
-                        zoomId: zoomId,
-                        zoomPassword: undefined,
-                        tags: []
-                      });
-                    }
-                  }
-                }
-              } catch (error: any) {
-                logger.warn(`   ⚠️  Error parsing meeting: ${error.message}`);
-              }
-            });
-            
-            break; // Stop after first successful selector
-          }
-        }
-        
-        // If no meetings found with selectors, try searching all Zoom links
-        if (!meetingsFound) {
-          logger.info(`   🔍 No meetings found with selectors, searching all Zoom links...`);
-          
-          const allZoomLinks = $('a[href*="zoom"]').toArray();
-          logger.info(`   📋 Found ${allZoomLinks.length} total Zoom links`);
-          
-          for (const link of allZoomLinks) {
-            const href = $(link).attr('href');
-            
-            if (href && href.includes('zoom')) {
-              const zoomId = extractZoomId(href);
-              
-              if (zoomId && !seenZoomIds.has(zoomId)) {
-                seenZoomIds.add(zoomId);
-                
-                // Get nearby text as meeting name
-                const nearbyText = $(link).closest('tr, li, div, p').text().trim().substring(0, 100);
-                const meetingName = nearbyText || 'AA Meeting';
-                
-                meetings.push({
-                  externalId: `aa-scraped-${zoomId}`,
-                  name: meetingName,
-                  program: 'AA',
-                  meetingType: 'Open',
-                  description: undefined,
-                  dayOfWeek: 'Monday', // Default
-                  time: '19:00', // Default 7 PM
-                  timezone: 'America/New_York',
-                  durationMinutes: 60,
-                  format: 'ONLINE',
-                  zoomUrl: href,
-                  zoomId: zoomId,
-                  zoomPassword: undefined,
-                  tags: []
-                });
-              }
-            }
-          }
-        }
-        
-        logger.info(`   ✅ Successfully scraped ${meetings.length} unique Zoom meetings`);
-      } else {
-        logger.warn(`   ⚠️  Unexpected response format`);
-        logger.warn(`   📄 Response status: ${response.status}, Type: ${typeof response.data}`);
-      }
-    } catch (error: any) {
-      logger.error(`❌ Web scraping error: ${error.message}`);
-      if (error.response) {
-        logger.error(`   📄 Response status: ${error.response.status}`);
-        logger.error(`   📄 Response preview: ${String(error.response.data).substring(0, 300)}`);
-      }
-      if (error.code) {
-        logger.error(`   🔍 Error code: ${error.code}`);
-      }
-    }
-
-    logger.info(`✅ Total AA meetings fetched: ${meetings.length} (via web scraping)`);
-    return meetings;
+    // For now, return empty until a solution is found
+    logger.info(`✅ Total AA meetings fetched: 0 (APIs unavailable)`);
+    return [];
   } catch (error: any) {
     logger.error('❌ Error in AA meeting fetch:', error.message);
     return [];
