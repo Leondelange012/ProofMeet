@@ -30,6 +30,7 @@ const PORT = process.env['PORT'] || 5000;
 export const prisma = new PrismaClient();
 
 logger.info('ProofMeet - Court Compliance System');
+logger.info('Version: 2.1.0 - ScraperAPI Enabled');
 logger.info('====================================');
 
 // Trust proxy - required for Railway, Heroku, etc.
