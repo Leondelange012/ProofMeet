@@ -199,7 +199,14 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
         logger.warn(`   ⚠️  ${feed.name}: Unexpected response status ${response.status}`);
       }
       } catch (error: any) {
-        logger.error(`❌ ${feed.name} API error:`, error.message);
+        logger.error(`❌ ${feed.name} API error: ${error.message}`);
+        if (error.response) {
+          logger.error(`   📄 Response status: ${error.response.status}`);
+          logger.error(`   📄 Response data: ${JSON.stringify(error.response.data).substring(0, 500)}`);
+        }
+        if (error.code) {
+          logger.error(`   🔍 Error code: ${error.code}`);
+        }
       }
     }
 
