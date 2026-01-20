@@ -8,13 +8,11 @@ import { Server } from 'http';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
 
-interface AuthenticatedWebSocket extends WebSocket {
+type AuthenticatedWebSocket = WebSocket & {
   userId?: string;
   userType?: string;
   courtRepId?: string;
   isAlive?: boolean;
-  // All WebSocket methods (close, on, send, ping, terminate, readyState, etc.)
-  // are inherited from the WebSocket base class
 }
 
 interface WebSocketMessage {
