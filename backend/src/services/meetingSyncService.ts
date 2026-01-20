@@ -164,25 +164,57 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
       logger.info('📄 Got HTML response - parsing with Cheerio');
       const $ = cheerio.load(response.data);
       
-      // DEBUG: Log HTML structure
+      // DEBUG: Comprehensive HTML structure analysis
       logger.info('🔍 HTML Debug Info:');
       logger.info(`  - Page title: ${$('title').text()}`);
       logger.info(`  - Body classes: ${$('body').attr('class')}`);
-      logger.info(`  - All Zoom links found: ${$('a[href*="zoom.us"]').length}`);
       
-      // Log first few Zoom links for inspection
-      $('a[href*="zoom.us"]').slice(0, 3).each((i, el) => {
-        const $link = $(el);
-        logger.info(`  - Zoom link ${i + 1}: ${$link.attr('href')}`);
-        logger.info(`    Parent: <${$link.parent().prop('tagName')}> class="${$link.parent().attr('class')}"`);
-        logger.info(`    Grandparent: <${$link.parent().parent().prop('tagName')}> class="${$link.parent().parent().attr('class')}"`);
+      // Check for various Zoom URL patterns
+      const zoomPatterns = [
+        { name: 'zoom.us', selector: 'a[href*="zoom.us"]' },
+        { name: 'us02web.zoom', selector: 'a[href*="us02web.zoom"]' },
+        { name: 'us04web.zoom', selector: 'a[href*="us04web.zoom"]' },
+        { name: 'us05web.zoom', selector: 'a[href*="us05web.zoom"]' },
+        { name: '/j/', selector: 'a[href*="/j/"]' },
+      ];
+      
+      let totalZoomLinks = 0;
+      zoomPatterns.forEach(pattern => {
+        const count = $(pattern.selector).length;
+        if (count > 0) {
+          logger.info(`  - Found ${count} links matching '${pattern.name}'`);
+          totalZoomLinks += count;
+        }
+      });
+      logger.info(`  - Total Zoom-related links: ${totalZoomLinks}`);
+      
+      // Sample ALL links on the page to see what's there
+      const allLinks = $('a[href]');
+      logger.info(`  - Total links on page: ${allLinks.length}`);
+      logger.info(`  - Sample links (first 15):`);
+      allLinks.slice(0, 15).each((i, el) => {
+        const href = $(el).attr('href');
+        const text = $(el).text().trim().substring(0, 50);
+        logger.info(`    ${i + 1}. ${href} | Text: "${text}"`);
       });
       
-      // Look for meeting cards or table rows
-      // This selector might need adjustment based on actual HTML structure
-      const meetingElements = $('.meeting-item, tr.meeting-row, [data-meeting], .tsml-meeting');
+      // Look for various meeting container patterns
+      const containerPatterns = [
+        '.meeting-item', '.tsml-meeting', '.mec-event-article',
+        '.tribe-events-list-event', '[data-meeting]', 'tr.meeting-row',
+        '.meeting', '.event-item', '.mec-event-list-standard'
+      ];
       
-      logger.info(`🔍 Found ${meetingElements.length} potential meeting elements`);
+      let meetingElements = $();
+      containerPatterns.forEach(selector => {
+        const found = $(selector);
+        if (found.length > 0) {
+          logger.info(`  - Found ${found.length} '${selector}' elements`);
+          meetingElements = meetingElements.add(found);
+        }
+      });
+      
+      logger.info(`🔍 Total potential meeting containers: ${meetingElements.length}`);
       
       meetingElements.each((index, element) => {
         try {
