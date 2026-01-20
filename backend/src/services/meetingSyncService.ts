@@ -164,6 +164,119 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
       logger.info('📄 Got HTML response - parsing with Cheerio');
       const $ = cheerio.load(response.data);
       
+      // FIRST: Look for JSON feed links in <head> (Meeting Guide API spec)
+      logger.info('🔍 Checking for JSON feed links in <head>...');
+      const jsonFeedLinks: string[] = [];
+      $('link[rel="alternate"][type="application/json"]').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href) {
+          jsonFeedLinks.push(href);
+          logger.info(`  - Found JSON feed: ${href}`);
+        }
+      });
+      
+      // SECOND: Try common WordPress TSML API endpoints
+      const baseUrl = new URL(targetUrl);
+      const wordpressEndpoints = [
+        `${baseUrl.origin}/wp-json/tsml/v1/meetings`,
+        `${baseUrl.origin}/wp-json/wp/v2/tsml_meeting`,
+      ];
+      
+      logger.info('🔍 Trying common WordPress TSML endpoints...');
+      for (const endpoint of wordpressEndpoints) {
+        try {
+          logger.info(`  - Trying: ${endpoint}`);
+          const wpProxyUrl = buildProxyUrl(endpoint);
+          const wpResponse = await axios.get(wpProxyUrl, { timeout: 15000 });
+          
+          if (wpResponse.data && Array.isArray(wpResponse.data)) {
+            logger.info(`✅ Found ${wpResponse.data.length} meetings from WordPress API!`);
+            // Parse WordPress TSML format
+            for (const meeting of wpResponse.data) {
+              if (meeting.conference_url && meeting.conference_url.includes('zoom.us')) {
+                const zoomMatch = meeting.conference_url.match(/zoom\.us\/j\/(\d+)/);
+                const zoomId = zoomMatch ? zoomMatch[1] : undefined;
+                
+                if (zoomId) {
+                  meetings.push({
+                    externalId: `aa-wp-${meeting.id || zoomId}`,
+                    name: meeting.name || meeting.title || 'AA Meeting',
+                    program: 'AA',
+                    meetingType: 'RECOVERY',
+                    description: meeting.notes || undefined,
+                    dayOfWeek: parseDayOfWeek(meeting.day),
+                    time: parseTime(meeting.time),
+                    timezone: meeting.timezone || 'America/New_York',
+                    durationMinutes: 60,
+                    format: 'ONLINE',
+                    zoomUrl: meeting.conference_url,
+                    zoomId: zoomId,
+                    zoomPassword: meeting.conference_password || undefined,
+                    tags: meeting.types || [],
+                  });
+                }
+              }
+            }
+            // If we found meetings, return immediately
+            if (meetings.length > 0) {
+              logger.info(`✅ Total AA meetings fetched: ${meetings.length} (via WordPress API)`);
+              return meetings;
+            }
+          }
+        } catch (wpError: any) {
+          logger.debug(`  - ${endpoint} not available (${wpError.message})`);
+        }
+      }
+      
+      // THIRD: Try discovered JSON feed links
+      for (const feedUrl of jsonFeedLinks) {
+        try {
+          const fullFeedUrl = feedUrl.startsWith('http') ? feedUrl : `${baseUrl.origin}${feedUrl}`;
+          logger.info(`  - Fetching JSON feed: ${fullFeedUrl}`);
+          const feedProxyUrl = buildProxyUrl(fullFeedUrl);
+          const feedResponse = await axios.get(feedProxyUrl, { timeout: 15000 });
+          
+          if (Array.isArray(feedResponse.data)) {
+            logger.info(`✅ Found ${feedResponse.data.length} meetings from JSON feed!`);
+            // Parse the JSON feed (same format as WordPress TSML)
+            for (const meeting of feedResponse.data) {
+              if (meeting.conference_url && meeting.conference_url.includes('zoom.us')) {
+                const zoomMatch = meeting.conference_url.match(/zoom\.us\/j\/(\d+)/);
+                const zoomId = zoomMatch ? zoomMatch[1] : undefined;
+                
+                if (zoomId) {
+                  meetings.push({
+                    externalId: `aa-feed-${meeting.id || zoomId}`,
+                    name: meeting.name || 'AA Meeting',
+                    program: 'AA',
+                    meetingType: 'RECOVERY',
+                    description: meeting.notes || undefined,
+                    dayOfWeek: parseDayOfWeek(meeting.day),
+                    time: parseTime(meeting.time),
+                    timezone: meeting.timezone || 'America/New_York',
+                    durationMinutes: 60,
+                    format: 'ONLINE',
+                    zoomUrl: meeting.conference_url,
+                    zoomId: zoomId,
+                    zoomPassword: meeting.conference_password || undefined,
+                    tags: meeting.types || [],
+                  });
+                }
+              }
+            }
+            if (meetings.length > 0) {
+              logger.info(`✅ Total AA meetings fetched: ${meetings.length} (via JSON feed)`);
+              return meetings;
+            }
+          }
+        } catch (feedError: any) {
+          logger.debug(`  - Error fetching JSON feed: ${feedError.message}`);
+        }
+      }
+      
+      // LASTLY: Fall back to HTML scraping only if JSON attempts failed
+      logger.info('📄 JSON feeds not available, falling back to HTML parsing...');
+      
       // DEBUG: Comprehensive HTML structure analysis
       logger.info('🔍 HTML Debug Info:');
       logger.info(`  - Page title: ${$('title').text()}`);
