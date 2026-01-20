@@ -114,52 +114,88 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
     logger.info('🔐 Using ScraperAPI to bypass CAPTCHA protection');
     
     const meetings: ExternalMeeting[] = [];
-    const targetUrl = 'https://aa-intergroup.org/meetings/';
+    
+    // Direct JSON feed URL (discovered from network tab analysis)
+    const jsonFeedUrl = 'https://data.aa-intergroup.org/6436f5a3f03fdecef8459055.json';
+    const timestamp = Date.now();
+    const targetUrl = `${jsonFeedUrl}?${timestamp}`;
+    
     const proxyUrl = buildProxyUrl(targetUrl);
     
-    logger.info(`📡 Fetching: ${targetUrl}`);
+    logger.info(`📡 Fetching AA JSON feed: ${jsonFeedUrl}`);
     
     const response = await axios.get(proxyUrl, {
-      timeout: 60000, // 60 seconds for scraping
+      timeout: 30000,
       headers: {
+        'Accept': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
     });
     
-    // Check if we got HTML or JSON
-    const contentType = response.headers['content-type'] || '';
+    // Parse the JSON array
+    const data = response.data;
     
-    if (contentType.includes('application/json')) {
-      // If we got JSON, parse it directly
-      logger.info('📋 Got JSON response from AA Intergroup');
-      const data = response.data;
-      
-      if (Array.isArray(data)) {
-        for (const meeting of data) {
-          if (meeting.conference_url && meeting.conference_url.includes('zoom.us')) {
-            const zoomMatch = meeting.conference_url.match(/zoom\.us\/j\/(\d+)/);
-            const zoomId = zoomMatch ? zoomMatch[1] : undefined;
-            
-            meetings.push({
-              externalId: `aa-intergroup-${meeting.id || zoomId || Math.random()}`,
-              name: meeting.name || 'AA Meeting',
-              program: 'AA',
-              meetingType: 'RECOVERY',
-              description: meeting.notes || undefined,
-              dayOfWeek: parseDayOfWeek(meeting.day),
-              time: parseTime(meeting.time),
-              timezone: meeting.timezone || 'America/New_York',
-              durationMinutes: 60,
-              format: 'ONLINE',
-              zoomUrl: meeting.conference_url,
-              zoomId: zoomId,
-              zoomPassword: meeting.conference_password || undefined,
-              tags: meeting.types || [],
-            });
-          }
+    if (!Array.isArray(data)) {
+      logger.warn('⚠️  Response is not an array, got:', typeof data);
+      return meetings;
+    }
+    
+    logger.info(`📋 Got ${data.length} meetings from OIAA JSON feed`);
+    
+    // Parse each meeting
+    for (const meeting of data) {
+      // Only include meetings with Zoom links
+      if (meeting.conference_url && meeting.conference_url.includes('zoom.us')) {
+        const zoomMatch = meeting.conference_url.match(/zoom\.us\/j\/(\d+)/);
+        const zoomId = zoomMatch ? zoomMatch[1] : undefined;
+        
+        if (zoomId) {
+          meetings.push({
+            externalId: `aa-oiaa-${meeting.slug || zoomId}`,
+            name: meeting.name || 'AA Meeting',
+            program: 'AA',
+            meetingType: 'RECOVERY',
+            description: meeting.notes || meeting.conference_url_notes || undefined,
+            dayOfWeek: parseDayOfWeek(meeting.day),
+            time: parseTime(meeting.time),
+            timezone: meeting.timezone || 'America/New_York',
+            durationMinutes: 60,
+            format: 'ONLINE',
+            zoomUrl: meeting.conference_url,
+            zoomId: zoomId,
+            zoomPassword: extractPasswordFromNotes(meeting.conference_url_notes),
+            tags: Array.isArray(meeting.types) ? meeting.types : [],
+          });
         }
       }
-    } else if (contentType.includes('text/html')) {
+    }
+    
+    logger.info(`✅ Total AA meetings fetched: ${meetings.length} from OIAA`);
+    return meetings;
+    
+  } catch (error: any) {
+    logger.error('❌ Error fetching AA meetings:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+    });
+    return [];
+  }
+}
+
+/**
+ * Extract password from conference notes if present
+ */
+function extractPasswordFromNotes(notes: string | undefined): string | undefined {
+  if (!notes) return undefined;
+  
+  // Common patterns: "Password: 123456", "Passcode: 123456", "pwd: 123456"
+  const passwordMatch = notes.match(/(?:password|passcode|pwd):\s*(\S+)/i);
+  return passwordMatch ? passwordMatch[1] : undefined;
+}
+
+// OLD HTML SCRAPING CODE BELOW - NOT NEEDED ANYMORE
+/* else if (contentType.includes('text/html')) {
       // Parse HTML with Cheerio
       logger.info('📄 Got HTML response - parsing with Cheerio');
       const $ = cheerio.load(response.data);
