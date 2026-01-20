@@ -243,10 +243,12 @@ router.get('/meetings/available', async (req: Request, res: Response) => {
     if (format) where.format = format;
     if (day) where.dayOfWeek = day;
     
-    // Zoom ID search (partial match)
+    // Zoom ID search (partial match, spaces removed for flexibility)
     if (zoomId) {
+      // Strip spaces from search term (e.g., "881 1306 9602" -> "88113069602")
+      const cleanedZoomId = zoomId.replace(/\s+/g, '');
       where.zoomId = {
-        contains: zoomId,
+        contains: cleanedZoomId,
       };
     }
 

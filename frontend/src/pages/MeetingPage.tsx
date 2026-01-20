@@ -265,7 +265,9 @@ const MeetingPage: React.FC = () => {
       }
       
       if (debouncedSearchZoomId.trim()) {
-        params.append('zoomId', debouncedSearchZoomId.trim());
+        // Remove spaces from Zoom ID search (e.g., "881 1306 9602" -> "88113069602")
+        const cleanedZoomId = debouncedSearchZoomId.trim().replace(/\s+/g, '');
+        params.append('zoomId', cleanedZoomId);
       }
       
       if (selectedDate) {
