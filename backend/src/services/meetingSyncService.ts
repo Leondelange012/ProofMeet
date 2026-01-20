@@ -6,6 +6,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
+import * as cheerio from 'cheerio';
 import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
@@ -96,25 +97,174 @@ async function fetchInTheRoomsMeetings(): Promise<ExternalMeeting[]> {
 }
 
 /**
- * Fetch AA meetings from direct TSML feeds
- * These are WordPress sites running the TSML plugin
+ * Fetch AA meetings from aa-intergroup.org via web scraping
+ * Uses ScraperAPI to bypass CAPTCHA protection
  * 
- * API Docs: https://github.com/code4recovery/spec
+ * Source: https://aa-intergroup.org/meetings/
  */
 async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
   try {
-    logger.info('🔍 Fetching AA meetings...');
-    logger.warn('   ⚠️  AA meeting APIs are not accessible (404 errors)');
-    logger.warn('   📌 Alternative solutions needed:');
-    logger.warn('      - Manual import of AA meetings');
-    logger.warn('      - Contact AA Intergroup for data access');
-    logger.warn('      - Upgrade to Node.js 20+ for web scraping capability');
+    logger.info('🔍 Scraping AA meetings from aa-intergroup.org...');
     
-    // For now, return empty until a solution is found
-    logger.info(`✅ Total AA meetings fetched: 0 (APIs unavailable)`);
-    return [];
+    if (!SCRAPERAPI_KEY) {
+      logger.warn('⚠️  No ScraperAPI key found - AA meeting scraping will likely fail due to CAPTCHA');
+      return [];
+    }
+    
+    logger.info('🔐 Using ScraperAPI to bypass CAPTCHA protection');
+    
+    const meetings: ExternalMeeting[] = [];
+    const targetUrl = 'https://aa-intergroup.org/meetings/';
+    const proxyUrl = buildProxyUrl(targetUrl);
+    
+    logger.info(`📡 Fetching: ${targetUrl}`);
+    
+    const response = await axios.get(proxyUrl, {
+      timeout: 60000, // 60 seconds for scraping
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    
+    // Check if we got HTML or JSON
+    const contentType = response.headers['content-type'] || '';
+    
+    if (contentType.includes('application/json')) {
+      // If we got JSON, parse it directly
+      logger.info('📋 Got JSON response from AA Intergroup');
+      const data = response.data;
+      
+      if (Array.isArray(data)) {
+        for (const meeting of data) {
+          if (meeting.conference_url && meeting.conference_url.includes('zoom.us')) {
+            const zoomMatch = meeting.conference_url.match(/zoom\.us\/j\/(\d+)/);
+            const zoomId = zoomMatch ? zoomMatch[1] : undefined;
+            
+            meetings.push({
+              externalId: `aa-intergroup-${meeting.id || zoomId || Math.random()}`,
+              name: meeting.name || 'AA Meeting',
+              program: 'AA',
+              meetingType: 'RECOVERY',
+              description: meeting.notes || undefined,
+              dayOfWeek: parseDayOfWeek(meeting.day),
+              time: parseTime(meeting.time),
+              timezone: meeting.timezone || 'America/New_York',
+              durationMinutes: 60,
+              format: 'ONLINE',
+              zoomUrl: meeting.conference_url,
+              zoomId: zoomId,
+              zoomPassword: meeting.conference_password || undefined,
+              tags: meeting.types || [],
+            });
+          }
+        }
+      }
+    } else if (contentType.includes('text/html')) {
+      // Parse HTML with Cheerio
+      logger.info('📄 Got HTML response - parsing with Cheerio');
+      const $ = cheerio.load(response.data);
+      
+      // Look for meeting cards or table rows
+      // This selector might need adjustment based on actual HTML structure
+      const meetingElements = $('.meeting-item, tr.meeting-row, [data-meeting], .tsml-meeting');
+      
+      logger.info(`🔍 Found ${meetingElements.length} potential meeting elements`);
+      
+      meetingElements.each((index, element) => {
+        try {
+          const $el = $(element);
+          
+          // Extract meeting data (adjust selectors based on actual HTML)
+          const name = $el.find('.meeting-name, .tsml-name, h3, h4').first().text().trim();
+          const zoomLink = $el.find('a[href*="zoom.us"]').attr('href');
+          const time = $el.find('.meeting-time, .tsml-time, time').first().text().trim();
+          const day = $el.find('.meeting-day, .tsml-day').first().text().trim();
+          const description = $el.find('.meeting-notes, .tsml-notes, .description').first().text().trim();
+          
+          if (name && zoomLink) {
+            const zoomMatch = zoomLink.match(/zoom\.us\/j\/(\d+)/);
+            const zoomId = zoomMatch ? zoomMatch[1] : undefined;
+            
+            if (zoomId) {
+              meetings.push({
+                externalId: `aa-intergroup-scraped-${zoomId}`,
+                name: name || 'AA Online Meeting',
+                program: 'AA',
+                meetingType: 'RECOVERY',
+                description: description || undefined,
+                dayOfWeek: parseDayOfWeek(day),
+                time: parseTime(time),
+                timezone: 'America/New_York', // Default, adjust as needed
+                durationMinutes: 60,
+                format: 'ONLINE',
+                zoomUrl: zoomLink,
+                zoomId: zoomId,
+                tags: ['AA', 'Online'],
+              });
+            }
+          }
+        } catch (parseError: any) {
+          logger.warn(`⚠️  Error parsing meeting element ${index}:`, parseError.message);
+        }
+      });
+      
+      // If no meetings found with initial selectors, try alternative approach
+      if (meetings.length === 0) {
+        logger.info('🔍 No meetings found with standard selectors, trying data attributes...');
+        
+        // Look for JSON data in script tags or data attributes
+        const scripts = $('script[type="application/json"], script[data-meetings]');
+        scripts.each((_, script) => {
+          try {
+            const jsonText = $(script).html();
+            if (jsonText) {
+              const data = JSON.parse(jsonText);
+              if (Array.isArray(data)) {
+                for (const meeting of data) {
+                  if (meeting.conference_url && meeting.conference_url.includes('zoom.us')) {
+                    const zoomMatch = meeting.conference_url.match(/zoom\.us\/j\/(\d+)/);
+                    const zoomId = zoomMatch ? zoomMatch[1] : undefined;
+                    
+                    if (zoomId) {
+                      meetings.push({
+                        externalId: `aa-intergroup-json-${zoomId}`,
+                        name: meeting.name || 'AA Meeting',
+                        program: 'AA',
+                        meetingType: 'RECOVERY',
+                        description: meeting.notes || undefined,
+                        dayOfWeek: parseDayOfWeek(meeting.day),
+                        time: parseTime(meeting.time),
+                        timezone: meeting.timezone || 'America/New_York',
+                        durationMinutes: 60,
+                        format: 'ONLINE',
+                        zoomUrl: meeting.conference_url,
+                        zoomId: zoomId,
+                        zoomPassword: meeting.conference_password || undefined,
+                        tags: meeting.types || [],
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          } catch (jsonError: any) {
+            // Silent fail for JSON parsing attempts
+          }
+        });
+      }
+    } else {
+      logger.warn(`⚠️  Unexpected content type: ${contentType}`);
+    }
+    
+    logger.info(`✅ Total AA meetings fetched: ${meetings.length} (via web scraping)`);
+    return meetings;
+    
   } catch (error: any) {
-    logger.error('❌ Error in AA meeting fetch:', error.message);
+    logger.error('❌ Error scraping AA meetings:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+    });
     return [];
   }
 }
