@@ -200,7 +200,7 @@ const MeetingPage: React.FC = () => {
     return filtered;
   }, [allMeetings, searchZoomId, selectedProgram, selectedDate, timeRange, userTimezone]);
 
-  // Display meetings: Show filtered results, or first 10 if no filters applied
+  // Display meetings: Show filtered results, or first 9 if no filters applied
   const displayMeetings = useMemo(() => {
     const hasTimeFilter = timeRange[0] !== 0 || timeRange[1] !== 23;
     const hasFilters = searchZoomId.trim() || selectedProgram || selectedDate || hasTimeFilter;
@@ -213,7 +213,7 @@ const MeetingPage: React.FC = () => {
       return allMeetings; // Show all meetings
     }
     
-    return allMeetings.slice(0, 10); // Show first 10 by default
+    return allMeetings.slice(0, 9); // Show first 9 by default
   }, [filteredMeetings, allMeetings, searchZoomId, selectedProgram, selectedDate, timeRange, showAllMeetings]);
 
   // Group display meetings by program
@@ -535,10 +535,10 @@ const MeetingPage: React.FC = () => {
           </Button>
           <Typography variant="body2" color="text.secondary">
             {displayMeetings.length === allMeetings.length
-              ? `Showing ${showAllMeetings ? 'all' : 'first 10 of'} ${allMeetings.length} meetings`
+              ? `Showing ${showAllMeetings ? 'all' : 'first 9 of'} ${allMeetings.length} meetings`
               : `Found ${displayMeetings.length} meeting${displayMeetings.length !== 1 ? 's' : ''}`}
           </Typography>
-          {!showAllMeetings && displayMeetings.length >= 10 && allMeetings.length > 10 && (
+          {!showAllMeetings && displayMeetings.length >= 9 && allMeetings.length > 9 && (
             <Button
               variant="text"
               size="small"
