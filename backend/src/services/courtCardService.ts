@@ -111,21 +111,23 @@ function validateAttendance(
   const activeHeartbeats = events.filter((e: any) => e.type === 'ACTIVE' && e.source === 'FRONTEND_MONITOR').length;
   const idleHeartbeats = events.filter((e: any) => e.type === 'IDLE' && e.source === 'FRONTEND_MONITOR').length;
   
-  // Rule 1: Must be active for at least 80% of time attended
-  if (activePercent < 80) {
+  // Rule 1: Must be active for at least 40% of time attended
+  // Lowered from 80% to 40% - Recovery meetings are listening-focused
+  if (activePercent < 40) {
     violations.push({
       type: 'LOW_ACTIVE_TIME',
-      message: `Only ${activePercent.toFixed(1)}% active during meeting (required 80%). Active: ${activeDurationMin} min, Total: ${totalDurationMin} min.`,
+      message: `Only ${activePercent.toFixed(1)}% active during meeting (required 40%). Active: ${activeDurationMin} min, Total: ${totalDurationMin} min.`,
       severity: 'CRITICAL',
       timestamp: new Date().toISOString(),
     });
   }
   
-  // Rule 2: Idle time must not exceed 80% (very lenient - presence-based validation)
-  if (idlePercent > 80) {
+  // Rule 2: Idle time must not exceed 60% (lenient - presence-based validation)
+  // Lowered from 80% to 60% to balance with 40% active time requirement
+  if (idlePercent > 60) {
     violations.push({
       type: 'EXCESSIVE_IDLE_TIME',
-      message: `Idle for ${idleDurationMin} minutes (${idlePercent.toFixed(1)}% of attendance). Maximum allowed: 80%.`,
+      message: `Idle for ${idleDurationMin} minutes (${idlePercent.toFixed(1)}% of attendance). Maximum allowed: 60%.`,
       severity: 'CRITICAL',
       timestamp: new Date().toISOString(),
     });
@@ -488,19 +490,43 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
     const meetingDurationMin = attendance.externalMeeting?.durationMinutes || 60;
 
     // Parse scheduled meeting times for tardiness/early departure checking
-    // Use externalMeeting.createdAt which has the correct timezone-aware start time
+    // Calculate the scheduled start time based on the actual join date + meeting's scheduled time
     let scheduledStartTime: Date | null = null;
     let scheduledEndTime: Date | null = null;
     
-    if (attendance.externalMeeting?.createdAt) {
-      // Use the meeting's createdAt timestamp (set to actual Zoom meeting start time)
-      scheduledStartTime = new Date(attendance.externalMeeting.createdAt);
+    const meeting = attendance.externalMeeting;
+    if (meeting && meeting.time) {
+      // Use the actual join date as the base date
+      const joinDate = new Date(attendance.joinTime);
       
-      // Calculate scheduled end time (start + duration)
-      scheduledEndTime = new Date(scheduledStartTime);
-      scheduledEndTime.setMinutes(scheduledEndTime.getMinutes() + meetingDurationMin);
+      // Parse the meeting's scheduled time (format: "HH:MM" or "HH:MM AM/PM")
+      const timeMatch = meeting.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
       
-      logger.info(`Scheduled time window: ${scheduledStartTime.toISOString()} to ${scheduledEndTime.toISOString()}`);
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1], 10);
+        const minutes = parseInt(timeMatch[2], 10);
+        const meridiem = timeMatch[3]?.toUpperCase();
+        
+        // Convert 12-hour to 24-hour format
+        if (meridiem === 'PM' && hours !== 12) hours += 12;
+        if (meridiem === 'AM' && hours === 12) hours = 0;
+        
+        // Create scheduled start time using the join date with the meeting's scheduled time
+        scheduledStartTime = new Date(joinDate);
+        scheduledStartTime.setHours(hours, minutes, 0, 0);
+        
+        // Calculate scheduled end time (start + duration)
+        scheduledEndTime = new Date(scheduledStartTime);
+        scheduledEndTime.setMinutes(scheduledEndTime.getMinutes() + meetingDurationMin);
+        
+        logger.info(`Scheduled time window: ${scheduledStartTime.toISOString()} to ${scheduledEndTime.toISOString()}`);
+        logger.info(`Actual join time: ${attendance.joinTime.toISOString()}`);
+        logger.info(`Actual leave time: ${attendance.leaveTime?.toISOString() || 'N/A'}`);
+      } else {
+        logger.warn(`Could not parse meeting time: ${meeting.time}`);
+      }
+    } else {
+      logger.warn('No scheduled time available for attendance window validation');
     }
 
     // Validate attendance and generate violations
