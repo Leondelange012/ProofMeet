@@ -433,7 +433,7 @@ This certificate confirms that the court card has been verified as authentic.
                   </Grid>
                   <Grid item xs={12} md={6}>
                     <Typography variant="body2" color="text.secondary">
-                      Time Away
+                      Left Meeting (Time Away)
                     </Typography>
                     <Typography variant="body1" fontWeight="bold" color="warning.main">
                       {auditTrail.timeBreakdown.timeAwayMin} minutes
@@ -441,7 +441,7 @@ This certificate confirms that the court card has been verified as authentic.
                   </Grid>
                   <Grid item xs={12} md={6}>
                     <Typography variant="body2" color="text.secondary">
-                      Idle Time
+                      Inactive While Present
                     </Typography>
                     <Typography variant="body1" fontWeight="bold">
                       {auditTrail.timeBreakdown.idleDurationMin} minutes
@@ -464,7 +464,7 @@ This certificate confirms that the court card has been verified as authentic.
                   <Grid item xs={12}>
                     <Divider sx={{ my: 1 }} />
                     <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>
-                      🔄 Leave/Rejoin Events
+                      🔄 Left Meeting (Leave/Rejoin Events)
                     </Typography>
                   </Grid>
                   {auditTrail.leaveRejoinPeriods.map((period: any, index: number) => (

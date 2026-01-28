@@ -869,7 +869,7 @@ const CourtRepDashboardPage: React.FC = () => {
                                                     )}
                                                     {meeting.idleDuration > 0 && (
                                                       <Typography variant="body2" color="text.secondary" display="block" sx={{ ml: 1 }}>
-                                                        • Idle Time: {meeting.idleDuration} min ({((meeting.idleDuration / (meeting.duration || meeting.totalDurationMin || 1)) * 100).toFixed(1)}% idle)
+                                                        • Inactive While Present: {meeting.idleDuration} min ({((meeting.idleDuration / (meeting.duration || meeting.totalDurationMin || 1)) * 100).toFixed(1)}% inactive)
                                                       </Typography>
                                                     )}
                                                   </Box>

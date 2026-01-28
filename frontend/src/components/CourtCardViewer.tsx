@@ -269,7 +269,7 @@ const CourtCardViewer: React.FC<CourtCardViewerProps> = ({
                 <Typography variant="body1">{cardData.activeDurationMin || 0} minutes</Typography>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <Typography variant="body2" color="text.secondary">Idle Time</Typography>
+                <Typography variant="body2" color="text.secondary">Inactive While Present</Typography>
                 <Typography variant="body1">{cardData.idleDurationMin || 0} minutes</Typography>
               </Grid>
             </Grid>
