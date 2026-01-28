@@ -490,43 +490,33 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
     const meetingDurationMin = attendance.externalMeeting?.durationMinutes || 60;
 
     // Parse scheduled meeting times for tardiness/early departure checking
-    // Calculate the scheduled start time based on the actual join date + meeting's scheduled time
     let scheduledStartTime: Date | null = null;
     let scheduledEndTime: Date | null = null;
     
     const meeting = attendance.externalMeeting;
-    if (meeting && meeting.time) {
-      // Use the actual join date as the base date
-      const joinDate = new Date(attendance.joinTime);
+    
+    // CRITICAL FIX: Use meetingDate (actual Zoom meeting start) as the scheduled start time
+    // This works for both TEST meetings (one-time) and recurring meetings (AA/NA)
+    // The meetingDate field is set when the participant joins and represents when the meeting actually started
+    if (attendance.meetingDate) {
+      scheduledStartTime = new Date(attendance.meetingDate);
+      scheduledEndTime = new Date(scheduledStartTime);
+      scheduledEndTime.setMinutes(scheduledEndTime.getMinutes() + meetingDurationMin);
       
-      // Parse the meeting's scheduled time (format: "HH:MM" or "HH:MM AM/PM")
-      const timeMatch = meeting.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+      logger.info(`📅 Using meetingDate as scheduled start time (actual Zoom meeting start)`);
+      logger.info(`   Scheduled start: ${scheduledStartTime.toISOString()}`);
+      logger.info(`   Scheduled end: ${scheduledEndTime.toISOString()}`);
+      logger.info(`   Actual join: ${attendance.joinTime.toISOString()}`);
+      logger.info(`   Actual leave: ${attendance.leaveTime?.toISOString() || 'N/A'}`);
       
-      if (timeMatch) {
-        let hours = parseInt(timeMatch[1], 10);
-        const minutes = parseInt(timeMatch[2], 10);
-        const meridiem = timeMatch[3]?.toUpperCase();
-        
-        // Convert 12-hour to 24-hour format
-        if (meridiem === 'PM' && hours !== 12) hours += 12;
-        if (meridiem === 'AM' && hours === 12) hours = 0;
-        
-        // Create scheduled start time using the join date with the meeting's scheduled time
-        scheduledStartTime = new Date(joinDate);
-        scheduledStartTime.setHours(hours, minutes, 0, 0);
-        
-        // Calculate scheduled end time (start + duration)
-        scheduledEndTime = new Date(scheduledStartTime);
-        scheduledEndTime.setMinutes(scheduledEndTime.getMinutes() + meetingDurationMin);
-        
-        logger.info(`Scheduled time window: ${scheduledStartTime.toISOString()} to ${scheduledEndTime.toISOString()}`);
-        logger.info(`Actual join time: ${attendance.joinTime.toISOString()}`);
-        logger.info(`Actual leave time: ${attendance.leaveTime?.toISOString() || 'N/A'}`);
+      const minutesLate = Math.round((attendance.joinTime.getTime() - scheduledStartTime.getTime()) / (1000 * 60));
+      if (minutesLate > 0) {
+        logger.info(`   ⏰ Joined ${minutesLate} minutes after meeting started`);
       } else {
-        logger.warn(`Could not parse meeting time: ${meeting.time}`);
+        logger.info(`   ✅ Joined ${Math.abs(minutesLate)} minutes before meeting started`);
       }
     } else {
-      logger.warn('No scheduled time available for attendance window validation');
+      logger.warn('⚠️  No meetingDate available - attendance window validation skipped');
     }
 
     // Validate attendance and generate violations
@@ -661,14 +651,15 @@ export async function generateCourtCard(attendanceRecordId: string): Promise<any
         videoOffPeriods: videoOffPeriods.length,
       });
     } else {
-      // FALLBACK: No video events tracked yet (legacy or in-progress meeting)
-      // Assume camera was on for entire meeting (optimistic assumption)
-      videoOnPercentage = 100;
-      videoOnDurationMin = totalDurationMin;
+      // CRITICAL FIX: No video events tracked = video state UNKNOWN, not 100% on
+      // This prevents false positives where we claim video was on when it wasn't tracked
+      videoOnPercentage = 0;
+      videoOnDurationMin = 0;
       
-      logger.warn(`⚠️ No VIDEO_ON/OFF events found, assuming camera was on for entire meeting`, {
+      logger.warn(`⚠️ No VIDEO_ON/OFF events found - video state UNKNOWN (showing as 0%)`, {
         attendanceId: attendanceRecordId,
         totalDurationMin,
+        note: 'Video tracking may not have been active for this meeting',
       });
     }
     
