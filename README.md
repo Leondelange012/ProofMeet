@@ -217,22 +217,17 @@ ProofMeet/
 │   └── railway.json               # Railway config
 │
 ├── docs/                          # Documentation
-│   ├── guides/                    # User guides
-│   │   ├── DEMO_GUIDE.md
-│   │   └── TESTING_GUIDE.md
-│   ├── deployment/                # Deployment docs
-│   │   ├── railway-deploy.md
-│   │   ├── vercel-deploy.md
-│   │   └── INSTALLATION.md
-│   ├── archive/                   # Historical docs
 │   ├── API_DOCUMENTATION.md       # API reference
 │   ├── DEVELOPER_GUIDE.md         # Developer setup
-│   └── USER_GUIDE.md              # End-user manual
+│   ├── USER_GUIDE.md              # End-user manual
+│   ├── AA_MEETING_INTEGRATION.md  # External meeting sync
+│   ├── FIELD_READY_SYSTEM_SUMMARY.md # System architecture
+│   ├── TRACKING_AND_VALIDATION_RULES.md # Compliance rules
+│   └── archive/                   # Historical documentation
 │
-├── FIELD_TESTING_GUIDE.md         # Field testing instructions
-├── FIELD_TESTING_GUIDE.pdf        # PDF version for email
-├── FIELD_READY_SYSTEM_SUMMARY.md  # System overview
-├── FIELD_READY_SYSTEM_SUMMARY.pdf # PDF version
+├── CHANGELOG.md                   # Recent changes & fixes
+├── SECURITY.md                    # Security considerations
+├── FIELD_TESTING_MANUAL_V2.pdf    # Field testing manual (PDF)
 ├── docker-compose.yml             # Local development
 └── README.md                      # This file
 ```
@@ -313,21 +308,23 @@ VITE_API_BASE_URL=http://localhost:5000/api
 
 ## 📖 Documentation
 
-### User Documentation
-- **[Field Testing Guide](FIELD_TESTING_GUIDE.pdf)** - Complete testing instructions (PDF)
-- **[System Summary](FIELD_READY_SYSTEM_SUMMARY.pdf)** - Technical overview (PDF)
-- **[User Guide](docs/USER_GUIDE.md)** - End-user manual
-- **[Demo Guide](docs/guides/DEMO_GUIDE.md)** - System demonstration
+### 📘 For Users
+- **[User Guide](docs/USER_GUIDE.md)** - End-user manual for participants and court reps
+- **[Field Testing Guide](FIELD_TESTING_MANUAL_V2.pdf)** - PDF manual for field testers
 
-### Developer Documentation
+### 👨‍💻 For Developers
+- **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - Complete development setup
+- **[Backend Setup](backend/README.md)** - Backend-specific setup & database
 - **[API Documentation](docs/API_DOCUMENTATION.md)** - REST API reference
-- **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - Development setup
-- **[Deployment Guide](docs/deployment/railway-deploy.md)** - Production deployment
+- **[Architecture Overview](docs/FIELD_READY_SYSTEM_SUMMARY.md)** - System design & tracking
 
-### Deployment Documentation
-- **[Railway Deployment](docs/deployment/railway-deploy.md)** - Backend deployment
-- **[Vercel Deployment](docs/deployment/vercel-deploy.md)** - Frontend deployment
-- **[Installation Guide](docs/deployment/INSTALLATION.md)** - Full setup
+### 🔧 Setup & Integration
+- **[AA Meeting Integration](docs/AA_MEETING_INTEGRATION.md)** - External meeting sync setup
+- **[Troubleshooting](docs/TRACKING_AND_VALIDATION_RULES.md)** - Common issues & validation rules
+
+### 📚 Additional Resources
+- **[Changelog](CHANGELOG.md)** - Recent changes & fixes
+- **[Security](SECURITY.md)** - Security audit & best practices
 
 ---
 
