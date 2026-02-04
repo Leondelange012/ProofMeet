@@ -8,12 +8,12 @@ import { syncAllMeetings } from './meetingSyncService';
 import { logger } from '../utils/logger';
 
 /**
- * Schedule daily meeting sync at 2 AM
+ * Schedule meeting sync every 2 days at 2 AM
  */
 export function scheduleDailyMeetingSync(): void {
-  // Run every day at 2:00 AM
-  cron.schedule('0 2 * * *', async () => {
-    logger.info('⏰ Automated daily meeting sync triggered');
+  // Run every 2 days at 2:00 AM
+  cron.schedule('0 2 */2 * *', async () => {
+    logger.info('⏰ Automated meeting sync triggered (every 2 days)');
     try {
       const result = await syncAllMeetings();
       if (result.success) {
@@ -26,7 +26,7 @@ export function scheduleDailyMeetingSync(): void {
     }
   });
   
-  logger.info('✅ Daily meeting sync scheduled for 2:00 AM');
+  logger.info('✅ Meeting sync scheduled for every 2 days at 2:00 AM');
 }
 
 /**

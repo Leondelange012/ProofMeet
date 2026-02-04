@@ -144,7 +144,7 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
     
     // Get current time for filtering
     const now = new Date();
-    const sixMonthsAgo = new Date(now.getTime() - (180 * 24 * 60 * 60 * 1000)); // 180 days ago
+    const twelveMonthsAgo = new Date(now.getTime() - (365 * 24 * 60 * 60 * 1000)); // 365 days ago
     
     let skippedInactive = 0;
     let skippedNoZoom = 0;
@@ -165,11 +165,12 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
         continue;
       }
       
-      // Skip meetings that haven't been updated in 6+ months (likely inactive)
+      // Skip meetings that haven't been updated in 12+ months (likely completely inactive)
+      // Reduced from 6 months to catch more active recurring meetings
       if (meeting.updated) {
         try {
           const updatedDate = new Date(meeting.updated);
-          if (updatedDate < sixMonthsAgo) {
+          if (updatedDate < twelveMonthsAgo) {
             skippedInactive++;
             continue;
           }
@@ -201,7 +202,7 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
     }
     
     logger.info(`✅ Total AA meetings fetched: ${meetings.length} from OIAA`);
-    logger.info(`   📊 Skipped ${skippedInactive} inactive meetings (not updated in 6+ months), ${skippedNoZoom} without Zoom links`);
+    logger.info(`   📊 Skipped ${skippedInactive} inactive meetings (not updated in 12+ months), ${skippedNoZoom} without Zoom links`);
     return meetings;
     
   } catch (error: any) {
