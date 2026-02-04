@@ -189,58 +189,6 @@ router.get('/dashboard', async (req: Request, res: Response) => {
 // ============================================
 
 /**
- * GET /api/participant/meetings/debug/:zoomId
- * Debug endpoint to check if a meeting exists by Zoom ID
- * NO AUTH - for debugging only
- */
-router.get('/meetings/debug/:zoomId', async (req: Request, res: Response) => {
-  try {
-    const zoomId = req.params.zoomId;
-    const cleanedZoomId = zoomId.replace(/\s+/g, '');
-    
-    logger.info(`🔍 DEBUG: Searching for Zoom ID: ${zoomId} (cleaned: ${cleanedZoomId})`);
-    
-    // Search with exact match
-    const exactMatch = await prisma.externalMeeting.findMany({
-      where: { zoomId: cleanedZoomId },
-      select: { id: true, name: true, program: true, zoomId: true, hasProofCapability: true, zoomUrl: true }
-    });
-    
-    // Search with partial match
-    const partialMatch = await prisma.externalMeeting.findMany({
-      where: { zoomId: { contains: cleanedZoomId } },
-      select: { id: true, name: true, program: true, zoomId: true, hasProofCapability: true, zoomUrl: true }
-    });
-    
-    // Search in URL
-    const urlMatch = await prisma.externalMeeting.findMany({
-      where: { zoomUrl: { contains: cleanedZoomId } },
-      select: { id: true, name: true, program: true, zoomId: true, hasProofCapability: true, zoomUrl: true }
-    });
-    
-    res.json({
-      success: true,
-      searchTerm: zoomId,
-      cleanedSearchTerm: cleanedZoomId,
-      results: {
-        exactMatch: exactMatch.length,
-        partialMatch: partialMatch.length,
-        urlMatch: urlMatch.length,
-        exactMatchData: exactMatch,
-        partialMatchData: partialMatch,
-        urlMatchData: urlMatch,
-      }
-    });
-  } catch (error: any) {
-    logger.error('Debug search error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-    });
-  }
-});
-
-/**
  * GET /api/participant/meetings/programs
  * Get list of all available meeting programs/categories
  */
@@ -303,27 +251,7 @@ router.get('/meetings/available', async (req: Request, res: Response) => {
         contains: cleanedZoomId,
       };
       
-      // Log search attempt
       logger.info(`🔍 Zoom ID Search: "${zoomId}" -> cleaned: "${cleanedZoomId}"`);
-      
-      // DIAGNOSTIC: Check if meeting exists WITHOUT hasProofCapability filter
-      const allMatchingMeetings = await prisma.externalMeeting.findMany({
-        where: {
-          zoomId: { contains: cleanedZoomId },
-        },
-        select: {
-          id: true,
-          name: true,
-          zoomId: true,
-          program: true,
-          hasProofCapability: true,
-        },
-      });
-      
-      logger.info(`📋 Found ${allMatchingMeetings.length} meetings with Zoom ID containing "${cleanedZoomId}" (ignoring hasProofCapability filter):`);
-      allMatchingMeetings.forEach(m => {
-        logger.info(`  - ID: ${m.id}, Name: ${m.name}, ZoomID: ${m.zoomId}, Program: ${m.program}, HasProof: ${m.hasProofCapability}`);
-      });
     }
 
     const meetings = await prisma.externalMeeting.findMany({
@@ -336,8 +264,7 @@ router.get('/meetings/available', async (req: Request, res: Response) => {
       take: limit, // Limit results if specified
     });
     
-    // Log results
-    logger.info(`📊 Query returned ${meetings.length} meetings WITH filters (filters: ${JSON.stringify(where)})`);
+    logger.info(`📊 Query returned ${meetings.length} meetings`);
 
     // Group by program
     const meetingsByProgram: { [key: string]: any[] } = {};
