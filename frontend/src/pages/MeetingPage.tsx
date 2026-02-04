@@ -181,12 +181,9 @@ const MeetingPage: React.FC = () => {
           const meetingHour = getMeetingStartHourInTimezone(m, userTimezone);
           if (meetingHour === null) return true; // Include if we can't determine time
 
-          // Convert slider values to actual time
-          const startTime = sliderValueToTime(timeRange[0]);
-          const endTime = sliderValueToTime(timeRange[1]);
-          
           // Convert meeting hour to comparable format (hour * 2 for 30-min intervals)
-          const meetingValue = meetingHour * 2; // This will need minute precision if available
+          // This maps 0-23 hours to 0-46 slider values (each hour = 2 intervals of 30min)
+          const meetingValue = meetingHour * 2;
           
           const start = timeRange[0];
           const end = timeRange[1];
