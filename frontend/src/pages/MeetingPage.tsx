@@ -79,7 +79,7 @@ const MeetingPage: React.FC = () => {
   const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  const [timeRange, setTimeRange] = useState<number[]>([0, 47]); // Time range slider [start, end] in 30-min intervals (0=00:00, 47=23:30)
+  const [timeRange, setTimeRange] = useState<number[]>([0, 48]); // Time range slider [start, end] in 30-min intervals (0=00:00, 48=24:00/midnight)
   const [showAllMeetings, setShowAllMeetings] = useState(false);
   const [allAvailablePrograms, setAllAvailablePrograms] = useState<string[]>([]); // All programs from database
 
@@ -151,7 +151,7 @@ const MeetingPage: React.FC = () => {
     }
   };
 
-  // Helper to convert slider value (0-47) to hours and minutes
+  // Helper to convert slider value (0-48) to hours and minutes
   const sliderValueToTime = (value: number): { hours: number; minutes: number } => {
     const hours = Math.floor(value / 2);
     const minutes = (value % 2) * 30;
@@ -161,12 +161,16 @@ const MeetingPage: React.FC = () => {
   // Helper to format slider value as time string
   const formatSliderValue = (value: number): string => {
     const { hours, minutes } = sliderValueToTime(value);
+    // Display 24:00 as the end of day instead of 00:00
+    if (value === 48) {
+      return '24:00';
+    }
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
   // Apply client-side time range filter (timezone-specific, done after server filtering)
   const displayMeetingsByProgram = useMemo(() => {
-    const hasTimeFilter = timeRange[0] !== 0 || timeRange[1] !== 47;
+    const hasTimeFilter = timeRange[0] !== 0 || timeRange[1] !== 48;
     
     // Start with server-filtered results (already grouped by program)
     let resultByProgram = { ...meetingsByProgram };
@@ -239,7 +243,7 @@ const MeetingPage: React.FC = () => {
     setSearchZoomId('');
     setSelectedProgram('');
     setSelectedDate(null);
-    setTimeRange([0, 47]);
+    setTimeRange([0, 48]);
     setShowAllMeetings(false);
   };
 
@@ -521,8 +525,8 @@ const MeetingPage: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <AccessTime sx={{ mr: 1, color: 'primary.main' }} />
                 <Typography variant="body2" color="text.secondary">
-                  Meeting Start Time Range: {formatSliderValue(timeRange[0])} - {formatSliderValue(timeRange[1])}
-                  {timeRange[0] !== 0 || timeRange[1] !== 47 ? ` (${userTimezone.split('/')[1] || userTimezone})` : ' (All times)'}
+                  Meeting Time: {formatSliderValue(timeRange[0])} - {formatSliderValue(timeRange[1])}
+                  {timeRange[0] !== 0 || timeRange[1] !== 48 ? ` (${userTimezone.split('/')[1] || userTimezone})` : ' (All Day)'}
                 </Typography>
               </Box>
               <Slider
@@ -531,15 +535,14 @@ const MeetingPage: React.FC = () => {
                 valueLabelDisplay="auto"
                 valueLabelFormat={(value) => formatSliderValue(value)}
                 min={0}
-                max={47}
+                max={48}
                 step={1}
                 marks={[
                   { value: 0, label: '00:00' },
                   { value: 12, label: '06:00' },
-                  { value: 23, label: '11:30' },
                   { value: 24, label: '12:00' },
                   { value: 36, label: '18:00' },
-                  { value: 47, label: '23:30' },
+                  { value: 48, label: '24:00' },
                 ]}
                 sx={{ mt: 1 }}
               />
@@ -552,7 +555,7 @@ const MeetingPage: React.FC = () => {
           <Button
             variant="outlined"
             onClick={clearFilters}
-            disabled={!searchZoomId && !selectedProgram && !selectedDate && timeRange[0] === 0 && timeRange[1] === 47}
+            disabled={!searchZoomId && !selectedProgram && !selectedDate && timeRange[0] === 0 && timeRange[1] === 48}
           >
             Clear Filters
           </Button>
