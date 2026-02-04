@@ -79,7 +79,7 @@ const MeetingPage: React.FC = () => {
   const [selectedProgram, setSelectedProgram] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  const [timeRange, setTimeRange] = useState<number[]>([0, 23]); // Time range slider [start, end] in 24hr format
+  const [timeRange, setTimeRange] = useState<number[]>([0, 47]); // Time range slider [start, end] in 30-min intervals (0=00:00, 47=23:30)
   const [showAllMeetings, setShowAllMeetings] = useState(false);
   const [allAvailablePrograms, setAllAvailablePrograms] = useState<string[]>([]); // All programs from database
 
@@ -151,9 +151,22 @@ const MeetingPage: React.FC = () => {
     }
   };
 
+  // Helper to convert slider value (0-47) to hours and minutes
+  const sliderValueToTime = (value: number): { hours: number; minutes: number } => {
+    const hours = Math.floor(value / 2);
+    const minutes = (value % 2) * 30;
+    return { hours, minutes };
+  };
+
+  // Helper to format slider value as time string
+  const formatSliderValue = (value: number): string => {
+    const { hours, minutes } = sliderValueToTime(value);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  };
+
   // Apply client-side time range filter (timezone-specific, done after server filtering)
   const displayMeetingsByProgram = useMemo(() => {
-    const hasTimeFilter = timeRange[0] !== 0 || timeRange[1] !== 23;
+    const hasTimeFilter = timeRange[0] !== 0 || timeRange[1] !== 47;
     
     // Start with server-filtered results (already grouped by program)
     let resultByProgram = { ...meetingsByProgram };
@@ -168,15 +181,22 @@ const MeetingPage: React.FC = () => {
           const meetingHour = getMeetingStartHourInTimezone(m, userTimezone);
           if (meetingHour === null) return true; // Include if we can't determine time
 
+          // Convert slider values to actual time
+          const startTime = sliderValueToTime(timeRange[0]);
+          const endTime = sliderValueToTime(timeRange[1]);
+          
+          // Convert meeting hour to comparable format (hour * 2 for 30-min intervals)
+          const meetingValue = meetingHour * 2; // This will need minute precision if available
+          
           const start = timeRange[0];
           const end = timeRange[1];
 
           // Handle wrap-around (e.g., 22:00 to 02:00)
           if (start <= end) {
-            return meetingHour >= start && meetingHour <= end;
+            return meetingValue >= start && meetingValue <= end;
           } else {
             // Time range wraps around midnight
-            return meetingHour >= start || meetingHour <= end;
+            return meetingValue >= start || meetingValue <= end;
           }
         });
         
@@ -222,7 +242,7 @@ const MeetingPage: React.FC = () => {
     setSearchZoomId('');
     setSelectedProgram('');
     setSelectedDate(null);
-    setTimeRange([0, 23]);
+    setTimeRange([0, 47]);
     setShowAllMeetings(false);
   };
 
@@ -504,23 +524,25 @@ const MeetingPage: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <AccessTime sx={{ mr: 1, color: 'primary.main' }} />
                 <Typography variant="body2" color="text.secondary">
-                  Meeting Start Time Range: {timeRange[0].toString().padStart(2, '0')}:00 - {timeRange[1].toString().padStart(2, '0')}:00
-                  {timeRange[0] !== 0 || timeRange[1] !== 23 ? ` (${userTimezone.split('/')[1] || userTimezone})` : ' (All times)'}
+                  Meeting Start Time Range: {formatSliderValue(timeRange[0])} - {formatSliderValue(timeRange[1])}
+                  {timeRange[0] !== 0 || timeRange[1] !== 47 ? ` (${userTimezone.split('/')[1] || userTimezone})` : ' (All times)'}
                 </Typography>
               </Box>
               <Slider
                 value={timeRange}
                 onChange={(_, newValue) => setTimeRange(newValue as number[])}
                 valueLabelDisplay="auto"
-                valueLabelFormat={(value) => `${value.toString().padStart(2, '0')}:00`}
+                valueLabelFormat={(value) => formatSliderValue(value)}
                 min={0}
-                max={23}
+                max={47}
+                step={1}
                 marks={[
                   { value: 0, label: '00:00' },
-                  { value: 6, label: '06:00' },
-                  { value: 12, label: '12:00' },
-                  { value: 18, label: '18:00' },
-                  { value: 23, label: '23:00' },
+                  { value: 12, label: '06:00' },
+                  { value: 23, label: '11:30' },
+                  { value: 24, label: '12:00' },
+                  { value: 36, label: '18:00' },
+                  { value: 47, label: '23:30' },
                 ]}
                 sx={{ mt: 1 }}
               />
@@ -533,7 +555,7 @@ const MeetingPage: React.FC = () => {
           <Button
             variant="outlined"
             onClick={clearFilters}
-            disabled={!searchZoomId && !selectedProgram && !selectedDate && timeRange[0] === 0 && timeRange[1] === 23}
+            disabled={!searchZoomId && !selectedProgram && !selectedDate && timeRange[0] === 0 && timeRange[1] === 47}
           >
             Clear Filters
           </Button>
