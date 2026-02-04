@@ -157,7 +157,8 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
         continue;
       }
       
-      const zoomMatch = meeting.conference_url.match(/zoom\.us\/j\/(\d+)/);
+      // Match both /j/ and /s/ Zoom URL patterns
+      const zoomMatch = meeting.conference_url.match(/zoom\.us\/[js]\/(\d+)/);
       const zoomId = zoomMatch ? zoomMatch[1] : undefined;
       
       if (!zoomId) {
@@ -733,10 +734,11 @@ async function fetchSMARTMeetings(): Promise<ExternalMeeting[]> {
 
 /**
  * Helper: Extract Zoom meeting ID from URL
+ * Supports both /j/ (join) and /s/ (start) URL patterns
  */
 function extractZoomId(url: string): string | undefined {
   if (!url) return undefined;
-  const match = url.match(/zoom\.us\/j\/(\d+)/);
+  const match = url.match(/zoom\.us\/[js]\/(\d+)/);
   return match ? match[1] : undefined;
 }
 
