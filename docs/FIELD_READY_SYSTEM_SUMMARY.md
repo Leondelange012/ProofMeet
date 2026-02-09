@@ -1,8 +1,8 @@
 # ProofMeet Field-Ready System Summary
 ## System Cleanup and Testing Guide Complete
 
-**Date:** October 26, 2025  
-**Status:** ✅ Ready for Field Testing
+**Date:** February 9, 2026 (Updated)  
+**Status:** ✅ Ready for Field Testing with External Meeting Search
 
 ---
 
@@ -126,6 +126,8 @@
 ## Testing Readiness
 
 ### What Works Automatically ✅
+- **External meeting sync** - 1,800+ AA/NA meetings synced daily (NEW!)
+- **Meeting search** - Participants can find meetings by program, day, or Zoom ID (NEW!)
 - Meeting creation with Zoom integration
 - Attendance tracking during meetings
 - Validation status determination
@@ -150,7 +152,19 @@
 
 ## How to Test the System
 
-### Quick Start (15 minutes)
+### Quick Start - Test 1: External AA/NA Meetings (NEW - 20 minutes) ✨
+1. **Participant:** Login to participant dashboard
+2. **Search:** Click "Find Meetings" → Search for AA meetings
+3. **Verify:** Should see 100+ meetings available
+4. **Filter:** Try filtering by program (AA/NA), day of week
+5. **Search by ID:** Try searching for specific Zoom ID
+6. **Join:** Click "Join" on a meeting (starts tracking)
+7. **Attend:** Join the Zoom meeting, stay 80%+ of duration
+8. **Complete:** Leave meeting, wait 2-3 minutes for processing
+9. **Sign:** Sign your court card, request host signature
+10. **Download:** Get court card with all verification
+
+### Quick Start - Test 2: Court Rep Created Meetings (15 minutes)
 1. **Court Rep:** Login, create test meeting, copy Zoom link
 2. **Participant:** Login, join Zoom meeting, stay 80%+ of duration
 3. **Host:** Start Zoom as host, admit participant, end meeting
@@ -211,22 +225,50 @@ See **FIELD_TESTING_GUIDE.md** for complete instructions.
 3. See meeting history and signature status
 4. Download court cards for submission
 
+### Meeting Search Feature (NEW 2026-02-09)
+1. **Access**: Participant dashboard → "Find Meetings" button
+2. **Search Options**:
+   - By Program: AA, NA, SMART Recovery
+   - By Day: Monday through Sunday
+   - By Zoom ID: Enter specific meeting ID
+3. **Expected Results**: 100+ meetings available
+4. **Join Button**: Only shows if meeting has `hasProofCapability`
+
 ### Troubleshooting
 1. Click "Sync Latest Data" if information is stale
 2. Wait 2-3 minutes after meeting ends for processing
 3. Verify participants have cameras on during meetings
+4. **NEW:** If no meetings showing, check `/api/admin/sync-health`
+5. **NEW:** If specific meeting missing, use diagnostic: `diagnose-meeting.ps1 <ZOOM_ID>`
 
 ### What NOT to Do
 - ❌ Don't look for debug buttons (they're removed)
 - ❌ Don't manually generate court cards (automatic)
 - ❌ Don't sign court cards for participants (they sign themselves)
+- ❌ Don't expect ALL 8,000+ meetings (5,000+ are inactive/filtered out)
 
 ---
 
 ## What Participants Need to Know
 
+### Finding Meetings (UPDATED 2026-02-09)
+
+**Option 1: Join External AA/NA Meetings** ✨ NEW FEATURE
+1. Click "Find Meetings" from participant dashboard
+2. Search by:
+   - Program (AA, NA, SMART)
+   - Day of week
+   - Zoom ID (if you know it)
+3. Browse 1,800+ available meetings
+4. Click "Join" to start tracking
+5. System automatically tracks attendance
+
+**Option 2: Join Court Rep Created Meetings**
+1. Receive Zoom link from Court Rep
+2. Click link to join
+
 ### Attending Meetings
-1. Join Zoom link from Court Rep
+1. Join meeting (via search or Court Rep link)
 2. Keep camera on entire meeting
 3. Stay engaged (not idle)
 4. Remain for at least 80% of duration
@@ -338,19 +380,28 @@ See **FIELD_TESTING_GUIDE.md** for complete instructions.
 ## Deployment Status
 
 ### Current Version
-- **Backend:** 2.0.9
+- **Backend:** 2.1.0 (Updated 2026-02-09)
 - **Frontend:** 1.0.0
-- **Last Deployed:** October 26, 2025
+- **Last Deployed:** February 9, 2026
+- **New Features:**
+  - External AA/NA meeting search (1,800+ meetings)
+  - Automatic daily sync at 2 AM UTC
+  - Health monitoring with auto-alerts
+  - Meeting diagnostic tools
 
 ### Active Deployments
 - ✅ Backend on Railway (auto-deploy enabled)
 - ✅ Frontend on Vercel (auto-deploy enabled)
 - ✅ Database on Railway (PostgreSQL)
+- ✅ **Meeting Sync** - Automatic daily at 2 AM UTC (NEW!)
 
 ### Monitoring
 - Railway provides logs and metrics
 - Vercel provides deployment status
 - Both auto-deploy on push to `main` branch
+- **NEW:** Health monitoring endpoint `/api/admin/sync-health`
+- **NEW:** Automatic alerts when sync fails (<100 meetings)
+- **NEW:** Sync statistics at `/api/admin/sync-statistics`
 
 ---
 
@@ -418,7 +469,8 @@ See **FIELD_TESTING_GUIDE.md** for complete instructions.
 
 ---
 
-**Version:** 1.0  
+**Version:** 2.1  
 **Document Created:** October 26, 2025  
-**Last Updated:** October 26, 2025
+**Last Updated:** February 9, 2026  
+**Major Changes:** Added external meeting search, automatic daily sync, health monitoring
 
