@@ -5,6 +5,7 @@ import { prisma } from '../index';
 import { logger } from '../utils/logger';
 import { processPendingDigests } from '../services/emailService';
 import { syncAllMeetings, testMeetingAPIs } from '../services/meetingSyncService';
+import { checkSyncHealth, getSyncStatistics, checkMeetingExists } from '../services/syncMonitoringService';
 
 const router = Router();
 
@@ -302,6 +303,80 @@ router.post('/sync-meetings', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Admin sync meetings error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/sync-health
+ * Check health status of meeting sync system
+ * MONITORING: Use this for dashboards and alerts
+ */
+router.get('/sync-health', async (req: Request, res: Response) => {
+  try {
+    logger.info('Admin triggered: Sync health check');
+
+    const health = await checkSyncHealth();
+
+    // Return appropriate status code based on health
+    const statusCode = health.status === 'CRITICAL' ? 503 : 200;
+
+    res.status(statusCode).json({
+      success: health.status !== 'CRITICAL',
+      data: health,
+    });
+  } catch (error: any) {
+    logger.error('Admin sync health check error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/sync-statistics
+ * Get detailed sync statistics
+ */
+router.get('/sync-statistics', async (req: Request, res: Response) => {
+  try {
+    logger.info('Admin triggered: Sync statistics');
+
+    const stats = await getSyncStatistics();
+
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error: any) {
+    logger.error('Admin sync statistics error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/check-meeting/:zoomId
+ * Check if a specific meeting exists in database
+ */
+router.get('/check-meeting/:zoomId', async (req: Request, res: Response) => {
+  try {
+    const { zoomId } = req.params;
+    logger.info(`Admin triggered: Check meeting ${zoomId}`);
+
+    const result = await checkMeetingExists(zoomId);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    logger.error('Admin check meeting error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

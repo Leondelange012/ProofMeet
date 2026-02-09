@@ -42,14 +42,23 @@ const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY;
 
 /**
  * Build proxy URL for external API calls
- * Uses ScraperAPI if key is available, otherwise falls back to corsproxy.io
+ * NOTE: aa-intergroup.org JSON feed is directly accessible without proxy!
+ * Only use proxy for sources that actually require it
  */
-function buildProxyUrl(targetUrl: string): string {
+function buildProxyUrl(targetUrl: string, requireProxy: boolean = false): string {
+  // For aa-intergroup.org JSON feed, use direct access (no proxy needed)
+  if (targetUrl.includes('data.aa-intergroup.org') && !requireProxy) {
+    logger.info('📡 Using direct access (no proxy needed)');
+    return targetUrl;
+  }
+  
   if (SCRAPERAPI_KEY) {
     // ScraperAPI format: https://api.scraperapi.com?api_key=YOUR_KEY&url=TARGET_URL
+    logger.info('🔐 Using ScraperAPI proxy');
     return `https://api.scraperapi.com?api_key=${SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}`;
   } else {
     // Fallback to free CORS proxy (may be blocked by CAPTCHA)
+    logger.warn('⚠️  No ScraperAPI key - using corsproxy.io (may fail)');
     return `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
   }
 }
@@ -104,31 +113,26 @@ async function fetchInTheRoomsMeetings(): Promise<ExternalMeeting[]> {
  */
 async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
   try {
-    logger.info('🔍 Scraping AA meetings from aa-intergroup.org...');
-    
-    if (!SCRAPERAPI_KEY) {
-      logger.warn('⚠️  No ScraperAPI key found - AA meeting scraping will likely fail due to CAPTCHA');
-      return [];
-    }
-    
-    logger.info('🔐 Using ScraperAPI to bypass CAPTCHA protection');
+    logger.info('🔍 Fetching AA meetings from aa-intergroup.org...');
     
     const meetings: ExternalMeeting[] = [];
     
-    // Direct JSON feed URL (discovered from network tab analysis)
+    // Direct JSON feed URL - NO PROXY NEEDED (tested 2026-02-09)
+    // This endpoint is publicly accessible and returns 8,000+ meetings
     const jsonFeedUrl = 'https://data.aa-intergroup.org/6436f5a3f03fdecef8459055.json';
     const timestamp = Date.now();
     const targetUrl = `${jsonFeedUrl}?${timestamp}`;
     
-    const proxyUrl = buildProxyUrl(targetUrl);
+    // Use direct access (no proxy/ScraperAPI needed for this endpoint)
+    const fetchUrl = buildProxyUrl(targetUrl, false);
     
-    logger.info(`📡 Fetching AA JSON feed: ${jsonFeedUrl}`);
+    logger.info(`📡 Fetching AA JSON feed (direct access): ${jsonFeedUrl}`);
     
-    const response = await axios.get(proxyUrl, {
+    const response = await axios.get(fetchUrl, {
       timeout: 30000,
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
     });
     
@@ -148,12 +152,17 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
     
     let skippedInactive = 0;
     let skippedNoZoom = 0;
+    const skippedMeetings: { name: string; reason: string; zoomId?: string }[] = [];
     
     // Parse each meeting
     for (const meeting of data) {
       // Only include meetings with Zoom links
       if (!meeting.conference_url || !meeting.conference_url.includes('zoom.us')) {
         skippedNoZoom++;
+        skippedMeetings.push({
+          name: meeting.name || 'Unknown',
+          reason: 'No Zoom URL'
+        });
         continue;
       }
       
@@ -163,6 +172,11 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
       
       if (!zoomId) {
         skippedNoZoom++;
+        skippedMeetings.push({
+          name: meeting.name || 'Unknown',
+          reason: 'Could not extract Zoom ID',
+          zoomId: meeting.conference_url
+        });
         continue;
       }
       
@@ -173,6 +187,12 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
           const updatedDate = new Date(meeting.updated);
           if (updatedDate < twelveMonthsAgo) {
             skippedInactive++;
+            const monthsAgo = Math.floor((now.getTime() - updatedDate.getTime()) / (30 * 24 * 60 * 60 * 1000));
+            skippedMeetings.push({
+              name: meeting.name || 'Unknown',
+              reason: `Inactive (not updated in ${monthsAgo} months)`,
+              zoomId
+            });
             continue;
           }
         } catch (error) {
@@ -204,6 +224,15 @@ async function fetchAAMeetingGuideMeetings(): Promise<ExternalMeeting[]> {
     
     logger.info(`✅ Total AA meetings fetched: ${meetings.length} from OIAA`);
     logger.info(`   📊 Skipped ${skippedInactive} inactive meetings (not updated in 12+ months), ${skippedNoZoom} without Zoom links`);
+    
+    // Log sample of skipped meetings for debugging
+    if (skippedMeetings.length > 0) {
+      logger.info(`   🔍 Sample of skipped meetings (first 10):`);
+      skippedMeetings.slice(0, 10).forEach((skipped, index) => {
+        logger.info(`      ${index + 1}. ${skipped.name} - ${skipped.reason}${skipped.zoomId ? ` (ID: ${skipped.zoomId})` : ''}`);
+      });
+    }
+    
     return meetings;
     
   } catch (error: any) {
@@ -839,6 +868,8 @@ async function cleanupOldMeetings(): Promise<number> {
 
 /**
  * Main sync function - fetches from all sources and updates database
+ * 
+ * Monitoring: This function logs detailed metrics and sends alerts on failure
  */
 export async function syncAllMeetings(): Promise<{
   success: boolean;
@@ -852,12 +883,16 @@ export async function syncAllMeetings(): Promise<{
     inTheRooms: number;
   };
   errors?: string[];
+  duration?: number;
+  timestamp?: string;
 }> {
+  const startTime = Date.now();
   const errors: string[] = [];
   
   try {
     logger.info('🔄 ========================================');
     logger.info('🔄 Starting daily meeting sync...');
+    logger.info(`🔄 Timestamp: ${new Date().toISOString()}`);
     logger.info('🔄 ========================================');
     
     // Fetch from all sources in parallel
@@ -919,9 +954,33 @@ export async function syncAllMeetings(): Promise<{
     const cleanedCount = await cleanupOldMeetings();
     logger.info(`   ✅ Cleaned up ${cleanedCount} old meetings`);
     
+    const duration = Date.now() - startTime;
+    const durationSec = (duration / 1000).toFixed(2);
+    
     logger.info('🔄 ========================================');
     logger.info(`✅ Meeting sync complete: ${savedCount} saved, ${cleanedCount} cleaned`);
+    logger.info(`⏱️  Duration: ${durationSec} seconds`);
     logger.info('🔄 ========================================');
+    
+    // MONITORING: Alert if sync resulted in very few meetings (potential issue)
+    if (savedCount < 50) {
+      logger.error('⚠️  ALERT: Very few meetings synced!', {
+        savedCount,
+        fetched: allMeetings.length,
+        errors: errors.length,
+        sources: {
+          aa: aaMeetings.length,
+          na: naMeetings.length,
+          smart: smartMeetings.length,
+          inTheRooms: itrMeetings.length
+        }
+      });
+    }
+    
+    // MONITORING: Alert if any source completely failed
+    if (aaMeetings.length === 0) {
+      logger.error('⚠️  ALERT: AA meeting sync returned 0 meetings!');
+    }
     
     return {
       success: true,
@@ -934,10 +993,19 @@ export async function syncAllMeetings(): Promise<{
         smart: smartMeetings.length,
         inTheRooms: itrMeetings.length
       },
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
+      duration,
+      timestamp: new Date().toISOString()
     };
   } catch (error: any) {
+    const duration = Date.now() - startTime;
     logger.error('❌ Meeting sync failed with critical error:', error);
+    logger.error('⚠️  CRITICAL ALERT: Meeting sync completely failed!', {
+      error: error.message,
+      stack: error.stack,
+      duration: `${(duration / 1000).toFixed(2)}s`
+    });
+    
     errors.push(`Critical error: ${error.message}`);
     return {
       success: false,
@@ -950,7 +1018,9 @@ export async function syncAllMeetings(): Promise<{
         smart: 0,
         inTheRooms: 0
       },
-      errors
+      errors,
+      duration,
+      timestamp: new Date().toISOString()
     };
   }
 }
