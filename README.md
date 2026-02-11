@@ -1,5 +1,5 @@
-# ProofMeet - Digital Court Card System
-## Verifiable Attendance Tracking for Court-Ordered Meetings
+# ProofMeet - Digital Attendance Tracking System
+## Court-Verified Meeting Attendance for Recovery Programs
 
 [![Production Status](https://img.shields.io/badge/status-production-brightgreen)](https://proof-meet-frontend.vercel.app)
 [![Backend](https://img.shields.io/badge/backend-railway-blue)](https://proofmeet-backend-production.up.railway.app)
@@ -7,21 +7,21 @@
 
 ---
 
-## 🎯 Overview
+## Overview
 
-**ProofMeet** is a fully digitized court card system for tracking attendance at AA/NA meetings and other court-ordered programs. The system eliminates physical signatures in favor of cryptographically secure digital signatures, QR code verification, and blockchain-style chain of trust.
+**ProofMeet** is a digital attendance tracking system for court-ordered recovery meetings. The system provides verifiable, tamper-resistant proof of attendance for AA, NA, SMART Recovery, and other programs through direct Zoom integration.
 
-### Key Differentiators
-- ✅ **No Physical Signatures** - Fully digital, cryptographically secure
-- ✅ **QR Code Verification** - Instant validation by scanning
-- ✅ **Multi-Party Signing** - Participant + Host digital signatures
-- ✅ **Tamper-Proof** - Blockchain-inspired chain of trust
-- ✅ **Real-Time Tracking** - Zoom integration with webcam verification
-- ✅ **Court-Ready** - Professional PDFs with all verification data
+### Key Features
+- Real-time attendance tracking via Zoom webhooks
+- 1,800+ recovery meetings from AA, NA, and other programs
+- Automated court card generation with detailed metrics
+- PDF downloads for court submission
+- Court representative dashboard for compliance monitoring
+- Tamper-resistant attendance records
 
 ---
 
-## 🚀 Live System
+## Live System
 
 ### Production URLs
 - **Frontend**: https://proof-meet-frontend.vercel.app
@@ -29,117 +29,69 @@
 - **Health Check**: https://proofmeet-backend-production.up.railway.app/health
 
 ### Quick Start
-1. **Visit**: https://proof-meet-frontend.vercel.app
-2. **Register** as Court Representative, Participant, or Host
-3. **Create/Join Meetings** via Zoom integration
-4. **Sign Court Cards** with digital signatures
-5. **Download/Verify** via QR codes
+1. Visit https://proof-meet-frontend.vercel.app
+2. Register as Court Representative or Participant
+3. Search and join recovery meetings or create test meetings
+4. Attendance is tracked automatically via Zoom
+5. Download court cards with detailed attendance metrics
 
 ---
 
-## ✨ Features
+## Features
 
-### 1. Digital Court Cards
-- **Automated Generation** - Court cards created automatically after meeting completion
-- **Unique Card Numbers** - Sequential, trackable identifiers
-- **QR Code Embedded** - Scannable verification on every card
-- **Professional Format** - Court-acceptable PDF format
-- **Digital Signatures** - Cryptographically secure (RSA-2048)
+### 1. Recovery Meeting Directory
+- **1,800+ Live Meetings**: Automatically synced from AA-Intergroup, BMLT, and other sources
+- **Daily Updates**: Meeting database refreshes daily at 2 AM
+- **Smart Search**: Filter by program (AA, NA, SMART), day, time, and Zoom ID
+- **Direct Join**: One-click join with automatic attendance tracking
 
 ### 2. Attendance Tracking
-- **Zoom Integration** - Real-time join/leave tracking via webhooks
-- **Duration Calculation** - Precise timing from Zoom's servers
-- **Punctuality Detection** - Tracks late joins and early departures
-- **Leave/Rejoin Timeline** - Complete audit trail of all disconnections
-- **Activity Monitoring** - Browser engagement scoring (optional)
-- **Video Status Tracking** - Camera on/off monitoring (Zoom Business+)*
-- **Validation Rules** - 80% attendance + engagement scoring
-- **Fraud Detection** - Multi-layer verification system
+- **Zoom Integration**: Real-time join/leave tracking via secure webhooks
+- **Precise Timing**: Duration calculated from Zoom's servers
+- **Engagement Metrics**: Active vs. idle time monitoring
+- **Leave/Rejoin Tracking**: Complete timeline of all participant activity
+- **Validation Rules**: 80% attendance threshold for compliance
+- **Fraud Detection**: Multi-layer verification system
 
-*_Video tracking code is implemented and ready - requires Zoom Business account upgrade to activate. See `ZOOM_VIDEO_TRACKING_UPGRADE_GUIDE.md` for details._
+### 3. Court Cards
+- **Automatic Generation**: Court cards created immediately after meeting completion
+- **Detailed Metrics**: Join time, leave time, duration, attendance percentage
+- **Professional Format**: Court-acceptable PDF format
+- **Compliance Status**: Pass/Fail based on configurable thresholds
+- **Violation Tracking**: Critical and warning-level flags for review
 
-### 3. Digital Signatures
-- **Participant Signing** - Password-authenticated digital signature
-- **Host Signing** - Unique email link with verification
-- **Court Rep Review** - Optional approval/rejection workflow
-- **Chain of Trust** - Cryptographic linking of all signatures
-- **Timestamping** - Trusted timestamps for all actions
-
-### 4. Verification System
-- **QR Code Scanning** - Instant verification from any device
-- **Public Verification Portal** - No login required to verify
-- **Signature Details** - See all signers and timestamps
-- **Audit Trail** - Complete history of all actions
-- **Hash Verification** - Cryptographic proof of authenticity
-
-### 5. User Dashboards
+### 4. User Dashboards
 
 **Court Representatives:**
 - Create test meetings with Zoom integration
-- Manage participants and their requirements
-- View real-time attendance and compliance
+- Manage participants and compliance requirements
+- View real-time attendance and compliance data
 - Download participant court cards
-- Sync latest data on demand
+- Monitor multiple participants simultaneously
 
 **Participants:**
-- View meeting attendance history
-- Sign own court cards with password
-- Request host signatures
-- Download verified court cards
-- Track compliance status
+- Search 1,800+ available recovery meetings
+- Join meetings with one click
+- View attendance history and compliance status
+- Download court cards as PDFs
+- Track progress toward requirements
 
 **Meeting Hosts:**
-- Receive signature requests via email
-- Review attendance details
-- Sign court cards via unique link
-- No special account required
+- View attendance for hosted meetings
+- Monitor participant engagement
+- Access compliance reports
 
 ---
 
-## 🎥 Video Status Tracking (Enterprise Feature)
-
-### **Status:** ✅ Code Implemented | ⏳ Requires Zoom Business Account
-
-ProofMeet includes **advanced video tracking capability** that monitors when participants turn their cameras on/off during meetings. This feature is **fully implemented and production-ready**, but requires a Zoom Business or Enterprise account to activate.
-
-#### **What Video Tracking Provides:**
-- **Camera On Percentage:** Track % of meeting time with camera active
-- **Camera Off Timeline:** Detailed record of when camera was turned off
-- **Visual Presence Verification:** Enhanced engagement metrics
-- **Court-Admissible Proof:** Third-party verified by Zoom
-
-#### **Current System (Without Video Tracking):**
-✅ Fully operational and court-admissible  
-✅ Join/leave timestamps (Zoom verified)  
-✅ Duration calculation (precise to the second)  
-✅ Punctuality and leave/rejoin tracking  
-✅ Browser activity monitoring  
-✅ Fraud detection
-
-#### **Enhanced System (With Video Tracking):**
-All current features **PLUS** camera on/off status, video engagement %, and visual presence timeline.
-
-#### **Activation:**
-- **Time Required:** 5 minutes after Zoom upgrade
-- **Code Changes:** Zero - already implemented
-- **Cost:** ~$50-100/year per host (Business plan upgrade)
-- **Documentation:** See `ZOOM_VIDEO_TRACKING_UPGRADE_GUIDE.md`
-
-**Note:** Video tracking is a strategic enhancement, not a requirement. The current system provides comprehensive, court-admissible tracking without it.
-
----
-
-## 🏗️ Architecture
+## Architecture
 
 ### Tech Stack
 - **Frontend**: React 18 + TypeScript + Material-UI + Vite
 - **Backend**: Node.js + Express + TypeScript + Prisma ORM
 - **Database**: PostgreSQL (Railway)
-- **Authentication**: JWT + bcrypt (512-bit secret)
-- **Video**: Zoom SDK/Webhooks
-- **Crypto**: RSA-2048 digital signatures, SHA-256 hashing
-- **QR Codes**: QRCode library with base64 encoding
-- **PDF**: HTML-to-PDF generation with embedded QR codes
+- **Authentication**: JWT + bcrypt
+- **Video Integration**: Zoom SDK & Webhooks
+- **Meeting Sync**: Automated daily sync from external sources
 
 ### Deployment
 - **Frontend**: Vercel (auto-deploy from main branch)
@@ -147,40 +99,39 @@ All current features **PLUS** camera on/off status, video engagement %, and visu
 - **Database**: Railway PostgreSQL with automatic backups
 
 ### Security Features
-- 🔒 Helmet.js for HTTP security headers
-- 🔒 CORS with whitelisted origins
-- 🔒 Rate limiting (tiered by endpoint)
-- 🔒 JWT authentication with refresh tokens
-- 🔒 bcrypt password hashing
-- 🔒 Environment variable encryption
-- 🔒 SQL injection prevention (Prisma)
-- 🔒 XSS protection
-- 🔒 CSRF tokens
+- Helmet.js for HTTP security headers
+- CORS with whitelisted origins
+- Rate limiting (tiered by endpoint)
+- JWT authentication with refresh tokens
+- bcrypt password hashing
+- Environment variable encryption
+- SQL injection prevention (Prisma ORM)
+- XSS protection
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 ProofMeet/
 ├── frontend/                      # React frontend (Vercel)
 │   ├── src/
 │   │   ├── pages/                 # Dashboard pages
+│   │   │   ├── MeetingPage.tsx
 │   │   │   ├── CourtRepDashboardPage.tsx
 │   │   │   ├── ParticipantDashboardPage.tsx
-│   │   │   ├── ParticipantProgressPage.tsx
-│   │   │   ├── VerificationPage.tsx
-│   │   │   └── PublicVerificationSearchPage.tsx
+│   │   │   ├── ActiveMeetingPage.tsx
+│   │   │   └── VerificationPage.tsx
 │   │   ├── components/            # Reusable UI components
-│   │   │   ├── SignCourtCardDialog.tsx
-│   │   │   ├── RequestHostSignatureDialog.tsx
-│   │   │   ├── ActivityMonitor.tsx
+│   │   │   ├── CourtCardViewer.tsx
 │   │   │   └── ProtectedRoute.tsx
 │   │   ├── services/              # API integration
 │   │   │   ├── authService-v2.ts
-│   │   │   └── aaIntergroupService.ts
+│   │   │   ├── aaIntergroupService.ts
+│   │   │   └── websocketService.ts
 │   │   └── hooks/                 # Custom hooks
-│   │       └── useAuthStore-v2.ts
+│   │       ├── useAuthStore-v2.ts
+│   │       └── useWebSocket.ts
 │   └── vercel.json                # Vercel config
 │
 ├── backend/                       # Node.js backend (Railway)
@@ -190,17 +141,16 @@ ProofMeet/
 │   │   │   ├── court-rep.ts       # Court Rep operations
 │   │   │   ├── participant.ts     # Participant operations
 │   │   │   ├── verification.ts    # Public verification
-│   │   │   ├── verification-photos.ts  # Photo/signature handling
+│   │   │   ├── admin.ts           # Admin/monitoring
 │   │   │   └── zoom-webhooks.ts   # Zoom integration
 │   │   ├── services/              # Business logic
-│   │   │   ├── digitalSignatureService.ts  # RSA signing, QR codes
+│   │   │   ├── meetingSyncService.ts      # External meeting sync
 │   │   │   ├── courtCardService.ts        # Court card generation
-│   │   │   ├── attendanceLedger.ts        # Immutable audit log
-│   │   │   ├── fraudDetection.ts          # Fraud prevention
-│   │   │   ├── engagementDetection.ts     # Active/idle tracking
-│   │   │   ├── webcamVerification.ts      # Identity verification
-│   │   │   ├── pdfGenerator.ts            # PDF generation
+│   │   │   ├── activityTrackingService.ts # Engagement tracking
+│   │   │   ├── syncMonitoringService.ts   # Sync health monitoring
+│   │   │   ├── cronService.ts             # Scheduled tasks
 │   │   │   ├── zoomService.ts             # Zoom API
+│   │   │   ├── pdfGenerator.ts            # PDF generation
 │   │   │   └── emailService.ts            # Email notifications
 │   │   ├── middleware/            # Express middleware
 │   │   │   ├── auth.ts            # JWT verification
@@ -209,12 +159,11 @@ ProofMeet/
 │   │       └── logger.ts          # Winston logging
 │   ├── prisma/                    # Database
 │   │   ├── schema.prisma          # Data models
-│   │   ├── migrations/            # Version-controlled migrations
-│   │   └── seed.ts                # Test data
-│   ├── scripts/                   # Utility scripts
-│   │   ├── update-court-card-qr-codes.ts
-│   │   └── clear-attendance-data.ts
-│   └── railway.json               # Railway config
+│   │   └── migrations/            # Version-controlled migrations
+│   └── scripts/                   # Utility scripts
+│       ├── diagnose-missing-meeting.ts
+│       ├── sync-aa-intergroup.ts
+│       └── add-meeting-interactive.ts
 │
 ├── docs/                          # Documentation
 │   ├── API_DOCUMENTATION.md       # API reference
@@ -225,31 +174,32 @@ ProofMeet/
 │   ├── TRACKING_AND_VALIDATION_RULES.md # Compliance rules
 │   └── archive/                   # Historical documentation
 │
-├── CHANGELOG.md                   # Recent changes & fixes
-├── SECURITY.md                    # Security considerations
-├── FIELD_TESTING_MANUAL_V2.pdf    # Field testing manual (PDF)
+├── CHANGELOG.md                   # Version history & recent changes
+├── SECURITY.md                    # Security policy & best practices
+├── FIELD_USER_GUIDE.md            # Field testing guide
+├── SYSTEM_MEMORY_BANK.md          # System architecture knowledge
 ├── docker-compose.yml             # Local development
 └── README.md                      # This file
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### For Field Testers
-📄 **See [FIELD_TESTING_GUIDE.pdf](FIELD_TESTING_GUIDE.pdf)** for complete step-by-step instructions.
+See [FIELD_USER_GUIDE.md](FIELD_USER_GUIDE.md) for complete step-by-step testing instructions.
 
 **Quick Summary:**
 1. Login to https://proof-meet-frontend.vercel.app
-2. Court Reps: Create meetings, manage participants
-3. Participants: Join meetings, sign court cards
-4. Hosts: Sign court cards via email
-5. Everyone: Download/verify court cards with QR codes
+2. Court Reps: Create test meetings, manage participants
+3. Participants: Search and join recovery meetings
+4. Attendance tracked automatically via Zoom
+5. Download court cards with attendance metrics
 
 ### For Developers
 
 #### Prerequisites
-- Node.js 18+ 
+- Node.js 18+
 - PostgreSQL 14+
 - Git
 - Zoom Developer Account (for meeting integration)
@@ -297,6 +247,7 @@ FRONTEND_URL=http://localhost:5173
 ZOOM_ACCOUNT_ID=your-zoom-account-id
 ZOOM_CLIENT_ID=your-zoom-client-id
 ZOOM_CLIENT_SECRET=your-zoom-client-secret
+SCRAPERAPI_KEY=optional-for-some-meeting-sources
 ```
 
 **Frontend (.env)**
@@ -306,136 +257,141 @@ VITE_API_BASE_URL=http://localhost:5000/api
 
 ---
 
-## 📖 Documentation
+## Documentation
 
-### 📘 For Users
+### For Users
 - **[User Guide](docs/USER_GUIDE.md)** - End-user manual for participants and court reps
-- **[Field Testing Guide](FIELD_TESTING_MANUAL_V2.pdf)** - PDF manual for field testers
+- **[Field Testing Guide](FIELD_USER_GUIDE.md)** - Testing instructions for external users
 
-### 👨‍💻 For Developers
+### For Developers
 - **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - Complete development setup
-- **[Backend Setup](backend/README.md)** - Backend-specific setup & database
 - **[API Documentation](docs/API_DOCUMENTATION.md)** - REST API reference
 - **[Architecture Overview](docs/FIELD_READY_SYSTEM_SUMMARY.md)** - System design & tracking
+- **[Backend Setup](backend/README.md)** - Backend-specific setup & database
 
-### 🔧 Setup & Integration
+### Setup & Integration
 - **[AA Meeting Integration](docs/AA_MEETING_INTEGRATION.md)** - External meeting sync setup
-- **[Troubleshooting](docs/TRACKING_AND_VALIDATION_RULES.md)** - Common issues & validation rules
+- **[Tracking Rules](docs/TRACKING_AND_VALIDATION_RULES.md)** - Validation rules & troubleshooting
+- **[System Memory Bank](SYSTEM_MEMORY_BANK.md)** - System architecture knowledge
 
-### 📚 Additional Resources
-- **[Changelog](CHANGELOG.md)** - Recent changes & fixes
+### Additional Resources
+- **[Changelog](CHANGELOG.md)** - Recent changes & version history
 - **[Security](SECURITY.md)** - Security audit & best practices
 
 ---
 
-## 🔧 How It Works
+## How It Works
 
 ### Complete Workflow
 
-#### 1. Meeting Creation (Court Rep)
+#### 1. Meeting Discovery
 ```
-Court Rep → Create Meeting → Generates Zoom Link → Share with Participants
-```
-
-#### 2. Meeting Attendance (Participant)
-```
-Participant → Join Zoom → System Tracks:
-  - Join/leave times
-  - Active vs. idle time
-  - Webcam snapshots (verification)
-  - Engagement metrics
+Participant → Browse Meetings → Filter by Program/Day/Time → View 1,800+ options
 ```
 
-#### 3. Validation (Automatic)
+#### 2. Meeting Join
+```
+Participant → Click "Join" → Tracking starts → Click Zoom link → Join meeting
+```
+
+#### 3. Attendance Tracking (Automatic via Zoom)
+```
+Zoom Webhooks → Track:
+  - Join time (precise timestamp)
+  - Leave time
+  - Active duration
+  - Idle periods
+  - Leave/rejoin events
+```
+
+#### 4. Validation (Automatic)
 ```
 Meeting Ends → System Validates:
   ✅ 80%+ attendance required
-  ✅ 80%+ active time required
-  ✅ 20% max idle time
-  → Status: VALID or NEEDS_ATTENTION
+  ✅ 80%+ active time
+  ✅ Maximum 20% idle time
+  → Status: PASSED or FAILED
 ```
 
-#### 4. Court Card Generation (Automatic)
+#### 5. Court Card Generation (Automatic)
 ```
 Validation Complete → Generate Court Card:
   - Unique card number
-  - Meeting details
-  - Attendance data
-  - QR code image
-  - Verification URL
+  - Meeting details (name, program, date)
+  - Attendance metrics (duration, percentage)
+  - Compliance status (PASSED/FAILED)
+  - Violations (if any)
 ```
 
-#### 5. Digital Signing (Manual)
+#### 6. Download & Submit
 ```
-Participant → Signs with password → Digital signature added
-Participant → Requests host signature → Email sent to host
-Host → Clicks email link → Reviews → Signs digitally
-```
-
-#### 6. Verification (Public)
-```
-Anyone → Scans QR code → Public verification page shows:
-  - All meeting details
-  - Both signatures (participant + host)
-  - Validation status
-  - Cryptographic hash
-  - Chain of trust
+Participant → View Court Card → Download PDF → Submit to court
+Court Rep → Review all participant cards → Monitor compliance
 ```
 
 ---
 
-## 🎯 Key Technologies
+## External Meeting Sync
 
-### Digital Signatures
-- **Algorithm**: RSA-2048
-- **Hashing**: SHA-256
-- **Storage**: JSON in PostgreSQL
-- **Verification**: Public key cryptography
-- **Timestamping**: Trusted timestamps with each signature
+### How We Get Meetings
 
-### QR Codes
-- **Format**: Base64-encoded PNG
-- **Content**: Verification URL with court card ID
-- **Generation**: QRCode library
-- **Embedding**: Direct in HTML/PDF
+**AA Meetings:**
+- Source: `https://data.aa-intergroup.org/`
+- Method: Direct JSON API access (no proxy needed)
+- Frequency: Daily sync at 2 AM
+- Volume: ~8,000 meetings fetched, ~1,500 active Zoom meetings saved
 
-### Blockchain-Style Features
-- **Chain of Trust**: Each signature references previous signatures
-- **Immutable Ledger**: Attendance events cannot be modified
-- **Hash Linking**: Cryptographic hashes link all records
-- **Audit Trail**: Complete history of all actions
+**NA Meetings:**
+- Source: BMLT (Basic Meeting List Toolbox) servers
+- Method: BMLT API with virtual meeting filter
+- Frequency: Daily sync at 2 AM
+- Volume: Variable (depends on BMLT availability)
+
+**Sync Process:**
+1. Fetch meetings from all sources in parallel
+2. Filter to only Zoom meetings with valid IDs
+3. Remove inactive meetings (not updated in 12+ months)
+4. Save to database with `hasProofCapability = true`
+5. Clean up old/stale meetings
+6. Monitor sync health with alerts
+
+**Monitoring:**
+- `/api/admin/sync-health` - Check sync status
+- `/api/admin/sync-statistics` - View meeting counts
+- `/api/admin/check-meeting/:zoomId` - Verify specific meeting
+- Critical alerts if sync fails or returns <50 meetings
 
 ---
 
-## 📊 Current Status
+## Current Status
 
-### ✅ Production Ready
+### Production Ready
 - User registration and authentication
-- Court rep dashboard with meeting creation
-- Participant dashboard with progress tracking
+- Court rep dashboard with test meeting creation
+- Participant dashboard with meeting search
+- 1,800+ recovery meeting directory
 - Zoom integration with real-time tracking
-- Webcam verification and activity monitoring
-- Automatic court card generation
-- Digital signature system (participant + host)
-- QR code generation and verification
-- Public verification portal
+- Automated daily meeting sync
+- Automatic court card generation with detailed metrics
 - PDF court card downloads
+- Public verification portal
+- Sync health monitoring and alerts
 
-### 🚧 In Progress
-- SMS notifications for signatures
+### In Progress
+- SMS notifications for court reps
 - Mobile app (React Native)
 - Bulk court card downloads
-- Advanced reporting dashboard
+- Advanced analytics dashboard
 
-### 📅 Planned
+### Planned
 - Multi-language support
 - Integration with court case management systems
-- In-person meeting QR code check-in
-- Offline mode for participants
+- In-person meeting check-in
+- Participant mobile app
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please follow these guidelines:
 
@@ -454,11 +410,11 @@ We welcome contributions! Please follow these guidelines:
 
 ---
 
-## 📞 Support
+## Support
 
 ### For Field Testers
 - **Email**: leondelange001@gmail.com | Kevinrichardson.za@gmail.com
-- **Documentation**: See [FIELD_TESTING_GUIDE.pdf](FIELD_TESTING_GUIDE.pdf)
+- **Documentation**: See [FIELD_USER_GUIDE.md](FIELD_USER_GUIDE.md)
 
 ### For Developers
 - **Issues**: [GitHub Issues](https://github.com/Leondelange012/ProofMeet/issues)
@@ -467,16 +423,17 @@ We welcome contributions! Please follow these guidelines:
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **AA Intergroup** - Meeting directory and data
-- **Zoom** - Video conferencing API
+- **BMLT** - NA meeting data
+- **Zoom** - Video conferencing API and webhooks
 - **Vercel** - Frontend hosting
 - **Railway** - Backend and database hosting
 - **Prisma** - Database ORM
@@ -484,25 +441,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 🔐 Security & Privacy
+## Security & Privacy
 
 ### Data Protection
-- ✅ Minimal data collection (email, case number only)
-- ✅ Encrypted at rest and in transit
-- ✅ No participant names shared with other attendees
-- ✅ Audit trails for all actions
-- ✅ Secure password storage (bcrypt)
-- ✅ JWT tokens with expiration
+- Minimal data collection (email, case number only)
+- Encrypted at rest and in transit
+- No participant names shared with other attendees
+- Audit trails for all actions
+- Secure password storage (bcrypt)
+- JWT tokens with expiration
 
 ### Compliance
-- ✅ GDPR-friendly (minimal PII)
-- ✅ HIPAA-aware (no health data collected)
-- ✅ Court-acceptable documentation
-- ✅ Tamper-proof records
-- ✅ Digital signature legal compliance
+- GDPR-friendly (minimal PII)
+- HIPAA-aware (no health data collected)
+- Court-acceptable documentation
+- Tamper-resistant attendance records
 
 ---
 
-**ProofMeet** - Digital Court Cards for the Modern Era
+**ProofMeet** - Verified Attendance Tracking for Recovery Programs
 
-*Eliminating physical signatures. Ensuring authenticity. Streamlining compliance.*
+*Providing court-verifiable proof of meeting attendance through secure Zoom integration.*
