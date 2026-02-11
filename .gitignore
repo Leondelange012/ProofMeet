@@ -84,3 +84,7 @@ jspm_packages/
 
 # DynamoDB Local files
 .dynamodb/
+
+# Local-only technical documentation (not for GitHub)
+TECHNICAL_REFERENCE_GUIDE.md
+REPOSITORY_CLEANUP_SUMMARY.md
